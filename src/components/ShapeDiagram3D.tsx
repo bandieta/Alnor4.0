@@ -200,11 +200,19 @@ const AutoRotate: React.FC<{ groupRef: React.RefObject<THREE.Group | null>; enab
   return null;
 };
 
+/* Force continuous rendering — prevents canvas from going blank */
+const KeepAlive = () => {
+  useFrame(() => {
+    // no-op: keeps the R3F render loop active
+  });
+  return null;
+};
+
 const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
   const groupRef = useRef<THREE.Group>(null);
   const modalGroupRef = useRef<THREE.Group>(null);
   const [showDimensions, setShowDimensions] = useState(true);
-  const [autoRotate, setAutoRotate] = useState(false);
+  const [autoRotate, setAutoRotate] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
   if (symbol !== 'QDa') {
@@ -223,32 +231,6 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
   const l = values[2] || 500;
   const maxDim = Math.max(a, b, l, 1);
 
-  const sceneContent = (gRef: React.RefObject<THREE.Group | null>) => (
-    <>
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[5, 5, 5]} intensity={1.0} />
-      <directionalLight position={[-4, 3, -2]} intensity={0.5} />
-      <directionalLight position={[0, -3, 4]} intensity={0.25} />
-      <OrbitControls
-        enableDamping
-        dampingFactor={0.06}
-        rotateSpeed={0.7}
-        zoomSpeed={0.8}
-        minDistance={1.2}
-        maxDistance={8}
-        enablePan={false}
-      />
-      <group ref={gRef}>
-        <DuctMesh a={a} b={b} l={l} />
-        <Flange a={a} b={b} l={l} maxDim={maxDim} side="front" />
-        <Flange a={a} b={b} l={l} maxDim={maxDim} side="back" />
-        {showDimensions && <DimensionLabels a={a} b={b} l={l} />}
-      </group>
-      <AutoRotate groupRef={gRef} enabled={autoRotate} />
-      <Environment preset="city" />
-    </>
-  );
-
   return (
     <>
     <div className="shape-3d-container">
@@ -261,10 +243,25 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
       </div>
       <div className="shape-3d-canvas-wrapper">
         <Canvas
+          frameloop="always"
+          gl={{ preserveDrawingBuffer: true, antialias: true }}
           camera={{ position: [2.2, 1.6, 2.2], fov: 40, near: 0.1, far: 100 }}
           style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: 8 }}
         >
-          {sceneContent(groupRef)}
+          <KeepAlive />
+          <ambientLight intensity={0.35} />
+          <directionalLight position={[5, 5, 5]} intensity={1.0} />
+          <directionalLight position={[-4, 3, -2]} intensity={0.5} />
+          <directionalLight position={[0, -3, 4]} intensity={0.25} />
+          <OrbitControls enableDamping dampingFactor={0.06} rotateSpeed={0.7} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} enablePan={false} />
+          <group ref={groupRef}>
+            <DuctMesh a={a} b={b} l={l} />
+            <Flange a={a} b={b} l={l} maxDim={maxDim} side="front" />
+            <Flange a={a} b={b} l={l} maxDim={maxDim} side="back" />
+            {showDimensions && <DimensionLabels a={a} b={b} l={l} />}
+          </group>
+          <AutoRotate groupRef={groupRef} enabled={autoRotate} />
+          <Environment preset="city" />
         </Canvas>
       </div>
       <div className="shape-3d-toggles">
@@ -322,10 +319,25 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
           </div>
           <div className="shape-3d-modal-canvas">
             <Canvas
+              frameloop="always"
+              gl={{ preserveDrawingBuffer: true, antialias: true }}
               camera={{ position: [2.2, 1.6, 2.2], fov: 35, near: 0.1, far: 100 }}
               style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: '0 0 8px 8px' }}
             >
-              {sceneContent(modalGroupRef)}
+              <KeepAlive />
+              <ambientLight intensity={0.35} />
+              <directionalLight position={[5, 5, 5]} intensity={1.0} />
+              <directionalLight position={[-4, 3, -2]} intensity={0.5} />
+              <directionalLight position={[0, -3, 4]} intensity={0.25} />
+              <OrbitControls enableDamping dampingFactor={0.06} rotateSpeed={0.7} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} enablePan={false} />
+              <group ref={modalGroupRef}>
+                <DuctMesh a={a} b={b} l={l} />
+                <Flange a={a} b={b} l={l} maxDim={maxDim} side="front" />
+                <Flange a={a} b={b} l={l} maxDim={maxDim} side="back" />
+                {showDimensions && <DimensionLabels a={a} b={b} l={l} />}
+              </group>
+              <AutoRotate groupRef={modalGroupRef} enabled={autoRotate} />
+              <Environment preset="city" />
             </Canvas>
           </div>
         </div>

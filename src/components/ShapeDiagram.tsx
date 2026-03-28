@@ -406,11 +406,11 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     <div className="shape-diagram">
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
         <defs>
-          <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
-            <polygon points="0 0, 6 2, 0 4" fill="#555555" />
+          <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto">
+            <polygon points="0 0, 8 2.5, 0 5" fill="#555555" />
           </marker>
-          <marker id="arrowhead-start" markerWidth="6" markerHeight="4" refX="0" refY="2" orient="auto-start-reverse">
-            <polygon points="6 0, 0 2, 6 4" fill="#555555" />
+          <marker id="arrowhead-start" markerWidth="8" markerHeight="5" refX="0" refY="2.5" orient="auto">
+            <polygon points="8 0, 0 2.5, 8 5" fill="#555555" />
           </marker>
         </defs>
         {renderShape()}

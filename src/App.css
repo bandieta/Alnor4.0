@@ -223,11 +223,12 @@ body {
 
 .diagrams-row .shape-3d-container {
   margin-top: 0;
+  flex: 0 0 320px;
 }
 
 .diagrams-row .shape-3d-canvas-wrapper {
   height: 220px;
-  min-width: 260px;
+  width: 320px;
 }
 
 .diagrams-row .shape-diagram {

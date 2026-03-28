@@ -1,11 +1,11 @@
-import { useState, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Toolbar from './components/Toolbar';
 import ShapeList from './components/ShapeList';
 import DimensionInputs from './components/DimensionInputs';
 import type { ValidationError } from './components/DimensionInputs';
 import PropertiesPanel from './components/PropertiesPanel';
 import ShapeDiagram from './components/ShapeDiagram';
-const ShapeDiagram3D = lazy(() => import('./components/ShapeDiagram3D'));
+import ShapeDiagram3D from './components/ShapeDiagram3D';
 import DataGrid from './components/DataGrid';
 import {
   SHAPE_DEFINITIONS,
@@ -65,6 +65,9 @@ function App() {
 
   // Validation highlight trigger
   const [showValidation, setShowValidation] = useState(false);
+
+  // Editing mode — stores the row ID being edited
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
 
   // Get current shape definition
   const currentShape = useMemo(
@@ -218,14 +221,22 @@ function App() {
       ksztaltka: ksztaltka,
     };
 
-    setGridRows((prev) => [...prev, newRow]);
-    setNextOznaczenie((prev) => prev + 1);
-    setOznaczenie(String(nextOznaczenie + 1));
+    if (editingRowId) {
+      // Update existing row in place
+      setGridRows((prev) =>
+        prev.map((r) => (r.id === editingRowId ? { ...newRow, id: editingRowId } : r))
+      );
+      setEditingRowId(null);
+    } else {
+      setGridRows((prev) => [...prev, newRow]);
+      setNextOznaczenie((prev) => prev + 1);
+      setOznaczenie(String(nextOznaczenie + 1));
+    }
   }, [
     validationErrors, dimensionValues, selectedSymbol, oznaczenie, shapeName, sztuk, uwagi,
     material, materialType, blacha, wykonanie, klasaSzczelnosci, lwzmoc,
     ramkiWL, ramkiWYL, ramkiOd, systemType, fullSymbol, calculatedPrzekroj,
-    minM2, nextOznaczenie,
+    minM2, nextOznaczenie, editingRowId,
   ]);
 
   // Delete selected row
@@ -235,7 +246,7 @@ function App() {
     setSelectedRowId(null);
   }, [selectedRowId]);
 
-  // Edit selected row
+  // Edit selected row — load values into form, keep row in grid
   const handleEdit = useCallback(() => {
     if (!selectedRowId) return;
     const row = gridRows.find((r) => r.id === selectedRowId);
@@ -247,10 +258,7 @@ function App() {
     setSztuk(String(row.sztuk));
     setUwagi(row.uwagi);
     setMaterial(row.material);
-
-    // Remove the row (will re-add after editing)
-    setGridRows((prev) => prev.filter((r) => r.id !== selectedRowId));
-    setSelectedRowId(null);
+    setEditingRowId(selectedRowId);
   }, [selectedRowId, gridRows]);
 
   // Insert after selected
@@ -388,12 +396,10 @@ function App() {
           <div className="editor-panel">
             {/* Row 1: 3D + 2D diagrams side by side */}
             <div className="diagrams-row">
-              <Suspense fallback={<div className="shape-3d-placeholder">Ładowanie 3D...</div>}>
-                <ShapeDiagram3D
-                  symbol={selectedSymbol}
-                  values={dimensionValues.map((v) => parseFloat(v) || 0)}
-                />
-              </Suspense>
+              <ShapeDiagram3D
+                symbol={selectedSymbol}
+                values={dimensionValues.map((v) => parseFloat(v) || 0)}
+              />
               <ShapeDiagram
                 symbol={selectedSymbol}
                 values={dimensionValues.map((v) => parseFloat(v) || 0)}
@@ -505,9 +511,9 @@ function App() {
                 className="min-m2-input"
               />
             </span>
-            <button className="btn btn-action" onClick={handleAdd}>Dodaj</button>
+            <button className="btn btn-action" onClick={handleAdd}>{editingRowId ? 'Zapisz' : 'Dodaj'}</button>
             <button className="btn btn-danger" onClick={handleDelete}>Usuń</button>
-            <button className="btn btn-action" onClick={handleEdit}>Edytuj</button>
+            <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId}>Edytuj</button>
             <button className="btn btn-action" onClick={handleInsertAfter}>Wstaw za ...</button>
             <button className="btn btn-kot">KOT</button>
           </div>
