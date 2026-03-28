@@ -450,13 +450,10 @@ function App() {
                   />
                 </div>
                 <div className="summary-row">
-                  <label>m2</label>
-                  <input
-                    type="text"
-                    value={calculatedArea.toFixed(2)}
-                    readOnly
-                    className="summary-input"
-                  />
+                  <label>m²</label>
+                  <span className="summary-input summary-input-readonly">
+                    {calculatedArea.toFixed(2)}
+                  </span>
                 </div>
                 <div className="summary-row">
                   <label>Uwagi</label>
