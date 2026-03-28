@@ -218,23 +218,33 @@ body {
 .diagrams-row {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .diagrams-row .shape-3d-container {
   margin-top: 0;
-  flex: 0 0 320px;
+  flex: 0 0 380px;
+  display: flex;
+  flex-direction: column;
 }
 
 .diagrams-row .shape-3d-canvas-wrapper {
-  height: 220px;
-  width: 320px;
+  height: 280px;
+  width: 380px;
+  flex: 1;
 }
 
 .diagrams-row .shape-diagram {
   flex: 1;
-  min-width: 280px;
-  max-width: 420px;
+  min-width: 320px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+}
+
+.diagrams-row .shape-diagram svg {
+  flex: 1;
+  min-height: 200px;
 }
 
 .shape-diagram {

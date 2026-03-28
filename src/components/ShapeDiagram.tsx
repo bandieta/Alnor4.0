@@ -80,22 +80,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* Left flange */}
         <line x1={sideX} y1={sideY - p} x2={sideX} y2={sideY + sb + p}
           stroke="#004290" strokeWidth={2.2} />
-        {/* Left flange cap top */}
-        <line x1={sideX - p} y1={sideY - p} x2={sideX + p} y2={sideY - p}
-          stroke="#004290" strokeWidth={1.5} />
-        {/* Left flange cap bottom */}
-        <line x1={sideX - p} y1={sideY + sb + p} x2={sideX + p} y2={sideY + sb + p}
-          stroke="#004290" strokeWidth={1.5} />
 
         {/* Right flange */}
         <line x1={sideX + sl} y1={sideY - p} x2={sideX + sl} y2={sideY + sb + p}
           stroke="#004290" strokeWidth={2.2} />
-        {/* Right flange cap top */}
-        <line x1={sideX + sl - p} y1={sideY - p} x2={sideX + sl + p} y2={sideY - p}
-          stroke="#004290" strokeWidth={1.5} />
-        {/* Right flange cap bottom */}
-        <line x1={sideX + sl - p} y1={sideY + sb + p} x2={sideX + sl + p} y2={sideY + sb + p}
-          stroke="#004290" strokeWidth={1.5} />
 
         {/* L dimension line (below side view) */}
         <line x1={sideX} y1={sideY + sb + p + 15} x2={sideX + sl} y2={sideY + sb + p + 15}
@@ -130,21 +118,106 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     );
   };
 
-  const renderSymmetricBend = () => (
-    <g>
-      {/* Bend path */}
-      <path d="M 60,140 L 60,80 Q 60,30 110,30 L 300,30" fill="none" stroke="#004290" strokeWidth={2} />
-      <path d="M 90,140 L 90,80 Q 90,60 110,60 L 300,60" fill="none" stroke="#004290" strokeWidth={2} />
-      {/* a label */}
-      <line x1={40} y1={140} x2={40} y2={80} stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-      <text x={30} y={110} textAnchor="middle" fontSize={11} fill="#555555">a</text>
-      {/* b label */}
-      <line x1={110} y1={15} x2={300} y2={15} stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-      <text x={205} y={12} textAnchor="middle" fontSize={11} fill="#555555">b</text>
-      {/* r label */}
-      <text x={95} y={50} fontSize={11} fill="#555555">r</text>
-    </g>
-  );
+  const renderSymmetricBend = () => {
+    // QBa: 90° symmetric bend — parameters: a (width), b (duct depth), e (top leg), f (left leg), r (inner radius)
+    const b = values[1] || 200;
+    const e = values[2] || 150;
+    const f = values[3] || 150;
+    const r = values[4] || 200;
+
+    // Scale to fit viewport with label margins
+    // Vertical extent (relative to arc center): up = e + 16(label), down = r + b + 24(label)
+    // Horizontal extent (relative to arc center): left = f + 3(flange), right = r + b + 22(label)
+    const labelMarginV = 40; // top 16 + bottom 24
+    const labelMarginH = 25; // left 3 + right 22
+    const sc = Math.min(
+      (height - labelMarginV) / (e + r + b),
+      (width - labelMarginH) / (f + r + b)
+    );
+    const sb = b * sc;
+    const se = e * sc;
+    const sf = f * sc;
+    const sr = r * sc;
+
+    // Total drawing extents
+    const drawH = se + 16 + sr + sb + 24;
+    const drawW = sf + 3 + sr + sb + 22;
+
+    // Origin: center of bend arc, positioned to center the drawing in viewBox
+    const ox = (width - drawW) / 2 + sf + 3;
+    const oy = (height - drawH) / 2 + se + 16;
+
+    // Arc segments (inner and outer, from 0° to 90°—right to bottom)
+    const arcSteps = 20;
+    const innerArc: string[] = [];
+    const outerArc: string[] = [];
+    for (let i = 0; i <= arcSteps; i++) {
+      const angle = (i / arcSteps) * Math.PI / 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      innerArc.push(`${ox + sr * cos},${oy + sr * sin}`);
+      outerArc.push(`${ox + (sr + sb) * cos},${oy + (sr + sb) * sin}`);
+    }
+
+    // Vertical leg (top): from bend top upward by length e
+    const vInnerX = ox + sr;       // inner wall x
+    const vOuterX = ox + sr + sb;  // outer wall x
+    const vTop = oy;               // bend top y
+    const vTopEnd = vTop - se;     // top of vertical leg
+
+    // Horizontal leg (left): from bend left leftward by length f
+    const hInnerY = oy + sr;      // inner wall y
+    const hOuterY = oy + sr + sb; // outer wall y
+    const hLeft = ox;             // bend left x
+    const hLeftEnd = hLeft - sf;  // end of horizontal leg
+
+    return (
+      <g>
+        {/* Outer wall path: top leg → outer arc → left leg */}
+        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={outerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${hLeft},${hOuterY} ${hLeftEnd},${hOuterY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+
+        {/* Inner wall path: top leg → inner arc → left leg */}
+        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={innerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${hLeft},${hInnerY} ${hLeftEnd},${hInnerY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+
+        {/* Flanges at leg ends */}
+        {/* Top flange */}
+        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke="#004290" strokeWidth={2} />
+        {/* Left flange */}
+        <line x1={hLeftEnd} y1={hInnerY - 3} x2={hLeftEnd} y2={hOuterY + 3} stroke="#004290" strokeWidth={2} />
+
+        {/* b dimension — across duct at top leg */}
+        <line x1={vInnerX} y1={vTopEnd - 10} x2={vOuterX} y2={vTopEnd - 10}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={(vInnerX + vOuterX) / 2} y={vTopEnd - 13} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+
+        {/* e dimension — vertical leg length (right side) */}
+        <line x1={vOuterX + 12} y1={vTopEnd} x2={vOuterX + 12} y2={vTop}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={vOuterX + 22} y={(vTopEnd + vTop) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+
+        {/* f dimension — horizontal leg length (below) */}
+        <line x1={hLeftEnd} y1={hOuterY + 12} x2={hLeft} y2={hOuterY + 12}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={(hLeftEnd + hLeft) / 2} y={hOuterY + 24} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+
+        {/* r dimension — inner radius dashed line from center */}
+        <line x1={ox} y1={oy} x2={ox + sr * 0.707} y2={oy + sr * 0.707}
+          stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
+        <text x={ox + sr * 0.35 + 5} y={oy + sr * 0.35 + 2} fontSize={10} fill="#555555">r</text>
+
+        {/* a label — at front cross-section (shown next to top flange) */}
+        <text x={vInnerX - 14} y={vTopEnd + 12} fontSize={10} fill="#555555" textAnchor="end">a</text>
+
+        {/* Centerline of bend (dashed) */}
+        <line x1={ox} y1={oy} x2={ox + sr + sb / 2} y2={oy} stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
+        <line x1={ox} y1={oy} x2={ox} y2={oy + sr + sb / 2} stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
+      </g>
+    );
+  };
 
   const renderReducer = () => (
     <g>
