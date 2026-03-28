@@ -19,14 +19,14 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
   // Shiny sheet metal material
   const material = useMemo(() => {
     return new THREE.MeshPhysicalMaterial({
-      color: '#a8b0c0',
-      roughness: 0.22,
-      metalness: 0.85,
-      reflectivity: 0.9,
-      clearcoat: 0.3,
-      clearcoatRoughness: 0.15,
+      color: '#8a9bae',
+      roughness: 0.18,
+      metalness: 0.92,
+      reflectivity: 1.0,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.08,
       side: THREE.DoubleSide,
-      envMapIntensity: 1.2,
+      envMapIntensity: 1.0,
     });
   }, []);
 
@@ -201,8 +201,8 @@ const BendMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number
   const sr = r * scale;
 
   const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#b0b8c8', roughness: 0.35, metalness: 0.6, reflectivity: 0.7,
-    clearcoat: 0.2, clearcoatRoughness: 0.2, side: THREE.DoubleSide, envMapIntensity: 2.5,
+    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
     flatShading: false,
   }), []);
 
@@ -461,9 +461,10 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
           style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: 8 }}
         >
           <KeepAlive />
-          <ambientLight intensity={0.9} />
-          <hemisphereLight args={['#dde4ee', '#8090a0', 0.6]} />
-          <directionalLight position={[3, 4, 5]} intensity={0.4} />
+          <ambientLight intensity={0.35} />
+          <hemisphereLight args={['#c0c8d8', '#606878', 0.4]} />
+          <directionalLight position={[4, 5, 4]} intensity={0.6} />
+          <directionalLight position={[-3, 2, -4]} intensity={0.25} />
           <OrbitControls enableDamping dampingFactor={0.06} rotateSpeed={0.7} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} enablePan={false} />
           <group ref={groupRef}>
             {renderShapeMesh()}
@@ -533,9 +534,10 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
               style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: '0 0 8px 8px' }}
             >
               <KeepAlive />
-              <ambientLight intensity={0.9} />
-              <hemisphereLight args={['#dde4ee', '#8090a0', 0.6]} />
-              <directionalLight position={[3, 4, 5]} intensity={0.4} />
+              <ambientLight intensity={0.35} />
+              <hemisphereLight args={['#c0c8d8', '#606878', 0.4]} />
+              <directionalLight position={[4, 5, 4]} intensity={0.6} />
+              <directionalLight position={[-3, 2, -4]} intensity={0.25} />
               <OrbitControls enableDamping dampingFactor={0.06} rotateSpeed={0.7} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} enablePan={false} />
               <group ref={modalGroupRef}>
                 {renderShapeMesh()}
