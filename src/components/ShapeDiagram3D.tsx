@@ -1415,6 +1415,358 @@ const TR1aLabels: React.FC<{
   );
 };
 
+/* ===== TR2a Tee — rectangular main duct with round branch ===== */
+// Params: a (main z-depth), b (main y-height), d (branch diameter),
+//         L (main x-length), l3 (branch y-length), e (branch x-offset from left), f (branch z-offset from front)
+const TR2aMesh: React.FC<{
+  a: number; b: number; d: number; L: number;
+  l3: number; e: number; f: number;
+}> = ({ a, b, d, L, l3, e, f }) => {
+  const maxDim = Math.max(a, b, d, L, l3, e, f, 1);
+  const scale = 2 / maxDim;
+  const sa = a * scale, sb = b * scale, sd = d * scale;
+  const sl = L * scale, sl3 = l3 * scale;
+  const se = e * scale, sf = f * scale;
+
+  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
+    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+  }), []);
+
+  const { geometry, edgeGeo } = useMemo(() => {
+    const hL = sl / 2, hb = sb / 2, ha = sa / 2;
+    const hr = sd / 2; // branch radius
+
+    // Branch center (matching C#)
+    const brX = -hL + se;
+    const brZ = -ha + sf; // circle center z
+    const brTopY = -hb;
+    const brBotY = -hb - sl3;
+
+    // Main duct corners (p0-p7)
+    const p0: number[] = [-hL,  hb, -ha];
+    const p1: number[] = [ hL,  hb, -ha];
+    const p2: number[] = [ hL, -hb, -ha];
+    const p3: number[] = [-hL, -hb, -ha];
+    const p4: number[] = [-hL,  hb,  ha];
+    const p5: number[] = [ hL,  hb,  ha];
+    const p6: number[] = [ hL, -hb,  ha];
+    const p7: number[] = [-hL, -hb,  ha];
+
+    // Rectangular collar corners at duct bottom (y = -hb)
+    const rcFL: number[] = [brX - hr, -hb, brZ - hr]; // front-left
+    const rcFR: number[] = [brX + hr, -hb, brZ - hr]; // front-right
+    const rcBR: number[] = [brX + hr, -hb, brZ + hr]; // back-right
+    const rcBL: number[] = [brX - hr, -hb, brZ + hr]; // back-left
+
+    // Generate circle + rectangle perimeter using angular correspondence
+    // This ensures the transition quads don't twist
+    const segs = 24;
+    const topCircle: number[][] = [];
+    const botCircle: number[][] = [];
+    const rectPerim: number[][] = [];
+
+    for (let i = 0; i <= segs; i++) {
+      const ang = (i / segs) * Math.PI * 2;
+      const sx = Math.sin(ang);
+      const cz = -Math.cos(ang);
+
+      // Circle points
+      topCircle.push([brX + sx * hr, brTopY, brZ + cz * hr]);
+      botCircle.push([brX + sx * hr, brBotY, brZ + cz * hr]);
+
+      // Rectangle perimeter: project the same direction onto the square boundary
+      const absSx = Math.abs(sx), absCz = Math.abs(cz);
+      const t = Math.min(
+        absSx > 1e-9 ? hr / absSx : 1e9,
+        absCz > 1e-9 ? hr / absCz : 1e9
+      );
+      rectPerim.push([brX + sx * t, brTopY, brZ + cz * t]);
+    }
+
+    const verts: number[] = [];
+    const edgePts: number[] = [];
+
+    const addTri = (a: number[], b: number[], c: number[]) => {
+      verts.push(...a, ...b, ...c);
+    };
+    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
+      addTri(q0, q1, q2);
+      addTri(q0, q2, q3);
+    };
+    const seg = (A: number[], B: number[]) =>
+      edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
+
+    // ── Main duct walls (3 walls, open at both x-ends) ──────────────────────
+    addQuad(p3, p0, p1, p2);       // Front face (z=-ha)
+    addQuad(p0, p4, p5, p1);       // Top face (y=hb)
+    addQuad(p4, p7, p6, p5);       // Back face (z=ha)
+
+    // ── Bottom face with hole (4 strips from duct corners to rectangular collar) ─
+    addQuad(p2, rcFR, rcFL, p3);   // front strip
+    addQuad(p2, p6, rcBR, rcFR);   // right strip
+    addQuad(rcBR, p6, p7, rcBL);   // back strip
+    addQuad(p3, rcFL, rcBL, p7);   // left strip
+
+    // ── Flat transition from rectangular collar to circle (at y=-hb) ────────
+    for (let i = 0; i < segs; i++) {
+      addQuad(rectPerim[i], rectPerim[i + 1], topCircle[i + 1], topCircle[i]);
+    }
+
+    // ── Round branch tube ───────────────────────────────────────────────────
+    for (let i = 0; i < segs; i++) {
+      addQuad(topCircle[i], topCircle[i + 1], botCircle[i + 1], botCircle[i]);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.computeVertexNormals();
+
+    // ── Edge wireframe ──────────────────────────────────────────────────────
+    // Main duct edges
+    seg(p0, p1); seg(p1, p2); seg(p2, p3); seg(p3, p0);
+    seg(p4, p5); seg(p5, p6); seg(p6, p7); seg(p7, p4);
+    seg(p0, p4); seg(p1, p5); seg(p2, p6); seg(p3, p7);
+    // Hole edges on bottom face
+    seg(rcFL, rcFR); seg(rcFR, rcBR); seg(rcBR, rcBL); seg(rcBL, rcFL);
+    // Bottom strips connections
+    seg(p2, rcFR); seg(p3, rcFL); seg(p6, rcBR); seg(p7, rcBL);
+    // Top circle outline
+    for (let i = 0; i < segs; i++) seg(topCircle[i], topCircle[i + 1]);
+    // Bottom circle outline
+    for (let i = 0; i < segs; i++) seg(botCircle[i], botCircle[i + 1]);
+    // A few vertical branch lines
+    for (let i = 0; i < segs; i += 6) seg(topCircle[i], botCircle[i]);
+
+    const eGeo = new THREE.BufferGeometry();
+    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
+
+    return { geometry: geo, edgeGeo: eGeo };
+  }, [sa, sb, sd, sl, sl3, se, sf]);
+
+  return (
+    <group>
+      <mesh geometry={geometry} material={material} />
+      <lineSegments geometry={edgeGeo}>
+        <lineBasicMaterial color="#7a7e85" />
+      </lineSegments>
+    </group>
+  );
+};
+
+/* TR2a dimension labels */
+const TR2aLabels: React.FC<{
+  a: number; b: number; d: number; L: number;
+  l3: number; e: number; f: number;
+}> = ({ a, b, d, L, l3, e, f: _f }) => {
+  const maxDim = Math.max(a, b, d, L, l3, e, 1);
+  const scale = 2 / maxDim;
+  const sb = b * scale, sl = L * scale, sl3 = l3 * scale;
+  const hb = sb / 2, hL = sl / 2;
+  const brDX = -hL + e * scale;
+  const brTopY = -hb;
+  const brBotY = -hb - sl3;
+
+  return (
+    <>
+      <Billboard position={[0, hb + 0.2, 0]}>
+        <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="bottom">{`L = ${Math.round(L)}`}</Text>
+      </Billboard>
+      <Billboard position={[hL + 0.2, 0, 0]}>
+        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+      </Billboard>
+      <Billboard position={[brDX, brBotY - 0.18, 0]}>
+        <Text fontSize={0.11} color="#004290" anchorX="center" anchorY="top">{`d = ${Math.round(d)}`}</Text>
+      </Billboard>
+      <Billboard position={[brDX + d * scale / 2 + 0.18, (brTopY + brBotY) / 2, 0]}>
+        <Text fontSize={0.11} color="#004290" anchorX="left" anchorY="middle">{`l3 = ${Math.round(l3)}`}</Text>
+      </Billboard>
+      <Billboard position={[0, -hb - sl3 / 2, 0]}>
+        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`a=${Math.round(a)}`}</Text>
+      </Billboard>
+    </>
+  );
+};
+
+/* ===== TRa Symmetric Tee — main duct with rectangular branch ===== */
+// C# params: a (z-depth), b (main y-height), d (total y-height incl branch),
+//   h (branch x-width), L (main x-length), q (lower curve radius), r (upper curve radius),
+//   i (right straight section at junction), p (vertical straight between curves)
+// Profile (front face, z=-a/2):
+//   p0=(0, dy)  p1=(l, dy)  — top of main duct
+//   p2=(l, dy-b)  p3=(l-i, dy-b) — right side drops to b, horizontal by i
+//   p4=(l-i-r, dy-b-r) — upper curve center → corner
+//   p5=(l-i-r, dy-b-r-p) — vertical straight p
+//   p6=(l-i-r-h, dy-b-r-p) — branch bottom left
+//   p7=(l-i-r-h, dy-q-d) — diagonal to lower curve
+//   p8=(l-i-r-h-q, dy-d) — lower curve end
+//   p9=(0, dy-d) — bottom left
+const TRaMesh: React.FC<{
+  a: number; b: number; d: number; h: number; L: number;
+  q: number; r: number; i: number; p: number;
+}> = ({ a, b, d, h, L, q, r, i: iVal, p: pVal }) => {
+  const maxDim = Math.max(a, b, d, h, L, q, r, iVal, pVal, 1);
+  const scale = 2 / maxDim;
+  const sa = a * scale, sb = b * scale, sd = d * scale;
+  const sh = h * scale, sl = L * scale;
+  const sq = q * scale, sr = r * scale;
+  const si = iVal * scale, sp = pVal * scale;
+
+  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
+    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+  }), []);
+
+  const { geometry, edgeGeo } = useMemo(() => {
+    const ha = sa / 2;
+    const dx = sl / 2;
+    const dy = (sb + sr + sp) / 2;
+
+    // Build 2D profile points matching C# (x, y) at z = -ha (front face)
+    // Then duplicate at z = +ha (back face)
+    const profile: [number, number][] = [];
+
+    // p0-p1: top edge
+    profile.push([-dx, dy]);                              // 0
+    profile.push([-dx + sl, dy]);                         // 1
+    // p2-p3: right drop + horizontal
+    profile.push([-dx + sl, dy - sb]);                    // 2
+    profile.push([-dx + sl - si, dy - sb]);               // 3
+    // Upper curve (r): from p3 sweeping 90° CCW to p4 vertical
+    const rCenterX = -dx + sl - si;
+    const rCenterY = dy - sb - sr;
+    const arcStepsR = 6;
+    for (let k = 1; k < arcStepsR; k++) {
+      const ang = (k / arcStepsR) * (Math.PI / 2);
+      profile.push([rCenterX - Math.sin(ang) * sr, rCenterY + Math.cos(ang) * sr]);
+    }
+    // p4: bottom of upper curve
+    profile.push([rCenterX - sr, rCenterY]);              // ~4
+    // p5: vertical straight down by p
+    profile.push([rCenterX - sr, rCenterY - sp]);          // ~5
+    // p6: branch bottom-left
+    profile.push([rCenterX - sr - sh, rCenterY - sp]);     // ~6
+    // p7: diagonal to lower curve
+    profile.push([rCenterX - sr - sh, dy - sq - sd]);      // ~7
+    // Lower curve (q): from p7 sweeping 90° CW to p8 horizontal
+    const qCenterX = rCenterX - sr - sh - sq;
+    const qCenterY = dy - sq - sd;
+    // Arc from p7 (top of curve, angle=0) to p8 (left of curve, angle=90°)
+    for (let k = 1; k < arcStepsR; k++) {
+      const ang = (k / arcStepsR) * (Math.PI / 2);
+      profile.push([qCenterX + Math.cos(ang) * sq, qCenterY + Math.sin(ang) * sq]);
+    }
+    // p8: end of lower curve
+    profile.push([qCenterX, dy - sd]);                     // ~8
+    // p9: bottom-left corner
+    profile.push([-dx, dy - sd]);                          // ~9
+
+    const N = profile.length;
+
+    // Opening segment indices (no wall quads — these are duct openings)
+    const p5idx = 3 + arcStepsR + 1;
+    const p6idx = p5idx + 1;
+    const openSegments = new Set([N - 1, 1, p5idx]); // left, right, branch
+
+    // Build front and back face points
+    const frontPts = profile.map(([x, y]) => [x, y, -ha]);
+    const backPts = profile.map(([x, y]) => [x, y, ha]);
+
+    const verts: number[] = [];
+    const edgePts: number[] = [];
+
+    const addTri = (a: number[], b: number[], c: number[]) => {
+      verts.push(...a, ...b, ...c);
+    };
+    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
+      addTri(q0, q1, q2);
+      addTri(q0, q2, q3);
+    };
+    const seg = (A: number[], B: number[]) =>
+      edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
+
+    // ── Side walls (skip opening segments) ──────────────────────────────────
+    for (let k = 0; k < N; k++) {
+      if (openSegments.has(k)) continue;
+      const k1 = (k + 1) % N;
+      addQuad(frontPts[k], frontPts[k1], backPts[k1], backPts[k]);
+    }
+
+    // ── Front face (z=-ha) — fan triangulation from centroid ────────────────
+    const cx = profile.reduce((s, p) => s + p[0], 0) / N;
+    const cy = profile.reduce((s, p) => s + p[1], 0) / N;
+    const centroidF = [cx, cy, -ha];
+    const centroidB = [cx, cy, ha];
+    for (let k = 0; k < N; k++) {
+      const k1 = (k + 1) % N;
+      addTri(centroidF, frontPts[k], frontPts[k1]);
+      addTri(centroidB, backPts[k1], backPts[k]);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.computeVertexNormals();
+
+    // ── Edge wireframe ──────────────────────────────────────────────────────
+    for (let k = 0; k < N; k++) {
+      const k1 = (k + 1) % N;
+      seg(frontPts[k], frontPts[k1]);
+      seg(backPts[k], backPts[k1]);
+    }
+    // Depth edges at key profile vertices
+    const p4idx = 3 + arcStepsR;
+    const p7idx = p6idx + 1;
+    const keyIdx = [0, 1, 2, 3, N - 1, N - 2, p4idx, p5idx, p6idx, p7idx];
+    for (const idx of keyIdx) {
+      if (idx < N) seg(frontPts[idx], backPts[idx]);
+    }
+
+    const eGeo = new THREE.BufferGeometry();
+    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
+
+    return { geometry: geo, edgeGeo: eGeo };
+  }, [sa, sb, sd, sh, sl, sq, sr, si, sp]);
+
+  return (
+    <group>
+      <mesh geometry={geometry} material={material} />
+      <lineSegments geometry={edgeGeo}>
+        <lineBasicMaterial color="#7a7e85" />
+      </lineSegments>
+    </group>
+  );
+};
+
+/* TRa dimension labels */
+const TRaLabels: React.FC<{
+  a: number; b: number; d: number; h: number; L: number;
+  q: number; r: number; i: number; p: number;
+}> = ({ a, b, d, h, L, q, r, i: iVal, p: pVal }) => {
+  const maxDim = Math.max(a, b, d, h, L, q, r, iVal, pVal, 1);
+  const scale = 2 / maxDim;
+  const sb = b * scale, sd = d * scale, sl = L * scale;
+  const sr = r * scale, sp = pVal * scale;
+  const hL = sl / 2;
+  const dy = (sb + sr + sp) / 2;
+
+  return (
+    <>
+      <Billboard position={[0, dy + 0.15, 0]}>
+        <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="bottom">{`L = ${Math.round(L)}`}</Text>
+      </Billboard>
+      <Billboard position={[hL + 0.15, dy - sb / 2, 0]}>
+        <Text fontSize={0.11} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+      </Billboard>
+      <Billboard position={[-hL - 0.15, dy - sd / 2, 0]}>
+        <Text fontSize={0.11} color="#004290" anchorX="right" anchorY="middle">{`d = ${Math.round(d)}`}</Text>
+      </Billboard>
+      <Billboard position={[0, dy - sd - 0.15, 0]}>
+        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="top">{`a=${Math.round(a)} h=${Math.round(h)}`}</Text>
+      </Billboard>
+    </>
+  );
+};
+
 /* ===== QESa End Cap — rectangular blank-off plate ===== */
 const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) => {
   const maxDim = Math.max(a, b, e, 1);
@@ -1524,207 +1876,155 @@ const QESaLabels: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) 
 
 /* ===== QBFa Elbow Mesh — symmetric 90° L-shaped elbow (d = b) ===== */
 const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number }> = ({ a, b, e, f, r }) => {
-  // QBFa: symmetric elbow → d = b. Geometry built from C# licz_punkty vertices.
-  // Coordinate system:  x = right, y = up, z = depth
-  // Centered with dx = (e+b)/2, dy = (b+f)/2  (d=b)
   const maxDim = Math.max(a, b + e, b + f, e, f, r, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale;
-  const sb = b * scale;
-  const se = e * scale;
-  const sf = f * scale;
-  const sr = r * scale;
+  const sa = a * scale, sb = b * scale, sd = sb; // d = b symmetric
+  const se = e * scale, sf = f * scale, sr = r * scale;
 
   const material = useMemo(() => new THREE.MeshPhysicalMaterial({
     color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
     clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    flatShading: false,
   }), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
-    const hw = sa / 2; // half z-depth
+    const hw = sa / 2;
+    const dx = (se + sb) / 2;
+    const dy = (sd + sf) / 2;
     const verts: number[] = [];
     const norms: number[] = [];
     const uvArr: number[] = [];
     const edgePts: number[] = [];
 
-    const addQuad = (p0: number[], p1: number[], p2: number[], p3: number[], n: number[]) => {
-      verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
-      for (let i = 0; i < 6; i++) norms.push(...n);
+    // addQuad: auto-compute normal from cross(v1-v0, v2-v0); flip winding if needed
+    const addQuad = (v0: number[], v1: number[], v2: number[], v3: number[], outDir: number[]) => {
+      const e1x=v1[0]-v0[0], e1y=v1[1]-v0[1], e1z=v1[2]-v0[2];
+      const e2x=v2[0]-v0[0], e2y=v2[1]-v0[1], e2z=v2[2]-v0[2];
+      let nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
+      const dot = nx*outDir[0]+ny*outDir[1]+nz*outDir[2];
+      let a0=v0,a1=v1,a2=v2,a3=v3;
+      if (dot < 0) { a1=v3; a2=v2; a3=v1; nx=-nx; ny=-ny; nz=-nz; }
+      const len = Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
+      nx/=len; ny/=len; nz/=len;
+      verts.push(...a0,...a1,...a2,...a0,...a2,...a3);
+      for (let i=0;i<6;i++) norms.push(nx,ny,nz);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
     };
 
-    // Centering offsets (d = b for symmetric)
-    const dx = (se + sb) / 2;
-    const dy = (sb + sf) / 2;
+    // ═══ Vertices matching C# punkty[] exactly (d = b) ═══
+    const p0=[se-dx, sd+sf-dy, -hw], p1=[se+sb-dx, sd+sf-dy, -hw];
+    const p2=[se+sb-dx, sd+sf-dy, hw], p3=[se-dx, sd+sf-dy, hw];
+    const p4=[-dx, -dy, -hw], p5=[se+sb-dx, -dy, -hw];
+    const p6=[se+sb-dx, -dy, hw], p7=[-dx, -dy, hw];
+    const p8=[se-dx, sd+sr-dy, -hw], p9=[se+sb-dx, sd+sr-dy, -hw];
+    const p10=[se+sb-dx, sd+sr-dy, hw], p11=[se-dx, sd+sr-dy, hw];
+    const p12=[se-sr-dx, sd-dy, -hw], p13=[se-sr-dx, sd-dy, hw];
+    const p14=[se-sr-dx, -dy, hw], p15=[se-sr-dx, -dy, -hw];
+    const p16=[-dx, sd-dy, -hw], p17=[-dx, sd-dy, hw];
 
-    // ── Named vertices matching C# punkty[] ──────────────────────────────────
-    // p0-p3: top of vertical leg
-    const p0  = [se - dx,      sb + sf - dy,  -hw];
-    const p1  = [se + sb - dx, sb + sf - dy,  -hw];
-    const p2  = [se + sb - dx, sb + sf - dy,   hw];
-    const p3  = [se - dx,      sb + sf - dy,   hw];
-    // p4-p7: bottom flange
-    const p4  = [-dx,          -dy,            -hw];
-    const p5  = [se + sb - dx, -dy,            -hw];
-    const p6  = [se + sb - dx, -dy,             hw];
-    const p7  = [-dx,          -dy,             hw];
-    // p8-p11: inner corner top
-    const p8  = [se - dx,      sb + sr - dy,   -hw];
-    const p9  = [se + sb - dx, sb + sr - dy,   -hw];
-    const p10 = [se + sb - dx, sb + sr - dy,    hw];
-    const p11 = [se - dx,      sb + sr - dy,    hw];
-    // p12-p15: inner/outer corner left
-    const p12 = [se - sr - dx, sb - dy,         -hw];
-    const p13 = [se - sr - dx, sb - dy,          hw];
-    const p14 = [se - sr - dx, -dy,              hw];
-    const p15 = [se - sr - dx, -dy,             -hw];
-    // p16-p17: left wall top
-    const p16 = [-dx,          sb - dy,         -hw];
-    const p17 = [-dx,          sb - dy,          hw];
+    // Outer corner interpolation (front)
+    const p21=[p15[0]+(sb+sr)/3, p15[1], -hw];
+    const p22=[p15[0]+2*(sb+sr)/3, p15[1], -hw];
+    const p23=[p5[0], p5[1]+(sd+sr)/3, -hw];
+    const p24=[p5[0], p5[1]+2*(sd+sr)/3, -hw];
+    // Back mirrors
+    const p31=[p21[0],p21[1],hw], p32=[p22[0],p22[1],hw];
+    const p33=[p23[0],p23[1],hw], p34=[p24[0],p24[1],hw];
 
-    // ── Outer corner interpolation points (C# p21-p24) ───────────────────────
-    // Bottom row: from p15 toward p5, stepping by (sb+sr)/3
-    const p21 = [p15[0] + (sb + sr) / 3,        p15[1], -hw];
-    const p22 = [p15[0] + 2 * (sb + sr) / 3,    p15[1], -hw];
-    // Right column: from p5 upward toward p9, stepping by (sb+sr)/3  (d=b so d+r=sb+sr)
-    const p23 = [p5[0],  p5[1] + (sb + sr) / 3,  -hw];
-    const p24 = [p5[0],  p5[1] + 2 * (sb + sr) / 3, -hw];
-    // Back mirrors (p31-p34)
-    const p31 = [p21[0], p21[1],  hw];
-    const p32 = [p22[0], p22[1],  hw];
-    const p33 = [p23[0], p23[1],  hw];
-    const p34 = [p24[0], p24[1],  hw];
+    // Inner arc: center = (se-sr-dx, sd+sr-dy)
+    // θ from 0° (connects to p8) to 90° (connects to p12)
+    const arcCX=se-sr-dx, arcCY=sd+sr-dy;
+    const arcPt = (deg: number, z: number) => [
+      arcCX+Math.cos(deg*Math.PI/180)*sr, arcCY-Math.sin(deg*Math.PI/180)*sr, z
+    ];
+    // C# front: p25=15°, p26=30°, p27=45°, p28=60°, p29=75°
+    const p25F=arcPt(15,-hw), p26F=arcPt(30,-hw), p27F=arcPt(45,-hw), p28F=arcPt(60,-hw), p29F=arcPt(75,-hw);
+    // C# back: p35=15°, p36=30°, p37=45°, p38=60°, p39=75°
+    const p35B=arcPt(15,hw), p36B=arcPt(30,hw), p37B=arcPt(45,hw), p38B=arcPt(60,hw), p39B=arcPt(75,hw);
 
-    // ── Inner arc points (C# p25-p29) at θ = 15°,30°,45°,60°,75° ────────────
-    // Arc center = (se-sr-dx, sb+sr-dy)  [= p12 + (0, sr)]
-    // Point at angle θ: (center_x + cos(θ)*sr, center_y − sin(θ)*sr)
-    const arcCX = se - sr - dx;
-    const arcCY = sb + sr - dy;
-    const innerArcAngles = [75, 60, 45, 30, 15]; // C# order: p25→p29
-    const innerPtsF: number[][] = innerArcAngles.map(deg => {
-      const rad = deg * Math.PI / 180;
-      return [arcCX + Math.cos(rad) * sr, arcCY - Math.sin(rad) * sr, -hw];
-    });
-    const innerPtsB: number[][] = innerArcAngles.map(deg => {
-      const rad = deg * Math.PI / 180;
-      return [arcCX + Math.cos(rad) * sr, arcCY - Math.sin(rad) * sr, hw];
-    });
-    // C# indexing: p25=75°, p26=60°, p27=45°, p28=30°, p29=15°
-    const [p25F, p26F, p27F, p28F, p29F] = innerPtsF;
-    const [p25B, p26B, p27B, p28B, p29B] = innerPtsB;
+    // ═══ 4 wall surfaces (z-spanning, matching C# exactly) ═══
+    addQuad(p4, p7, p6, p5, [0,-1,0]);              // bottom (y=-dy)
+    addQuad(p5, p6, p2, p1, [1,0,0]);               // right outer (x=e+b-dx)
+    addQuad(p12, p13, p17, p16, [0,1,0]);            // horizontal leg top (y=d-dy)
+    addQuad(p8, p11, p3, p0, [-1,0,0]);              // vertical leg inner (x=e-dx)
 
-    // ── Flat wall quads ────────────────────────────────────────────────────────
-    // 1. Bottom face (y=−dy)
-    addQuad(p4, p7, p6, p5, [0, -1, 0]);
-    // 2. Right outer wall (x=se+sb−dx)
-    addQuad(p5, p6, p2, p1, [1, 0, 0]);
-    // 3. Top face of horizontal leg (y=sb−dy), from left wall to arc start
-    addQuad(p16, p17, p13, p12, [0, 1, 0]);
-    // 4. Top flange of vertical leg (y=sb+sf−dy)
-    addQuad(p8, p11, p3, p0, [0, 1, 0]);
-    // 5. Outer vertical top (y=sb+sr−dy, between p8/p11 and p9/p10)
-    addQuad(p8, p9, p10, p11, [0, 1, 0]);
-    // 6. Left wall (x=−dx)
-    addQuad(p4, p16, p17, p7, [-1, 0, 0]);
-    // 7. Left wall upper (x=−dx), from p16/p17 to p0/p3 — inner vertical wall
-    addQuad(p16, p0, p3, p17, [-1, 0, 0]);
+    // ═══ Front face (z=-hw) — 8 quads ═══
+    addQuad(p4, p15, p12, p16, [0,0,-1]);            // horizontal section
+    addQuad(p8, p9, p1, p0, [0,0,-1]);               // vertical section top
+    addQuad(p15, p21, p29F, p12, [0,0,-1]);           // outer corner 1
+    addQuad(p21, p22, p28F, p29F, [0,0,-1]);          // outer corner 2
+    addQuad(p22, p5, p27F, p28F, [0,0,-1]);           // outer corner 3
+    addQuad(p5, p23, p26F, p27F, [0,0,-1]);           // outer corner 4
+    addQuad(p23, p24, p25F, p26F, [0,0,-1]);          // outer corner 5
+    addQuad(p24, p9, p8, p25F, [0,0,-1]);             // outer corner 6
 
-    // ── Outer corner strip: wall panels spanning z from −hw to +hw ────────────
-    // The outer surface of the bend goes from p15/p14 (left at y=-dy) around the outer
-    // corner to p9/p10 (top at y=sb+sr-dy). Each segment: [front, back, back_next, front_next]
-    // Outer corner pts front (z=-hw): p15, p21, p22, p5, p23, p24, p9
-    // Outer corner pts back  (z=+hw): p14, p31, p32, p6, p33, p34, p10
-    const ocF = [p15, p21, p22, p5,  p23, p24, p9];
-    const ocB = [p14, p31, p32, p6,  p33, p34, p10];
-    for (let i = 0; i < ocF.length - 1; i++) {
-      const q0 = ocF[i], q1 = ocB[i], q2 = ocB[i+1], q3 = ocF[i+1];
-      const u = [q1[0]-q0[0], q1[1]-q0[1], q1[2]-q0[2]];
-      const v = [q3[0]-q0[0], q3[1]-q0[1], q3[2]-q0[2]];
-      const n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
-      const nl = Math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]) || 1;
-      addQuad(q0, q1, q2, q3, [n[0]/nl, n[1]/nl, n[2]/nl]);
+    // ═══ Back face (z=+hw) — 8 quads ═══
+    addQuad(p7, p14, p13, p17, [0,0,1]);             // horizontal section
+    addQuad(p11, p10, p2, p3, [0,0,1]);              // vertical section top
+    addQuad(p14, p31, p39B, p13, [0,0,1]);            // outer corner 1
+    addQuad(p31, p32, p38B, p39B, [0,0,1]);           // outer corner 2
+    addQuad(p32, p6, p37B, p38B, [0,0,1]);            // outer corner 3
+    addQuad(p6, p33, p36B, p37B, [0,0,1]);            // outer corner 4
+    addQuad(p33, p34, p35B, p36B, [0,0,1]);           // outer corner 5
+    addQuad(p34, p10, p11, p35B, [0,0,1]);            // outer corner 6
+
+    // ═══ Inner arc wall (z-spanning, 6 segments) ═══
+    // C# quads: (12,29,39,13), (29,28,38,39), ..., (25,8,11,35)
+    // Normal points away from arc center (into duct channel)
+    const iaF=[p12,p29F,p28F,p27F,p26F,p25F,p8];
+    const iaB=[p13,p39B,p38B,p37B,p36B,p35B,p11];
+    for (let i=0; i<6; i++) {
+      const f0=iaF[i], f1=iaF[i+1], b0=iaB[i], b1=iaB[i+1];
+      const mx=(f0[0]+f1[0])/2, my=(f0[1]+f1[1])/2;
+      addQuad(f0, f1, b1, b0, [mx-arcCX, my-arcCY, 0]);
     }
 
-    // ── Inner arc wall: spans z from −hw to +hw ───────────────────────────────
-    // Inner arc front (z=-hw): p8, p29F, p28F, p27F, p26F, p25F, p12
-    // Inner arc back  (z=+hw): p11, p29B, p28B, p27B, p26B, p25B, p13
-    const iaF = [p8,  p29F, p28F, p27F, p26F, p25F, p12];
-    const iaB = [p11, p29B, p28B, p27B, p26B, p25B, p13];
-    for (let i = 0; i < iaF.length - 1; i++) {
-      const q0 = iaF[i], q1 = iaB[i], q2 = iaB[i+1], q3 = iaF[i+1];
-      // Normal points inward (toward arc center), i.e. away from channel interior — actually inward into canal
-      const midAngleA = ((6 - i) / 6) * (Math.PI / 2); // 90° down to 0°
-      const midAngleB = ((5 - i) / 6) * (Math.PI / 2);
-      const midAngle = (midAngleA + midAngleB) / 2;
-      // inward normal = pointing toward arc center = (-cos, +sin) in xz → actually toward center from arc
-      const nx = -Math.cos(midAngle);
-      const ny =  Math.sin(midAngle);
-      addQuad(q0, q3, q2, q1, [nx, ny, 0]); // reversed winding so normal faces inward
-    }
+    // ═══ Edge wireframe ═══
+    const seg = (x0:number,y0:number,z0:number,x1:number,y1:number,z1:number) =>
+      edgePts.push(x0,y0,z0, x1,y1,z1);
 
-    // ── Front face (z=−hw): L cross-section ─────────────────────────────────
-    // Outline CCW: p4→p5→p23→p24→p9→p8→p29F→p28F→p27F→p26F→p25F→p12→p16→p4
-    // Fan from centroid-ish anchor p4:
-    const fp2d = [p5, p23, p24, p9, p8, p29F, p28F, p27F, p26F, p25F, p12, p16];
-    for (let i = 0; i < fp2d.length - 1; i++) {
-      verts.push(...p4, ...fp2d[i], ...fp2d[i+1]);
-      norms.push(0,0,-1, 0,0,-1, 0,0,-1);
-      uvArr.push(0,0, 1,0, 0,1);
-    }
-    // Close top strip p8→p0→p1→p9
-    verts.push(...p8, ...p9, ...p1, ...p8, ...p1, ...p0);
-    norms.push(0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1);
-    uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
-
-    // ── Back face (z=+hw): mirror ─────────────────────────────────────────────
-    const bp2d = [p6, p33, p34, p10, p11, p29B, p28B, p27B, p26B, p25B, p13, p17];
-    for (let i = 0; i < bp2d.length - 1; i++) {
-      verts.push(...p7, ...bp2d[i+1], ...bp2d[i]);
-      norms.push(0,0,1, 0,0,1, 0,0,1);
-      uvArr.push(0,0, 1,0, 0,1);
-    }
-    verts.push(...p11, ...p10, ...p2, ...p11, ...p2, ...p3);
-    norms.push(0,0,1, 0,0,1, 0,0,1, 0,0,1, 0,0,1, 0,0,1);
-    uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
-
-    // ── Edge lines ────────────────────────────────────────────────────────────
-    const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
-      edgePts.push(ax, ay, az, bx, by, bz);
-
-    // Bottom flange
-    seg(p4[0],p4[1],-hw, p5[0],p5[1],-hw);
-    seg(p4[0],p4[1], hw, p5[0],p5[1], hw);
-    seg(p4[0],p4[1],-hw, p4[0],p4[1], hw);
-    seg(p5[0],p5[1],-hw, p5[0],p5[1], hw);
-    // Right flange
+    // Front face outline (z=-hw)
+    seg(p4[0],p4[1],-hw, p15[0],p15[1],-hw);
+    seg(p15[0],p15[1],-hw, p5[0],p5[1],-hw);
+    seg(p5[0],p5[1],-hw, p9[0],p9[1],-hw);
+    seg(p9[0],p9[1],-hw, p1[0],p1[1],-hw);
     seg(p1[0],p1[1],-hw, p0[0],p0[1],-hw);
-    seg(p2[0],p2[1], hw, p3[0],p3[1], hw);
-    seg(p1[0],p1[1],-hw, p2[0],p2[1], hw);
-    seg(p0[0],p0[1],-hw, p3[0],p3[1], hw);
-    // Right outer wall
-    seg(p5[0],p5[1],-hw, p1[0],p1[1],-hw);
-    seg(p6[0],p6[1], hw, p2[0],p2[1], hw);
-    // Left wall (horizontal leg)
-    seg(p4[0],p4[1],-hw, p16[0],p16[1],-hw);
-    seg(p7[0],p7[1], hw, p17[0],p17[1], hw);
-    seg(p16[0],p16[1],-hw, p17[0],p17[1], hw);
-    // Left wall (top of horizontal section)
-    seg(p16[0],p16[1],-hw, p12[0],p12[1],-hw);
-    seg(p17[0],p17[1], hw, p13[0],p13[1], hw);
-    // Vertical inner wall (above arc)
-    seg(p8[0],p8[1],-hw, p0[0],p0[1],-hw);
-    seg(p11[0],p11[1], hw, p3[0],p3[1], hw);
-    // Inner arc (front)
-    const arcEdgeAngles = [90, 75, 60, 45, 30, 15, 0];
-    for (let i = 0; i < arcEdgeAngles.length - 1; i++) {
-      const r0 = arcEdgeAngles[i] * Math.PI / 180;
-      const r1 = arcEdgeAngles[i+1] * Math.PI / 180;
-      seg(arcCX + Math.cos(r0)*sr, arcCY - Math.sin(r0)*sr, -hw,
-          arcCX + Math.cos(r1)*sr, arcCY - Math.sin(r1)*sr, -hw);
-      seg(arcCX + Math.cos(r0)*sr, arcCY - Math.sin(r0)*sr,  hw,
-          arcCX + Math.cos(r1)*sr, arcCY - Math.sin(r1)*sr,  hw);
+    seg(p0[0],p0[1],-hw, p8[0],p8[1],-hw);
+    seg(p12[0],p12[1],-hw, p16[0],p16[1],-hw);
+    seg(p16[0],p16[1],-hw, p4[0],p4[1],-hw);
+    // Front inner arc
+    const arcDegs=[0,15,30,45,60,75,90];
+    for (let i=0;i<arcDegs.length-1;i++) {
+      const a0=arcDegs[i]*Math.PI/180, a1=arcDegs[i+1]*Math.PI/180;
+      seg(arcCX+Math.cos(a0)*sr,arcCY-Math.sin(a0)*sr,-hw,
+          arcCX+Math.cos(a1)*sr,arcCY-Math.sin(a1)*sr,-hw);
     }
+
+    // Back face outline (z=+hw)
+    seg(p7[0],p7[1],hw, p14[0],p14[1],hw);
+    seg(p14[0],p14[1],hw, p6[0],p6[1],hw);
+    seg(p6[0],p6[1],hw, p10[0],p10[1],hw);
+    seg(p10[0],p10[1],hw, p2[0],p2[1],hw);
+    seg(p2[0],p2[1],hw, p3[0],p3[1],hw);
+    seg(p3[0],p3[1],hw, p11[0],p11[1],hw);
+    seg(p13[0],p13[1],hw, p17[0],p17[1],hw);
+    seg(p17[0],p17[1],hw, p7[0],p7[1],hw);
+    // Back inner arc
+    for (let i=0;i<arcDegs.length-1;i++) {
+      const a0=arcDegs[i]*Math.PI/180, a1=arcDegs[i+1]*Math.PI/180;
+      seg(arcCX+Math.cos(a0)*sr,arcCY-Math.sin(a0)*sr,hw,
+          arcCX+Math.cos(a1)*sr,arcCY-Math.sin(a1)*sr,hw);
+    }
+
+    // Z-spanning edges (connecting front to back at key vertices)
+    seg(p4[0],p4[1],-hw, p7[0],p7[1],hw);
+    seg(p5[0],p5[1],-hw, p6[0],p6[1],hw);
+    seg(p1[0],p1[1],-hw, p2[0],p2[1],hw);
+    seg(p0[0],p0[1],-hw, p3[0],p3[1],hw);
+    seg(p9[0],p9[1],-hw, p10[0],p10[1],hw);
+    seg(p8[0],p8[1],-hw, p11[0],p11[1],hw);
+    seg(p12[0],p12[1],-hw, p13[0],p13[1],hw);
+    seg(p15[0],p15[1],-hw, p14[0],p14[1],hw);
+    seg(p16[0],p16[1],-hw, p17[0],p17[1],hw);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -2442,7 +2742,7 @@ const KeepAlive = () => {
   return null;
 };
 
-const SUPPORTED_3D = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'QPR2a', 'PR1a', 'PR7a', 'QBRa', 'QBR1a', 'QBFRa', 'QBFa', 'QESa', 'TR1a'];
+const SUPPORTED_3D = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'QPR2a', 'PR1a', 'PR7a', 'QBRa', 'QBR1a', 'QBFRa', 'QBFa', 'QESa', 'TR1a', 'TR2a', 'TRa'];
 
 const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -2480,6 +2780,36 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
             <>
               <TR1aMesh a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />
               {showDimensions && <TR1aLabels a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />}
+            </>
+          );
+        }
+        // TR2a — tee with round branch
+        if (symbol === 'TR2a') {
+          const d   = values[2] || 200;
+          const tL  = values[3] || 500;
+          const tl3 = values[4] || 200;
+          const te  = values[5] || 150;
+          const tf  = values[6] || 0;
+          return (
+            <>
+              <TR2aMesh a={a} b={b} d={d} L={tL} l3={tl3} e={te} f={tf} />
+              {showDimensions && <TR2aLabels a={a} b={b} d={d} L={tL} l3={tl3} e={te} f={tf} />}
+            </>
+          );
+        }
+        // TRa — symmetric tee
+        if (symbol === 'TRa') {
+          const d   = values[2] || 200;
+          const h   = values[3] || 150;
+          const tL  = values[4] || 500;
+          const q   = values[5] || 50;
+          const r   = values[6] || 50;
+          const iV  = values[7] || 50;
+          const pV  = values[8] || 100;
+          return (
+            <>
+              <TRaMesh a={a} b={b} d={d} h={h} L={tL} q={q} r={r} i={iV} p={pV} />
+              {showDimensions && <TRaLabels a={a} b={b} d={d} h={h} L={tL} q={q} r={r} i={iV} p={pV} />}
             </>
           );
         }
