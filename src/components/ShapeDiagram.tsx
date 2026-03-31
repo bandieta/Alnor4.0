@@ -27,7 +27,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       case 'QBFRa': return renderReductionElbow();
       case 'QBFa': return renderAngleBend();
       case 'QESa': return renderEndCap();
-      case 'TR1a':
+      case 'TR1a': return renderTR1a();
       case 'TR2a': return renderTeeJunction();
       case 'TRa': return renderSymmetricTee();
       case 'QPR3a':
@@ -1523,27 +1523,360 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     );
   };
 
-  const renderAngleBend = () => (
-    <g>
-      {/* L-shaped bend with sharp corners */}
-      <polyline points="60,140 60,30 300,30" fill="none" stroke="#004290" strokeWidth={2} />
-      <polyline points="90,140 90,60 300,60" fill="none" stroke="#004290" strokeWidth={2} />
-      <line x1={60} y1={140} x2={90} y2={140} stroke="#004290" strokeWidth={2} />
-      <line x1={300} y1={30} x2={300} y2={60} stroke="#004290" strokeWidth={2} />
-      <text x={30} y={100} fontSize={11} fill="#555555">a</text>
-      <text x={200} y={22} fontSize={11} fill="#555555">b</text>
-    </g>
-  );
+  const renderAngleBend = () => {
+    // QBFa: symmetric 90° L-shaped elbow — front face view (matching C# pictureBox rendering)
+    // View: looking into the open face of the duct (the cut cross-section)
+    // Outer boundary: (e+b) wide × (b+f) tall  [d=b symmetric]
+    // Inner corner at top-right: cut with arc of radius r
+    const a = values[0] || 200;
+    const b = values[1] || 200;
+    const e = values[2] || 150;
+    const f = values[3] || 150;
+    const r = values[4] || 100;
 
-  const renderEndCap = () => (
-    <g>
-      <rect x={100} y={30} width={160} height={100} fill="none" stroke="#004290" strokeWidth={2} />
-      <line x1={100} y1={30} x2={260} y2={130} stroke="#004290" strokeWidth={1} strokeDasharray="4,4" />
-      <line x1={260} y1={30} x2={100} y2={130} stroke="#004290" strokeWidth={1} strokeDasharray="4,4" />
-      <text x={80} y={85} fontSize={11} fill="#555555">a</text>
-      <text x={180} y={25} fontSize={11} fill="#555555">b</text>
-    </g>
-  );
+    const sideW = width * 0.58;
+    const totalW = e + b;
+    const totalH = b + f;
+    const sc = Math.min((height - 44) / totalH, (sideW - 36) / totalW);
+    const sb = b * sc, se = e * sc, sf = f * sc, sr = r * sc;
+
+    // Origin: top-left of outer L bounding box
+    const ox = Math.max(16, (sideW - (se + sb)) / 2);
+    const oy = Math.max(10, (height - (sb + sf)) / 2);
+
+    // Outer L boundary: bottom-left→top-left→top-right→corner→right→bottom
+    // In C# coordinates (y+ downward), the L shape is:
+    //   top-left (ox, oy) → top-right (ox+se+sb, oy)
+    //   right side down to (ox+se+sb, oy+sb+sf)
+    //   across bottom-right to (ox+se, oy+sb+sf) [inner horizontal bottom]
+    //   up to inner corner at (ox+se, oy+sb)
+    //   left to (ox, oy+sb)  [inner vertical right]
+    //   down to (ox, oy+sb+sf) [left edge bottom]
+    //   back to start
+    // But the arc replaces the sharp inner corner at (ox+se, oy+sb):
+    //   the corner is notched: straight horizontal from (ox, oy+sb) to (ox+se-r, oy+sb)
+    //   arc from (ox+se-r, oy+sb) curving to (ox+se, oy+sb+r)  [center=(ox+se, oy+sb), r=sr]
+    //   then straight down from (ox+se, oy+sb+r) to (ox+se, oy+sb+sf)
+
+    const arcCX = ox + se;       // arc center x
+    const arcCY = oy + sb;       // arc center y
+    const fp = Math.min(8, Math.max(3, sb * 0.1)); // flange protrusion
+
+    const arcSteps = 10;
+    const innerArcPts: string[] = [];
+    for (let i = 0; i <= arcSteps; i++) {
+      const angle = Math.PI + (Math.PI / 2) * (i / arcSteps); // 180°→270° (going right and down)
+      innerArcPts.push(`${(arcCX + sr * Math.cos(angle)).toFixed(1)},${(arcCY + sr * Math.sin(angle)).toFixed(1)}`);
+    }
+    // innerArcPts[0] = (arcCX-sr, arcCY) = left tangent point
+    // innerArcPts[last] = (arcCX, arcCY+sr) = bottom tangent point
+
+    // L-shape outline points (SVG path)
+    const outerL = [
+      `${ox},${oy + sb + sf}`,            // bottom-left
+      `${ox},${oy}`,                       // top-left
+      `${(ox + se + sb).toFixed(1)},${oy}`, // top-right
+      `${(ox + se + sb).toFixed(1)},${(oy + sb + sf).toFixed(1)}`, // bottom-right
+      `${(ox + se).toFixed(1)},${(oy + sb + sf).toFixed(1)}`,      // inner bottom-right
+    ].join(' ');
+
+    // Cross section
+    const crossAreaX = sideW + 8;
+    const crossAreaW = width - crossAreaX - 8;
+    const csc = Math.min(crossAreaW * 0.72, (height - 44) * 0.72) / Math.max(a, b, 1);
+    const ca = Math.max(a * csc, 12), cb = Math.max(b * csc, 12);
+    const cp = Math.min(6, Math.max(3, ca * 0.08));
+    const crossX = crossAreaX + (crossAreaW - ca) / 2;
+    const crossY = (height - cb) / 2 + 4;
+
+    return (
+      <g>
+        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z przodu</text>
+
+        {/* Outer L boundary */}
+        <polyline points={outerL} fill="none" stroke="#004290" strokeWidth={1.8} />
+
+        {/* Inner corner walls leading to arc */}
+        <line x1={ox} y1={oy + sb} x2={arcCX - sr} y2={oy + sb}
+          stroke="#004290" strokeWidth={1.8} />
+        <polyline points={innerArcPts.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <line x1={arcCX} y1={arcCY + sr} x2={arcCX} y2={oy + sb + sf}
+          stroke="#004290" strokeWidth={1.8} />
+
+        {/* Flanges: left vertical (inlet) and bottom horizontal (outlet) */}
+        <line x1={ox - fp} y1={oy} x2={ox - fp} y2={oy + sb}
+          stroke="#004290" strokeWidth={2.2} />
+        <line x1={ox} y1={oy + sb + sf + fp} x2={ox + se} y2={oy + sb + sf + fp}
+          stroke="#004290" strokeWidth={2.2} />
+
+        {/* e — horizontal straight leg */}
+        <line x1={ox} y1={oy + sb + sf + fp + 13} x2={ox + se} y2={oy + sb + sf + fp + 13}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={ox + se / 2} y={oy + sb + sf + fp + 24}
+          textAnchor="middle" fontSize={10} fill="#555555">e</text>
+
+        {/* f — vertical straight leg */}
+        {sf > 8 && (
+          <>
+            <line x1={ox - fp - 13} y1={oy} x2={ox - fp - 13} y2={oy + sb}
+              stroke="#9b9b9b" strokeWidth={0.8}
+              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+            <text x={ox - fp - 22} y={oy + sb / 2 + 4}
+              textAnchor="middle" fontSize={9} fill="#555555">f</text>
+          </>
+        )}
+
+        {/* b — duct section dimension */}
+        {sb > 8 && (
+          <>
+            <line x1={ox + se + sb + 13} y1={oy} x2={ox + se + sb + 13} y2={oy + sb + sf}
+              stroke="#9b9b9b" strokeWidth={0.8}
+              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+            <text x={ox + se + sb + 22} y={oy + (sb + sf) / 2 + 4}
+              textAnchor="start" fontSize={10} fill="#555555">b</text>
+          </>
+        )}
+
+        {/* r — inner bend radius */}
+        {sr > 6 && (
+          <>
+            <line x1={arcCX} y1={arcCY}
+              x2={arcCX - sr * Math.cos(Math.PI / 4)} y2={arcCY + sr * Math.sin(Math.PI / 4)}
+              stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2" />
+            <text x={arcCX - sr * 0.38} y={arcCY + sr * 0.38 - 4}
+              textAnchor="middle" fontSize={9} fill="#555555">r</text>
+          </>
+        )}
+
+        {/* Cross section */}
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <rect x={crossX} y={crossY} width={ca} height={cb}
+          fill="none" stroke="#004290" strokeWidth={1.8} />
+        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
+          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca / 2} y={crossY - cp - 14}
+          textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
+          textAnchor="start" fontSize={10} fill="#555555">b</text>
+      </g>
+    );
+  };
+
+  const renderEndCap = () => {
+    // QESa: rectangular end cap — params: a [mm], b [mm], e [mm] (depth)
+    const a = values[0] || 200;
+    const b = values[1] || 200;
+    const e = values[2] || 30;
+
+    // Left 58%: side view showing e (depth) × b
+    const sideW = width * 0.58;
+    const sc = Math.min((height - 44) / b, (sideW - 48) / Math.max(e, 1));
+    const sb = Math.max(b * sc, 12);
+    const se = Math.max(e * sc, 8);
+    const fp = Math.min(8, Math.max(4, sb * 0.1)); // flange protrusion
+
+    // Side view centred in left area
+    const sx = Math.max(28, (sideW - se - 40) / 2);
+    const sy = (height - sb) / 2 - 4;
+
+    // Right 42%: cross-section (a × b)
+    const crossAreaX = sideW + 8;
+    const crossAreaW = width - crossAreaX - 10;
+    const csc = Math.min(crossAreaW * 0.72, (height - 50) * 0.72) / Math.max(a, b, 1);
+    const ca = Math.max(a * csc, 12);
+    const cb = Math.max(b * csc, 12);
+    const cp = Math.min(6, Math.max(3, ca * 0.08));
+    const crossX = crossAreaX + (crossAreaW - ca) / 2;
+    const crossY = (height - cb) / 2 + 4;
+
+    return (
+      <g>
+        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
+
+        {/* Flange line on left (open/mating end) */}
+        <line x1={sx} y1={sy - fp} x2={sx} y2={sy + sb + fp}
+          stroke="#004290" strokeWidth={2.2} />
+
+        {/* Cap body rectangle (side face: e × b) */}
+        <rect x={sx} y={sy} width={se} height={sb}
+          fill="none" stroke="#004290" strokeWidth={1.8} />
+
+        {/* Closed end — thick plate line on right */}
+        <line x1={sx + se} y1={sy - 2} x2={sx + se} y2={sy + sb + 2}
+          stroke="#004290" strokeWidth={4} />
+
+        {/* e dimension (depth) */}
+        <line x1={sx} y1={sy + sb + fp + 14} x2={sx + se} y2={sy + sb + fp + 14}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={sx + se / 2} y={sy + sb + fp + 26}
+          textAnchor="middle" fontSize={10} fill="#555555">e</text>
+
+        {/* b dimension (height) */}
+        {sb > 10 && (
+          <>
+            <line x1={sx + se + 14} y1={sy} x2={sx + se + 14} y2={sy + sb}
+              stroke="#9b9b9b" strokeWidth={0.8}
+              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+            <text x={sx + se + 24} y={sy + sb / 2 + 4}
+              textAnchor="start" fontSize={10} fill="#555555">b</text>
+          </>
+        )}
+
+        {/* Cross-section */}
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <rect x={crossX} y={crossY} width={ca} height={cb}
+          fill="none" stroke="#004290" strokeWidth={1.8} />
+        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
+          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+
+        {/* a dimension */}
+        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca / 2} y={crossY - cp - 14}
+          textAnchor="middle" fontSize={10} fill="#555555">a</text>
+
+        {/* b dimension (cross-section side) */}
+        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
+          textAnchor="start" fontSize={10} fill="#555555">b</text>
+      </g>
+    );
+  };
+
+  const renderTR1a = () => {
+    // TR1a: rectangular branch tee
+    // values: a, b, d, w, L, e, f, l3
+    const a   = values[0] || 200;
+    const b   = values[1] || 200;
+    // d = values[2] — branch z-depth (shown in cross-section only)
+    const w   = values[3] || 200;  // branch x-width
+    const L   = values[4] || 500;  // main duct length
+    const e   = values[5] || 150;  // branch x-offset from left
+    const l3  = values[7] || 200;  // branch y-length (downward)
+
+    // Left panel (~60%): front view showing main duct + branch
+    const sideW = width * 0.60;
+    const totalH = b + l3;
+    const sc = Math.min((height - 44) / totalH, (sideW - 44) / L);
+    const sL = Math.max(L * sc, 20);
+    const sb = Math.max(b * sc, 8);
+    const sw = Math.max(w * sc, 8);
+    const sl3 = Math.max(l3 * sc, 8);
+    const se = e * sc;
+    const fp = Math.min(7, Math.max(3, sb * 0.1)); // flange protrusion
+
+    const ox = Math.max(18, (sideW - sL) / 2);  // left margin
+    const oy = Math.max(12, (height - sb - sl3 - 8) / 2); // top margin
+
+    // Cross-section (right panel)
+    const crossAreaX = sideW + 6;
+    const crossAreaW = width - crossAreaX - 8;
+    const csc = Math.min(crossAreaW * 0.7, (height - 44) * 0.7) / Math.max(a, b, 1);
+    const ca = Math.max(a * csc, 12);
+    const cb = Math.max(b * csc, 12);
+    const cp = Math.min(6, Math.max(3, ca * 0.08));
+    const crossX = crossAreaX + (crossAreaW - ca) / 2;
+    const crossY = (height - cb) / 2 + 4;
+
+    return (
+      <g>
+        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z przodu</text>
+
+        {/* Main duct rectangle */}
+        <rect x={ox} y={oy} width={sL} height={sb}
+          fill="none" stroke="#004290" strokeWidth={1.8} />
+
+        {/* Left flange (main duct in) */}
+        <line x1={ox} y1={oy - fp} x2={ox} y2={oy + sb + fp}
+          stroke="#004290" strokeWidth={2.2} />
+        {/* Right flange (main duct out) */}
+        <line x1={ox + sL} y1={oy - fp} x2={ox + sL} y2={oy + sb + fp}
+          stroke="#004290" strokeWidth={2.2} />
+
+        {/* Branch rectangle below main duct */}
+        <rect x={ox + se} y={oy + sb} width={sw} height={sl3}
+          fill="none" stroke="#004290" strokeWidth={1.8} />
+        {/* Branch bottom flange */}
+        <line x1={ox + se - fp} y1={oy + sb + sl3} x2={ox + se + sw + fp} y2={oy + sb + sl3}
+          stroke="#004290" strokeWidth={2.2} />
+
+        {/* L dimension (main duct length) */}
+        <line x1={ox} y1={oy - fp - 12} x2={ox + sL} y2={oy - fp - 12}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={ox + sL / 2} y={oy - fp - 14}
+          textAnchor="middle" fontSize={10} fill="#555555">L</text>
+
+        {/* b dimension (main duct height) */}
+        <line x1={ox + sL + 12} y1={oy} x2={ox + sL + 12} y2={oy + sb}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={ox + sL + 22} y={oy + sb / 2 + 4}
+          textAnchor="start" fontSize={10} fill="#555555">b</text>
+
+        {/* w dimension (branch width) */}
+        {sw > 8 && (
+          <>
+            <line x1={ox + se} y1={oy + sb + sl3 + 14} x2={ox + se + sw} y2={oy + sb + sl3 + 14}
+              stroke="#9b9b9b" strokeWidth={0.8}
+              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+            <text x={ox + se + sw / 2} y={oy + sb + sl3 + 24}
+              textAnchor="middle" fontSize={10} fill="#555555">w</text>
+          </>
+        )}
+
+        {/* l3 dimension (branch height) */}
+        {sl3 > 8 && (
+          <>
+            <line x1={ox + se + sw + 12} y1={oy + sb} x2={ox + se + sw + 12} y2={oy + sb + sl3}
+              stroke="#9b9b9b" strokeWidth={0.8}
+              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+            <text x={ox + se + sw + 22} y={oy + sb + sl3 / 2 + 4}
+              textAnchor="start" fontSize={10} fill="#555555">l3</text>
+          </>
+        )}
+
+        {/* e dimension (branch offset from left) */}
+        {se > 6 && (
+          <>
+            <line x1={ox} y1={oy + sb + sl3 / 2} x2={ox + se} y2={oy + sb + sl3 / 2}
+              stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2"
+              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+            <text x={ox + se / 2} y={oy + sb + sl3 / 2 - 3}
+              textAnchor="middle" fontSize={9} fill="#555555">e</text>
+          </>
+        )}
+
+        {/* Cross-section */}
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <rect x={crossX} y={crossY} width={ca} height={cb}
+          fill="none" stroke="#004290" strokeWidth={1.8} />
+        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
+          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca / 2} y={crossY - cp - 14}
+          textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
+          textAnchor="start" fontSize={10} fill="#555555">b</text>
+      </g>
+    );
+  };
 
   const renderTeeJunction = () => (
     <g>

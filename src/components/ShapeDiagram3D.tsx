@@ -268,6 +268,7 @@ const BendMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number
     const addQuad = (p0: number[], p1: number[], p2: number[], p3: number[], n: number[]) => {
       verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
       for (let i = 0; i < 6; i++) norms.push(...n);
+      // Standard quad UV winding: (0,0)-(1,0)-(1,1)-(0,1)
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
     };
 
@@ -799,7 +800,7 @@ const DiffuserBendMesh: React.FC<{
       verts.push(ix0, iy0, zL0, ox1, oy1, zL1, ix1, iy1, zL1);
       for (let j = 0; j < 6; j++) norms.push(0, 0, -1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
-
+      
       // Back face (z = zRight)
       verts.push(ox0, oy0, zR0, ix0, iy0, zR0, ix1, iy1, zR1);
       verts.push(ox0, oy0, zR0, ix1, iy1, zR1, ox1, oy1, zR1);
@@ -1122,6 +1123,7 @@ const ReductionElbowMesh: React.FC<{
     addQuad([hx1, hy0, -hw], [hx1, hy1, -hw], [vx0, hy0, -hw], [vx0, hy0, -hw], [0, 0, -1]); // degenerate, skip
     // Actually this region is complex. Let me use arc segments instead:
 
+    // Restore original arc/fillet mesh construction for QBFRa
     // Inner arc wall: curved surface from arc top to arc left
     for (let i = 0; i < segments; i++) {
       const a0 = (i / segments) * (Math.PI / 2);
@@ -1222,6 +1224,563 @@ const ReductionElbowMesh: React.FC<{
         <lineBasicMaterial color="#7a7e85" />
       </lineSegments>
     </group>
+  );
+};
+
+/* ===== TR1a Tee — rectangular branch off bottom of main duct ===== */
+// Params: a (main z-depth), b (main y-height), d (branch z-depth), w (branch x-width),
+//         L (main x-length), e (branch x-offset from left), f (branch z-offset from front), l3 (branch y-length)
+const TR1aMesh: React.FC<{
+  a: number; b: number; d: number; w: number; L: number;
+  e: number; f: number; l3: number;
+}> = ({ a, b, d, w, L, e, f, l3 }) => {
+  const maxDim = Math.max(a, b, d, w, L, e, f, l3, 1);
+  const scale = 2 / maxDim;
+  const sa = a * scale, sb = b * scale, sd = d * scale;
+  const sw = w * scale, sl = L * scale;
+  const se = e * scale, sf = f * scale, sl3 = l3 * scale;
+
+  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
+    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+    flatShading: false,
+  }), []);
+
+  const { geometry, edgeGeo } = useMemo(() => {
+    const hL = sl / 2, hb = sb / 2, ha = sa / 2;
+
+    // Branch reference offsets (C# dx, dy, dz)
+    const brDX = -hL + se;           // branch center x
+    const brTopY = -hb;              // branch top y = main duct bottom
+    const brBotY = -hb - sl3;        // branch bottom y
+    const brFrtZ = -ha + sf - sd / 2; // branch front z
+    const brBckZ = -ha + sf + sd / 2; // branch back z
+    const brLftX = brDX - sw / 2;    // branch left x
+    const brRgtX = brDX + sw / 2;    // branch right x
+
+    // Main duct corners (p0-p7)
+    const p0 = [-hL,  hb, -ha];
+    const p1 = [ hL,  hb, -ha];
+    const p2 = [ hL, -hb, -ha];
+    const p3 = [-hL, -hb, -ha];
+    const p4 = [-hL,  hb,  ha];
+    const p5 = [ hL,  hb,  ha];
+    const p6 = [ hL, -hb,  ha];
+    const p7 = [-hL, -hb,  ha];
+
+    // Branch corners (p8-p15, mirroring C# punkty)
+    const p8  = [brLftX, brTopY, brFrtZ];
+    const p9  = [brRgtX, brTopY, brFrtZ];
+    const p10 = [brRgtX, brBotY, brFrtZ];
+    const p11 = [brLftX, brBotY, brFrtZ];
+    const p12 = [brLftX, brTopY, brBckZ];
+    const p13 = [brRgtX, brTopY, brBckZ];
+    const p14 = [brRgtX, brBotY, brBckZ];
+    const p15 = [brLftX, brBotY, brBckZ];
+
+    const verts: number[] = [];
+    const norms: number[] = [];
+    const uvArr: number[] = [];
+    const edgePts: number[] = [];
+
+    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[], n: number[]) => {
+      verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+      for (let i = 0; i < 6; i++) norms.push(...n);
+      uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
+    };
+
+    // ── Main duct walls ───────────────────────────────────────────────────────
+    // Front face (z=-ha, facing -z)
+    addQuad(p3, p0, p1, p2, [0, 0, -1]);
+    // Top face (y=hb, facing +y)
+    addQuad(p0, p1, p5, p4, [0, 1, 0]);
+    // Back face (z=ha, facing +z)
+    addQuad(p6, p5, p4, p7, [0, 0, 1]);
+
+    // ── Bottom face with branch hole (4 sections, all y=-hb, normal [0,-1,0]) ─
+    // Front strip: full z width of main duct narrowing to branch front z at (brLftX..brRgtX)
+    addQuad(p2, p3, p8, p9, [0, -1, 0]);
+    // Right strip: from branch right x to main duct right end (hL)
+    addQuad(p2, p9, p13, p6, [0, -1, 0]);
+    // Back strip: from branch back z to main duct back
+    addQuad(p13, p12, p7, p6, [0, -1, 0]);
+    // Left strip: from main duct left to branch left x
+    addQuad(p3, p7, p12, p8, [0, -1, 0]);
+
+    // ── Branch walls (open top = hole in main duct, open bottom = outlet) ─────
+    // Branch front (z=brFrtZ, facing -z)
+    addQuad(p11, p8,  p9,  p10, [0, 0, -1]);
+    // Branch right (x=brRgtX, facing +x)
+    addQuad(p10, p9,  p13, p14, [1, 0,  0]);
+    // Branch back (z=brBckZ, facing +z)
+    addQuad(p14, p13, p12, p15, [0, 0,  1]);
+    // Branch left (x=brLftX, facing -x)
+    addQuad(p15, p12, p8,  p11, [-1, 0, 0]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+
+    // ── Edge wireframe ────────────────────────────────────────────────────────
+    const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
+      edgePts.push(ax, ay, az, bx, by, bz);
+
+    // Main duct front face edges
+    seg(p0[0],p0[1],p0[2], p1[0],p1[1],p1[2]);
+    seg(p1[0],p1[1],p1[2], p2[0],p2[1],p2[2]);
+    seg(p2[0],p2[1],p2[2], p3[0],p3[1],p3[2]);
+    seg(p3[0],p3[1],p3[2], p0[0],p0[1],p0[2]);
+    // Main duct back face edges
+    seg(p4[0],p4[1],p4[2], p5[0],p5[1],p5[2]);
+    seg(p5[0],p5[1],p5[2], p6[0],p6[1],p6[2]);
+    seg(p6[0],p6[1],p6[2], p7[0],p7[1],p7[2]);
+    seg(p7[0],p7[1],p7[2], p4[0],p4[1],p4[2]);
+    // Depth edges (connecting front to back)
+    seg(p0[0],p0[1],p0[2], p4[0],p4[1],p4[2]);
+    seg(p1[0],p1[1],p1[2], p5[0],p5[1],p5[2]);
+    // Bottom perimeter (excluding the hole opening)
+    seg(p2[0],p2[1],p2[2], p9[0],p9[1],p9[2]);  // right front to branch front-right
+    seg(p3[0],p3[1],p3[2], p8[0],p8[1],p8[2]);  // left front to branch front-left
+    seg(p6[0],p6[1],p6[2], p13[0],p13[1],p13[2]); // right back to branch back-right
+    seg(p7[0],p7[1],p7[2], p12[0],p12[1],p12[2]); // left back to branch back-left
+    // Branch vertical edges
+    seg(p8[0],p8[1],p8[2],   p11[0],p11[1],p11[2]);
+    seg(p9[0],p9[1],p9[2],   p10[0],p10[1],p10[2]);
+    seg(p12[0],p12[1],p12[2], p15[0],p15[1],p15[2]);
+    seg(p13[0],p13[1],p13[2], p14[0],p14[1],p14[2]);
+    // Branch bottom edges
+    seg(p10[0],p10[1],p10[2], p11[0],p11[1],p11[2]);
+    seg(p10[0],p10[1],p10[2], p14[0],p14[1],p14[2]);
+    seg(p11[0],p11[1],p11[2], p15[0],p15[1],p15[2]);
+    seg(p14[0],p14[1],p14[2], p15[0],p15[1],p15[2]);
+    // Branch top opening edges (where branch meets main duct)
+    seg(p8[0],p8[1],p8[2],   p9[0],p9[1],p9[2]);
+    seg(p9[0],p9[1],p9[2],   p13[0],p13[1],p13[2]);
+    seg(p13[0],p13[1],p13[2], p12[0],p12[1],p12[2]);
+    seg(p12[0],p12[1],p12[2], p8[0],p8[1],p8[2]);
+
+    const eGeo = new THREE.BufferGeometry();
+    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
+
+    return { geometry: geo, edgeGeo: eGeo };
+  }, [sa, sb, sd, sw, sl, se, sf, sl3]);
+
+  return (
+    <group>
+      <mesh geometry={geometry} material={material} />
+      <lineSegments geometry={edgeGeo}>
+        <lineBasicMaterial color="#7a7e85" />
+      </lineSegments>
+    </group>
+  );
+};
+
+/* TR1a dimension labels */
+const TR1aLabels: React.FC<{
+  a: number; b: number; d: number; w: number; L: number;
+  e: number; f: number; l3: number;
+}> = ({ a, b, d, w, L, e, f: _f, l3 }) => {
+  const maxDim = Math.max(a, b, d, w, L, e, l3, 1);
+  const scale = 2 / maxDim;
+  const sb = b * scale, sl = L * scale, sw = w * scale, sl3 = l3 * scale;
+  const hb = sb / 2, hL = sl / 2;
+  const brDX = -hL + e * scale;
+  const brTopY = -hb;
+  const brBotY = -hb - sl3;
+
+  return (
+    <>
+      {/* L — main duct length */}
+      <Billboard position={[0, hb + 0.2, 0]}>
+        <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="bottom">{`L = ${Math.round(L)}`}</Text>
+      </Billboard>
+      {/* b — main duct height */}
+      <Billboard position={[hL + 0.2, 0, 0]}>
+        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+      </Billboard>
+      {/* w — branch width */}
+      <Billboard position={[brDX, brBotY - 0.18, 0]}>
+        <Text fontSize={0.11} color="#004290" anchorX="center" anchorY="top">{`w = ${Math.round(w)}`}</Text>
+      </Billboard>
+      {/* l3 — branch length */}
+      <Billboard position={[brDX + sw / 2 + 0.18, (brTopY + brBotY) / 2, 0]}>
+        <Text fontSize={0.11} color="#004290" anchorX="left" anchorY="middle">{`l3 = ${Math.round(l3)}`}</Text>
+      </Billboard>
+      {/* a label */}
+      <Billboard position={[0, -hb - sl3 / 2, 0]}>
+        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`a=${Math.round(a)}`}</Text>
+      </Billboard>
+    </>
+  );
+};
+
+/* ===== QESa End Cap — rectangular blank-off plate ===== */
+const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) => {
+  const maxDim = Math.max(a, b, e, 1);
+  const na = (a / maxDim) * 2;
+  const nb = (b / maxDim) * 2;
+  const ne = (e / maxDim) * 2;
+
+  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
+    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+  }), []);
+
+  const { geometry, edgeGeo } = useMemo(() => {
+    const hw = na / 2, hb = nb / 2, he = ne / 2;
+
+    // Vertex order matches DuctMesh pattern (CCW winding viewed from outside = correct outward normals)
+    const vertices = new Float32Array([
+      // Top (y=+hb)
+      -hw, hb, -he,   hw, hb, -he,   hw, hb,  he,
+      -hw, hb, -he,   hw, hb,  he,  -hw, hb,  he,
+      // Bottom (y=-hb)
+      -hw,-hb,  he,   hw,-hb,  he,   hw,-hb, -he,
+      -hw,-hb,  he,   hw,-hb, -he,  -hw,-hb, -he,
+      // Left (x=-hw)
+      -hw,-hb, -he,  -hw, hb, -he,  -hw, hb,  he,
+      -hw,-hb, -he,  -hw, hb,  he,  -hw,-hb,  he,
+      // Right (x=+hw)
+       hw,-hb,  he,   hw, hb,  he,   hw, hb, -he,
+       hw,-hb,  he,   hw, hb, -he,   hw,-hb, -he,
+      // Back cap (z=+he) — sealed plate, normal toward -z (visible through open front)
+       hw,-hb,  he,  -hw,-hb,  he,  -hw, hb,  he,
+       hw,-hb,  he,  -hw, hb,  he,   hw, hb,  he,
+    ]);
+    const normals = new Float32Array([
+       0,1,0,  0,1,0,  0,1,0,  0,1,0,  0,1,0,  0,1,0,
+       0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
+      -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0,
+       1,0,0,  1,0,0,  1,0,0,  1,0,0,  1,0,0,  1,0,0,
+       1,0,0,  1,0,0,  0,0,0,  0,0,0,  1,0,0,  1,0,0,
+    ]);
+ 
+
+    const uvs = new Float32Array([
+      0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
+      0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
+      0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
+      0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
+      0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
+    ]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+    // 12 wireframe edges
+    const edgePts: number[] = [];
+    const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
+      edgePts.push(ax,ay,az, bx,by,bz);
+    seg(-hw,-hb,-he,  hw,-hb,-he); seg( hw,-hb,-he,  hw, hb,-he);
+    seg( hw, hb,-he, -hw, hb,-he); seg(-hw, hb,-he, -hw,-hb,-he);
+    seg(-hw,-hb, he,  hw,-hb, he); seg( hw,-hb, he,  hw, hb, he);
+    seg( hw, hb, he, -hw, hb, he); seg(-hw, hb, he, -hw,-hb, he);
+    seg(-hw,-hb,-he, -hw,-hb, he); seg( hw,-hb,-he,  hw,-hb, he);
+    seg( hw, hb,-he,  hw, hb, he); seg(-hw, hb,-he, -hw, hb, he);
+
+    const eGeo = new THREE.BufferGeometry();
+    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
+
+    return { geometry: geo, edgeGeo: eGeo };
+  }, [na, nb, ne]);
+
+  return (
+    <group>
+      <mesh geometry={geometry} material={material} />
+      <lineSegments geometry={edgeGeo}>
+        <lineBasicMaterial color="#7a7e85" />
+      </lineSegments>
+    </group>
+  );
+};
+
+/* QESa dimension labels */
+const QESaLabels: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) => {
+  const maxDim = Math.max(a, b, e, 1);
+  const scale = 2 / maxDim;
+  const sa = a * scale;
+  const sb = b * scale;
+  const se = e * scale;
+
+  return (
+    <>
+      {/* a = horizontal width, labeled below (matching DuctMesh convention) */}
+      <Billboard position={[0, -sb / 2 - 0.22, 0]}>
+        <Text fontSize={0.13} color="#004290" anchorX="center" anchorY="top">{`a = ${Math.round(a)}`}</Text>
+      </Billboard>
+      {/* b = vertical height, labeled to the right */}
+      <Billboard position={[sa / 2 + 0.25, 0, 0]}>
+        <Text fontSize={0.13} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+      </Billboard>
+      <Billboard position={[0, 0, se / 2 + 0.22]}>
+        <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="middle">{`e = ${Math.round(e)}`}</Text>
+      </Billboard>
+    </>
+  );
+};
+
+/* ===== QBFa Elbow Mesh — symmetric 90° L-shaped elbow (d = b) ===== */
+const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number }> = ({ a, b, e, f, r }) => {
+  // QBFa: symmetric elbow → d = b. Geometry built from C# licz_punkty vertices.
+  // Coordinate system:  x = right, y = up, z = depth
+  // Centered with dx = (e+b)/2, dy = (b+f)/2  (d=b)
+  const maxDim = Math.max(a, b + e, b + f, e, f, r, 1);
+  const scale = 2 / maxDim;
+  const sa = a * scale;
+  const sb = b * scale;
+  const se = e * scale;
+  const sf = f * scale;
+  const sr = r * scale;
+
+  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
+    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+    flatShading: false,
+  }), []);
+
+  const { geometry, edgeGeo } = useMemo(() => {
+    const hw = sa / 2; // half z-depth
+    const verts: number[] = [];
+    const norms: number[] = [];
+    const uvArr: number[] = [];
+    const edgePts: number[] = [];
+
+    const addQuad = (p0: number[], p1: number[], p2: number[], p3: number[], n: number[]) => {
+      verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
+      for (let i = 0; i < 6; i++) norms.push(...n);
+      uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
+    };
+
+    // Centering offsets (d = b for symmetric)
+    const dx = (se + sb) / 2;
+    const dy = (sb + sf) / 2;
+
+    // ── Named vertices matching C# punkty[] ──────────────────────────────────
+    // p0-p3: top of vertical leg
+    const p0  = [se - dx,      sb + sf - dy,  -hw];
+    const p1  = [se + sb - dx, sb + sf - dy,  -hw];
+    const p2  = [se + sb - dx, sb + sf - dy,   hw];
+    const p3  = [se - dx,      sb + sf - dy,   hw];
+    // p4-p7: bottom flange
+    const p4  = [-dx,          -dy,            -hw];
+    const p5  = [se + sb - dx, -dy,            -hw];
+    const p6  = [se + sb - dx, -dy,             hw];
+    const p7  = [-dx,          -dy,             hw];
+    // p8-p11: inner corner top
+    const p8  = [se - dx,      sb + sr - dy,   -hw];
+    const p9  = [se + sb - dx, sb + sr - dy,   -hw];
+    const p10 = [se + sb - dx, sb + sr - dy,    hw];
+    const p11 = [se - dx,      sb + sr - dy,    hw];
+    // p12-p15: inner/outer corner left
+    const p12 = [se - sr - dx, sb - dy,         -hw];
+    const p13 = [se - sr - dx, sb - dy,          hw];
+    const p14 = [se - sr - dx, -dy,              hw];
+    const p15 = [se - sr - dx, -dy,             -hw];
+    // p16-p17: left wall top
+    const p16 = [-dx,          sb - dy,         -hw];
+    const p17 = [-dx,          sb - dy,          hw];
+
+    // ── Outer corner interpolation points (C# p21-p24) ───────────────────────
+    // Bottom row: from p15 toward p5, stepping by (sb+sr)/3
+    const p21 = [p15[0] + (sb + sr) / 3,        p15[1], -hw];
+    const p22 = [p15[0] + 2 * (sb + sr) / 3,    p15[1], -hw];
+    // Right column: from p5 upward toward p9, stepping by (sb+sr)/3  (d=b so d+r=sb+sr)
+    const p23 = [p5[0],  p5[1] + (sb + sr) / 3,  -hw];
+    const p24 = [p5[0],  p5[1] + 2 * (sb + sr) / 3, -hw];
+    // Back mirrors (p31-p34)
+    const p31 = [p21[0], p21[1],  hw];
+    const p32 = [p22[0], p22[1],  hw];
+    const p33 = [p23[0], p23[1],  hw];
+    const p34 = [p24[0], p24[1],  hw];
+
+    // ── Inner arc points (C# p25-p29) at θ = 15°,30°,45°,60°,75° ────────────
+    // Arc center = (se-sr-dx, sb+sr-dy)  [= p12 + (0, sr)]
+    // Point at angle θ: (center_x + cos(θ)*sr, center_y − sin(θ)*sr)
+    const arcCX = se - sr - dx;
+    const arcCY = sb + sr - dy;
+    const innerArcAngles = [75, 60, 45, 30, 15]; // C# order: p25→p29
+    const innerPtsF: number[][] = innerArcAngles.map(deg => {
+      const rad = deg * Math.PI / 180;
+      return [arcCX + Math.cos(rad) * sr, arcCY - Math.sin(rad) * sr, -hw];
+    });
+    const innerPtsB: number[][] = innerArcAngles.map(deg => {
+      const rad = deg * Math.PI / 180;
+      return [arcCX + Math.cos(rad) * sr, arcCY - Math.sin(rad) * sr, hw];
+    });
+    // C# indexing: p25=75°, p26=60°, p27=45°, p28=30°, p29=15°
+    const [p25F, p26F, p27F, p28F, p29F] = innerPtsF;
+    const [p25B, p26B, p27B, p28B, p29B] = innerPtsB;
+
+    // ── Flat wall quads ────────────────────────────────────────────────────────
+    // 1. Bottom face (y=−dy)
+    addQuad(p4, p7, p6, p5, [0, -1, 0]);
+    // 2. Right outer wall (x=se+sb−dx)
+    addQuad(p5, p6, p2, p1, [1, 0, 0]);
+    // 3. Top face of horizontal leg (y=sb−dy), from left wall to arc start
+    addQuad(p16, p17, p13, p12, [0, 1, 0]);
+    // 4. Top flange of vertical leg (y=sb+sf−dy)
+    addQuad(p8, p11, p3, p0, [0, 1, 0]);
+    // 5. Outer vertical top (y=sb+sr−dy, between p8/p11 and p9/p10)
+    addQuad(p8, p9, p10, p11, [0, 1, 0]);
+    // 6. Left wall (x=−dx)
+    addQuad(p4, p16, p17, p7, [-1, 0, 0]);
+    // 7. Left wall upper (x=−dx), from p16/p17 to p0/p3 — inner vertical wall
+    addQuad(p16, p0, p3, p17, [-1, 0, 0]);
+
+    // ── Outer corner strip: wall panels spanning z from −hw to +hw ────────────
+    // The outer surface of the bend goes from p15/p14 (left at y=-dy) around the outer
+    // corner to p9/p10 (top at y=sb+sr-dy). Each segment: [front, back, back_next, front_next]
+    // Outer corner pts front (z=-hw): p15, p21, p22, p5, p23, p24, p9
+    // Outer corner pts back  (z=+hw): p14, p31, p32, p6, p33, p34, p10
+    const ocF = [p15, p21, p22, p5,  p23, p24, p9];
+    const ocB = [p14, p31, p32, p6,  p33, p34, p10];
+    for (let i = 0; i < ocF.length - 1; i++) {
+      const q0 = ocF[i], q1 = ocB[i], q2 = ocB[i+1], q3 = ocF[i+1];
+      const u = [q1[0]-q0[0], q1[1]-q0[1], q1[2]-q0[2]];
+      const v = [q3[0]-q0[0], q3[1]-q0[1], q3[2]-q0[2]];
+      const n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+      const nl = Math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]) || 1;
+      addQuad(q0, q1, q2, q3, [n[0]/nl, n[1]/nl, n[2]/nl]);
+    }
+
+    // ── Inner arc wall: spans z from −hw to +hw ───────────────────────────────
+    // Inner arc front (z=-hw): p8, p29F, p28F, p27F, p26F, p25F, p12
+    // Inner arc back  (z=+hw): p11, p29B, p28B, p27B, p26B, p25B, p13
+    const iaF = [p8,  p29F, p28F, p27F, p26F, p25F, p12];
+    const iaB = [p11, p29B, p28B, p27B, p26B, p25B, p13];
+    for (let i = 0; i < iaF.length - 1; i++) {
+      const q0 = iaF[i], q1 = iaB[i], q2 = iaB[i+1], q3 = iaF[i+1];
+      // Normal points inward (toward arc center), i.e. away from channel interior — actually inward into canal
+      const midAngleA = ((6 - i) / 6) * (Math.PI / 2); // 90° down to 0°
+      const midAngleB = ((5 - i) / 6) * (Math.PI / 2);
+      const midAngle = (midAngleA + midAngleB) / 2;
+      // inward normal = pointing toward arc center = (-cos, +sin) in xz → actually toward center from arc
+      const nx = -Math.cos(midAngle);
+      const ny =  Math.sin(midAngle);
+      addQuad(q0, q3, q2, q1, [nx, ny, 0]); // reversed winding so normal faces inward
+    }
+
+    // ── Front face (z=−hw): L cross-section ─────────────────────────────────
+    // Outline CCW: p4→p5→p23→p24→p9→p8→p29F→p28F→p27F→p26F→p25F→p12→p16→p4
+    // Fan from centroid-ish anchor p4:
+    const fp2d = [p5, p23, p24, p9, p8, p29F, p28F, p27F, p26F, p25F, p12, p16];
+    for (let i = 0; i < fp2d.length - 1; i++) {
+      verts.push(...p4, ...fp2d[i], ...fp2d[i+1]);
+      norms.push(0,0,-1, 0,0,-1, 0,0,-1);
+      uvArr.push(0,0, 1,0, 0,1);
+    }
+    // Close top strip p8→p0→p1→p9
+    verts.push(...p8, ...p9, ...p1, ...p8, ...p1, ...p0);
+    norms.push(0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1);
+    uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
+
+    // ── Back face (z=+hw): mirror ─────────────────────────────────────────────
+    const bp2d = [p6, p33, p34, p10, p11, p29B, p28B, p27B, p26B, p25B, p13, p17];
+    for (let i = 0; i < bp2d.length - 1; i++) {
+      verts.push(...p7, ...bp2d[i+1], ...bp2d[i]);
+      norms.push(0,0,1, 0,0,1, 0,0,1);
+      uvArr.push(0,0, 1,0, 0,1);
+    }
+    verts.push(...p11, ...p10, ...p2, ...p11, ...p2, ...p3);
+    norms.push(0,0,1, 0,0,1, 0,0,1, 0,0,1, 0,0,1, 0,0,1);
+    uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
+
+    // ── Edge lines ────────────────────────────────────────────────────────────
+    const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
+      edgePts.push(ax, ay, az, bx, by, bz);
+
+    // Bottom flange
+    seg(p4[0],p4[1],-hw, p5[0],p5[1],-hw);
+    seg(p4[0],p4[1], hw, p5[0],p5[1], hw);
+    seg(p4[0],p4[1],-hw, p4[0],p4[1], hw);
+    seg(p5[0],p5[1],-hw, p5[0],p5[1], hw);
+    // Right flange
+    seg(p1[0],p1[1],-hw, p0[0],p0[1],-hw);
+    seg(p2[0],p2[1], hw, p3[0],p3[1], hw);
+    seg(p1[0],p1[1],-hw, p2[0],p2[1], hw);
+    seg(p0[0],p0[1],-hw, p3[0],p3[1], hw);
+    // Right outer wall
+    seg(p5[0],p5[1],-hw, p1[0],p1[1],-hw);
+    seg(p6[0],p6[1], hw, p2[0],p2[1], hw);
+    // Left wall (horizontal leg)
+    seg(p4[0],p4[1],-hw, p16[0],p16[1],-hw);
+    seg(p7[0],p7[1], hw, p17[0],p17[1], hw);
+    seg(p16[0],p16[1],-hw, p17[0],p17[1], hw);
+    // Left wall (top of horizontal section)
+    seg(p16[0],p16[1],-hw, p12[0],p12[1],-hw);
+    seg(p17[0],p17[1], hw, p13[0],p13[1], hw);
+    // Vertical inner wall (above arc)
+    seg(p8[0],p8[1],-hw, p0[0],p0[1],-hw);
+    seg(p11[0],p11[1], hw, p3[0],p3[1], hw);
+    // Inner arc (front)
+    const arcEdgeAngles = [90, 75, 60, 45, 30, 15, 0];
+    for (let i = 0; i < arcEdgeAngles.length - 1; i++) {
+      const r0 = arcEdgeAngles[i] * Math.PI / 180;
+      const r1 = arcEdgeAngles[i+1] * Math.PI / 180;
+      seg(arcCX + Math.cos(r0)*sr, arcCY - Math.sin(r0)*sr, -hw,
+          arcCX + Math.cos(r1)*sr, arcCY - Math.sin(r1)*sr, -hw);
+      seg(arcCX + Math.cos(r0)*sr, arcCY - Math.sin(r0)*sr,  hw,
+          arcCX + Math.cos(r1)*sr, arcCY - Math.sin(r1)*sr,  hw);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+
+    const eGeo = new THREE.BufferGeometry();
+    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
+
+    return { geometry: geo, edgeGeo: eGeo };
+  }, [sa, sb, se, sf, sr]);
+
+  return (
+    <group>
+      <mesh geometry={geometry} material={material} />
+      <lineSegments geometry={edgeGeo}>
+        <lineBasicMaterial color="#7a7e85" />
+      </lineSegments>
+    </group>
+  );
+};
+
+/* QBFa dimension labels */
+const QBFaLabels: React.FC<{ a: number; b: number; e: number; f: number; r: number }> = ({ a, b, e, f, r }) => {
+  const maxDim = Math.max(a, b + e, b + f, e, f, r, 1);
+  const scale = 2 / maxDim;
+  const sb = b * scale;
+  const se = e * scale;
+  const sf = f * scale;
+  const sr = r * scale;
+  const dx = (se + sb) / 2;
+  const dy = (sb + sf) / 2;
+
+  return (
+    <>
+      {/* b — section depth (vertical) */}
+      <Billboard position={[se + sb / 2 - dx, -dy - 0.15, 0]}>
+        <Text fontSize={0.13} color="#004290" anchorX="center" anchorY="top">{`b = ${Math.round(b)}`}</Text>
+      </Billboard>
+      {/* e — vertical straight leg */}
+      <Billboard position={[se + sb - dx + 0.2, (sb + sr - dy + sb + sf - dy) / 2, 0]}>
+        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`e = ${Math.round(e)}`}</Text>
+      </Billboard>
+      {/* f — horizontal straight leg */}
+      <Billboard position={[(-dx + se - sr - dx) / 2, sb - dy - 0.15, 0]}>
+        <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="top">{`f = ${Math.round(f)}`}</Text>
+      </Billboard>
+      {/* r — inner bend radius */}
+      <Billboard position={[se - sr - dx - sr * 0.3, sb + sr - dy - sr * 0.3, 0]}>
+        <Text fontSize={0.11} color="#004290" anchorX="center" anchorY="middle">{`r = ${Math.round(r)}`}</Text>
+      </Billboard>
+      {/* a — duct depth */}
+      <Billboard position={[se + sb - dx + 0.2, -dy - 0.15, 0]}>
+        <Text fontSize={0.11} color="#888888" anchorX="left" anchorY="top">{`a = ${Math.round(a)}`}</Text>
+      </Billboard>
+    </>
   );
 };
 
@@ -1883,7 +2442,7 @@ const KeepAlive = () => {
   return null;
 };
 
-const SUPPORTED_3D = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'QPR2a', 'PR1a', 'PR7a', 'QBRa', 'QBR1a', 'QBFRa'];
+const SUPPORTED_3D = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'QPR2a', 'PR1a', 'PR7a', 'QBRa', 'QBR1a', 'QBFRa', 'QBFa', 'QESa', 'TR1a'];
 
 const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -1909,6 +2468,43 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
 
   // Render scene objects based on shape
   const renderShapeMesh = () => {
+        // TR1a — rectangular branch tee
+        if (symbol === 'TR1a') {
+          const d   = values[2] || 200;
+          const w   = values[3] || 200;
+          const tL  = values[4] || 500;
+          const te  = values[5] || 150;
+          const tf  = values[6] || 0;
+          const tl3 = values[7] || 200;
+          return (
+            <>
+              <TR1aMesh a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />
+              {showDimensions && <TR1aLabels a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />}
+            </>
+          );
+        }
+        // QESa — rectangular end cap
+        if (symbol === 'QESa') {
+          const e = values[2] || 30;
+          return (
+            <>
+              <QESaMesh a={a} b={b} e={e} />
+              {showDimensions && <QESaLabels a={a} b={b} e={e} />}
+            </>
+          );
+        }
+        // QBFa — symmetric 90° L-shaped elbow (d = b)
+        if (symbol === 'QBFa') {
+          const e = values[2] || 150;
+          const f = values[3] || 150;
+          const r = values[4] || 100;
+          return (
+            <>
+              <QBFaElbowMesh a={a} b={b} e={e} f={f} r={r} />
+              {showDimensions && <QBFaLabels a={a} b={b} e={e} f={f} r={r} />}
+            </>
+          );
+        }
     if (symbol === 'QDa') {
       const l = values[2] || 500;
       const maxDim = Math.max(a, b, l, 1);
