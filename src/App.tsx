@@ -18,7 +18,7 @@ import {
   RAMKI_WYL_OPTIONS,
   RAMKI_OD_OPTIONS,
 } from './data';
-import { calculateArea, generateSymbol, generatePrzekroj } from './calculations';
+import { calculateArea, generateSymbol, generatePrzekroj, calculateKot } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
 import './App.css';
 
@@ -75,13 +75,22 @@ function App() {
     [selectedSymbol]
   );
 
-  // Calculate area
-  const calculatedArea = useMemo(() => {
+  // Calculate raw area (per-unit, no floor)
+  const rawArea = useMemo(() => {
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
-    const area = calculateArea(selectedSymbol, numValues);
+    return calculateArea(selectedSymbol, numValues);
+  }, [selectedSymbol, dimensionValues]);
+
+  // Per-unit area with min.m2 floor applied (matches C# WpiszBlacheWPole)
+  const calculatedArea = useMemo(() => {
     const minArea = parseFloat(minM2) || 0;
-    return Math.max(area, minArea) * (parseInt(sztuk) || 1);
-  }, [selectedSymbol, dimensionValues, minM2, sztuk]);
+    return Math.max(rawArea, minArea);
+  }, [rawArea, minM2]);
+
+  // Display area (total = per-unit × qty)
+  const displayArea = useMemo(() => {
+    return calculatedArea * (parseInt(sztuk) || 1);
+  }, [calculatedArea, sztuk]);
 
   // Calculate cross-section
   const calculatedPrzekroj = useMemo(() => {
@@ -131,6 +140,62 @@ function App() {
     return errors;
   }, [selectedSymbol, dimensionValues, material, materialType, currentShape.labels]);
 
+  // Property validation (frame size, etc.)
+  const propertyErrors = useMemo((): Record<string, string> => {
+    const errors: Record<string, string> = {};
+
+    if (selectedSymbol === 'QDa') {
+      const a = parseFloat(dimensionValues[0]) || 0;
+      const b = parseFloat(dimensionValues[1]) || 0;
+      const maxAB = Math.max(a, b);
+
+      const frameRank = (f: string) =>
+        f === 'P20' ? 20 : f === 'P30' ? 30 : f === 'P40' ? 40 : 0;
+
+      let minFrame = 'P20';
+      if (maxAB > 2500) minFrame = 'P40';
+      else if (maxAB > 1000) minFrame = 'P30';
+
+      if (ramkiWL && frameRank(ramkiWL) < frameRank(minFrame)) {
+        errors.ramkiWL = `Min. ${minFrame} (max bok ${maxAB})`;
+      }
+      if (ramkiWYL && frameRank(ramkiWYL) < frameRank(minFrame)) {
+        errors.ramkiWYL = `Min. ${minFrame} (max bok ${maxAB})`;
+      }
+      if (ramkiOd && frameRank(ramkiOd) < frameRank(minFrame)) {
+        errors.ramkiOd = `Min. ${minFrame} (max bok ${maxAB})`;
+      }
+    }
+
+    return errors;
+  }, [selectedSymbol, dimensionValues, ramkiWL, ramkiWYL, ramkiOd]);
+
+  // KOT compliance check
+  const kotCompliant = useMemo(() => {
+    return calculateKot({
+      symbol: selectedSymbol,
+      dimensionValues,
+      materialType,
+      material,
+      blacha,
+      wykonanie,
+      klasaSzczelnosci,
+    });
+  }, [selectedSymbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci]);
+
+  // KOT tooltip — show what's missing
+  const kotTooltip = useMemo(() => {
+    if (kotCompliant) return 'Zgodne z KOT';
+    const missing: string[] = [];
+    if (materialType !== 'blacha') missing.push('Typ: Blacha (B)');
+    if (material !== 'Ocynk') missing.push('Materiał: Ocynk');
+    if (wykonanie !== 'Średniociśnieniowe') missing.push('Wykonanie: Średniociśnieniowe');
+    if (klasaSzczelnosci !== 'B') missing.push('Kl.szczel.: B');
+    if (!['0,6', '0,7', '0,9'].includes(blacha)) missing.push('Grubość: 0,6 / 0,7 / 0,9');
+    if (missing.length > 0) return 'Niezgodne z KOT. Wymagane:\n' + missing.join('\n');
+    return 'Niezgodne z KOT (wymiary poza zakresem)';
+  }, [kotCompliant, materialType, material, wykonanie, klasaSzczelnosci, blacha]);
+
   // Generate full symbol
   const fullSymbol = useMemo(() => {
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
@@ -164,7 +229,7 @@ function App() {
   // Add element to grid
   const handleAdd = useCallback(() => {
     // Validate before adding
-    if (validationErrors.length > 0) {
+    if (validationErrors.length > 0 || Object.keys(propertyErrors).length > 0) {
       setShowValidation(true);
       return;
     }
@@ -196,7 +261,7 @@ function App() {
       ramkawl: ramkiWL,
       ramkawyl: ramkiWYL,
       ramkaod: ramkiOd,
-      powierznia: (unitArea * qty).toFixed(2),
+      powierznia: unitArea.toFixed(2),
       powierzniaIz: '',
       pelny_symbol: fullSymbol,
       pelny_symbolIz: '',
@@ -213,7 +278,7 @@ function App() {
       symbol: fullSymbol,
       sztuk: qty,
       material: material,
-      m2: unitArea * qty,
+      m2: unitArea,
       przekroj: calculatedPrzekroj,
       uwagi: uwagi,
       shapeSymbol: selectedSymbol,
@@ -233,7 +298,7 @@ function App() {
       setOznaczenie(String(nextOznaczenie + 1));
     }
   }, [
-    validationErrors, dimensionValues, selectedSymbol, oznaczenie, shapeName, sztuk, uwagi,
+    validationErrors, propertyErrors, dimensionValues, selectedSymbol, oznaczenie, shapeName, sztuk, uwagi,
     material, materialType, blacha, wykonanie, klasaSzczelnosci, lwzmoc,
     ramkiWL, ramkiWYL, ramkiOd, systemType, fullSymbol, calculatedPrzekroj,
     minM2, nextOznaczenie, editingRowId,
@@ -280,7 +345,7 @@ function App() {
       symbol: fullSymbol,
       sztuk: qty,
       material: material,
-      m2: unitArea * qty,
+      m2: unitArea,
       przekroj: calculatedPrzekroj,
       uwagi: uwagi,
       shapeSymbol: selectedSymbol,
@@ -358,7 +423,7 @@ function App() {
         const unitArea = Math.max(area, parseFloat(minM2) || 0);
         return {
           ...row,
-          m2: unitArea * row.sztuk,
+          m2: unitArea,
           symbol: generateSymbol(row.shapeSymbol, row.material, row.ksztaltka?.wykonanie || wykonanie, numValues),
         };
       })
@@ -366,7 +431,7 @@ function App() {
   }, [minM2, wykonanie]);
 
   // Calculate total area
-  const totalM2 = useMemo(() => gridRows.reduce((sum, r) => sum + r.m2, 0), [gridRows]);
+  const totalM2 = useMemo(() => gridRows.reduce((sum, r) => sum + r.m2 * r.sztuk, 0), [gridRows]);
 
   return (
     <div className="app">
@@ -444,15 +509,26 @@ function App() {
                   <label>Sztuk</label>
                   <input
                     type="number"
+                    min="1"
                     value={sztuk}
-                    onChange={(e) => setSztuk(e.target.value)}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      if (!isNaN(v) && v < 1) return;
+                      setSztuk(e.target.value);
+                    }}
                     className="summary-input"
                   />
                 </div>
                 <div className="summary-row">
-                  <label>m²</label>
+                  <label>Blacha</label>
                   <span className="summary-input summary-input-readonly">
                     {calculatedArea.toFixed(2)}
+                  </span>
+                </div>
+                <div className="summary-row">
+                  <label>Suma</label>
+                  <span className="summary-input summary-input-readonly">
+                    {displayArea.toFixed(2)}
                   </span>
                 </div>
                 <div className="summary-row">
@@ -492,6 +568,7 @@ function App() {
                 ramkiWLOptions={RAMKI_WL_OPTIONS}
                 ramkiWYLOptions={RAMKI_WYL_OPTIONS}
                 ramkiOdOptions={RAMKI_OD_OPTIONS}
+                propertyErrors={propertyErrors}
               />
             </div>
           </div>
@@ -512,7 +589,10 @@ function App() {
             <button className="btn btn-danger" onClick={handleDelete}>Usuń</button>
             <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId}>Edytuj</button>
             <button className="btn btn-action" onClick={handleInsertAfter}>Wstaw za ...</button>
-            <button className="btn btn-kot">KOT</button>
+            <span
+              className={`btn btn-kot ${kotCompliant ? 'btn-kot-green' : ''}`}
+              title={kotTooltip}
+            >KOT</span>
           </div>
 
           {/* Data grid */}

@@ -148,7 +148,7 @@ export const SHAPE_DEFINITIONS: ShapeDefinition[] = [
 export const MATERIAL_OPTIONS = ['Ocynk', 'Kwasówka', 'Aluminium'];
 
 // Sheet thickness options
-export const BLACHA_OPTIONS = ['0,6', '0,8', '1,0', '1,1'];
+export const BLACHA_OPTIONS = ['0,6', '0,7', '0,8', '0,9', '1,0', '1,1'];
 
 // Execution type options
 export const WYKONANIE_OPTIONS = ['Niskociśnieniowe', 'Średniociśnieniowe'];

@@ -32,6 +32,9 @@ interface PropertiesPanelProps {
   ramkiWLOptions: string[];
   ramkiWYLOptions: string[];
   ramkiOdOptions: string[];
+
+  // Validation errors (keyed by field name)
+  propertyErrors?: Record<string, string>;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -61,7 +64,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   ramkiWLOptions,
   ramkiWYLOptions,
   ramkiOdOptions,
+  propertyErrors = {},
 }) => {
+  const err = (field: string) => propertyErrors[field];
+  const rowClass = (field: string) =>
+    `property-row${err(field) ? ' property-row-error' : ''}`;
+
   return (
     <div className="properties-panel">
       <div className="material-type-toggle">
@@ -88,49 +96,49 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </select>
       </div>
 
-      <div className="property-row">
+      <div className={rowClass('material')} title={err('material') || ''}>
         <label>Materiał</label>
         <select value={material} onChange={(e) => onMaterialChange(e.target.value)}>
           {materialOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
-      <div className="property-row">
+      <div className={rowClass('wykonanie')} title={err('wykonanie') || ''}>
         <label>Wykonanie</label>
         <select value={wykonanie} onChange={(e) => onWykonanieChange(e.target.value)}>
           {wykonanieOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
-      <div className="property-row">
+      <div className={rowClass('klasaSzczelnosci')} title={err('klasaSzczelnosci') || ''}>
         <label>Kl.szczel.</label>
         <select value={klasaSzczelnosci} onChange={(e) => onKlasaSzczelnosciChange(e.target.value)}>
           {klasaOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
-      <div className="property-row">
+      <div className={rowClass('lwzmoc')} title={err('lwzmoc') || ''}>
         <label>L.wzmoc.</label>
         <select value={lwzmoc} onChange={(e) => onLwzmocChange(e.target.value)}>
           {wzmocOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
-      <div className="property-row">
+      <div className={rowClass('ramkiWL')} title={err('ramkiWL') || ''}>
         <label>RamkiWL</label>
         <select value={ramkiWL} onChange={(e) => onRamkiWLChange(e.target.value)}>
           {ramkiWLOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
-      <div className="property-row">
+      <div className={rowClass('ramkiWYL')} title={err('ramkiWYL') || ''}>
         <label>RamkiWYL</label>
         <select value={ramkiWYL} onChange={(e) => onRamkiWYLChange(e.target.value)}>
           {ramkiWYLOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
-      <div className="property-row">
+      <div className={rowClass('ramkiOd')} title={err('ramkiOd') || ''}>
         <label>RamkiOd</label>
         <select value={ramkiOd} onChange={(e) => onRamkiOdChange(e.target.value)}>
           {ramkiOdOptions.map(o => <option key={o} value={o}>{o}</option>)}

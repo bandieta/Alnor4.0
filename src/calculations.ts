@@ -258,3 +258,65 @@ export function generatePrzekroj(tab: number[], _symbol: string): string {
   }
   return '';
 }
+
+/**
+ * Calculate KOT compliance.
+ * Ported from Form1.cs calculateKot().
+ * KOT checks whether the combination of shape dimensions, material,
+ * thickness (grubosc/blacha), execution type (wykonanie) and seal class
+ * (klasa szczelności) conforms to the KOT standard.
+ */
+export function calculateKot(params: {
+  symbol: string;
+  dimensionValues: string[];
+  materialType: 'blacha' | 'chemo';
+  material: string;
+  blacha: string;       // grubosc / thickness e.g. "0,6"
+  wykonanie: string;
+  klasaSzczelnosci: string;
+}): boolean {
+  const { symbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci } = params;
+
+  // KOT only applies to blacha mode + Ocynk + Średniociśnieniowe + class B
+  if (materialType !== 'blacha') return false;
+  if (material !== 'Ocynk') return false;
+  if (wykonanie !== 'Średniociśnieniowe') return false;
+  if (klasaSzczelnosci !== 'B') return false;
+
+  const grubosc = blacha;
+
+  let bok = 0;
+  let l = 0;
+
+  if (symbol === 'QDa') {
+    const a = parseInt(dimensionValues[0]) || 0;
+    const b = parseInt(dimensionValues[1]) || 0;
+    l = parseInt(dimensionValues[2]) || 0;
+    bok = Math.max(a, b);
+  }
+  // For all other shapes, bok and l stay 0 (matches original C# behaviour)
+
+  // QDS rules (length-dependent)
+  if (l < 1500) {
+    if (bok < 300 && grubosc === '0,6') return true;
+    if (bok > 300 && bok < 500 && grubosc === '0,6') return true;
+    if (501 <= bok && bok <= 801 && grubosc === '0,9') return true;
+    if (100 <= bok && bok <= 800 && grubosc === '0,7') return true;
+    if (801 <= bok && bok <= 2000 && grubosc === '0,7') return true;
+  } else if (l === 1500) {
+    if (bok < 300 && grubosc === '0,6') return true;
+    if (300 < bok && bok < 500 && grubosc === '0,6') return true;
+    if (501 <= bok && bok <= 800 && grubosc === '0,9') return true;
+    if (100 <= bok && bok <= 800 && grubosc === '0,7') return true;
+    if (801 <= bok && bok <= 2000 && grubosc === '0,7') return true;
+  }
+
+  // QFS rules (always checked)
+  if (bok < 300 && grubosc === '0,6') return true;
+  if (300 < bok && bok < 500 && grubosc === '0,6') return true;
+  if (801 <= bok && bok <= 2000 && grubosc === '0,7') return true;
+  if (100 <= bok && bok <= 800 && grubosc === '0,7') return true;
+  if (501 <= bok && bok <= 800 && grubosc === '0,9') return true;
+
+  return false;
+}
