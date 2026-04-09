@@ -4336,9 +4336,6 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // punkty (right-side outer rect corners, 4 points)
     const pkt0x = 190 + push_x,                pkt0y = 20 + push_y;
     const pkt1x = 190 + a + push_x,            pkt1y = 20 + push_y;
-    const pkt2x = 190 + a + push_x,            pkt2y = 20 + push_y + i + r + h + q + j;
-    const pkt3x = 190 + push_x,                pkt3y = 20 + push_y + i + r + h + q + j;
-
     // punkty12 (right-side inner duct rect)
     const p12_0x = 190 + push_x,               p12_0y = 20 + push_y + i + r;
     const p12_1x = 190 + a + push_x,           p12_1y = 20 + push_y + i + r;
@@ -4817,9 +4814,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const offY = padY + ((height - 2 * padY) - H * sc) / 2 - minY * sc;
     const sx = (v: number) => v * sc + offX;
     const sy = (v: number) => v * sc + offY;
-    const sd = (v: number) => v * sc;
 
-    const els: JSX.Element[] = [];
+    const els: React.JSX.Element[] = [];
     let k = 0;
     const K = () => k++;
     const S = '#004290';
@@ -5518,7 +5514,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const sy = (v: number) => v * sc + offY;
     const sd = (v: number) => v * sc;
 
-    const els: JSX.Element[] = [];
+    const els: React.JSX.Element[] = [];
     let k = 0;
     const K = () => k++;
 

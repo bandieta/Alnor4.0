@@ -5004,7 +5004,7 @@ const TR8aMesh: React.FC<{
 const TR8aLabels: React.FC<{
   a: number; b: number; c: number; d: number; w: number; g: number;
   l: number; l3: number; m: number; n: number; e: number; f: number; i: number;
-}> = ({ a: aR, b: bR, c: cR, d: dR, w: wR, g: gR, l: lR, l3: l3R, m: mR, n: nR, e: eR, f: fR, i: iR }) => {
+}> = ({ a: aR, b: bR, c: cR, d: dR, w: wR, g: gR, l: lR, l3: l3R, m: mR, n: nR, e: _eR, f: _fR, i: iR }) => {
   const maxV = Math.max(aR, bR, lR, cR, dR + l3R, 1);
   const a = aR/maxV, b = bR/maxV, c = cR/maxV, d = dR/maxV, l = lR/maxV, i = iR/maxV;
 
