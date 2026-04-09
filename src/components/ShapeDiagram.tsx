@@ -16,7 +16,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   const renderShape = () => {
     switch (symbol) {
       case 'QDa': return renderRectangularDuct();
-      case 'QBa':
+      case 'QBa': return renderQBa();
       case 'QBNa': return renderSymmetricBend();
       case 'QPR6a': return renderReducer();
       case 'QPR2a': return renderAsymReducer();
@@ -118,14 +118,195 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     );
   };
 
-  const renderSymmetricBend = () => {
-    // QBa/QBNa: symmetric bend — parameters: a, b, e, f, r, alfa (degrees)
+  const renderQBa = () => {
+    // QBa: symmetric bend — fixed 90° — parameters: a, b, e, f, r
+    // C# layout: horizontal f-leg (left) → arc → vertical e-leg (down-right),
+    // cross-section (a×b) at far right
     const a = values[0] || 200;
     const b = values[1] || 200;
     const e = values[2] || 150;
     const f = values[3] || 150;
     const r = values[4] || 200;
-    const alfa = (symbol === 'QBNa' && values[5]) ? values[5] : 90;
+
+    // Normalize: find max dimension and scale to fit
+    let max = Math.max(a, b);
+    if (f > max) max = f;
+    if (e > max) max = e;
+    if (r > max) max = r;
+    max = Math.max(max, 1);
+
+    const mnoznik = 55; // scale factor
+    const sa = (a / max) * mnoznik;
+    const sb = (b / max) * mnoznik;
+    const se = (e / max) * mnoznik;
+    const sf = (f / max) * mnoznik;
+    const sr = (r / max) * mnoznik;
+
+    // Flange size proportional to max(a,b)
+    const rawMax = Math.max(a, b);
+    let p = rawMax > 2501 ? 40 : rawMax > 1000 ? 30 : 25;
+    p = (p / max) * mnoznik;
+
+    // Layout offsets
+    const pushX = 8;
+    const pushY = 12;
+
+    // === F-leg (horizontal duct at top-left) ===
+    // f-leg: rectangle from (fX0, fY0) width=sf, height=sb
+    const fX0 = pushX;
+    const fY0 = pushY;
+    const fX1 = fX0 + sf;
+    const fY1 = fY0 + sb;
+
+    // === Arc connection ===
+    // Arc center is at (fX1, fY1), radius from inner=0 to outer depending on r
+    // Inner arc: from fX1 bottom-right corner, swept 90° from 270° to 360°
+    // The arc connects f-leg right edge to e-leg top edge
+    // After arc: e-leg starts at (fX1 + sr, fY1 + sr) going down by e
+
+    // === E-leg (vertical duct going down, to the right of f-leg) ===
+    const eX0 = fX1 + sr;
+    const eY0 = fY1 + sr;
+    const eX1 = eX0 + sb;
+    const eY1 = eY0 + se;
+
+    // === Draw arcs ===
+    // Inner arc: center at (fX1, fY1+sr) — no wait.
+    // C# uses: arc from punkt2[2] corner going to punkt3[0]
+    // punkt2[2] = (fX1, fY1), punkt3[0] = (fX1+sr, fY1+sr)
+    // The inner arc (for the duct inner wall) goes from angle 270° (up) sweeping 90° to 0° (right)
+    // Arc center for inner wall: (fX1, fY1) with radius (sr+sb) for outer, sr for ... 
+    // Actually in C#: the arc rectangle is constructed as:
+    //   rect origin = 2*(punkt3[0].X - punkt2[2].X) wide, 2*(punkt3[0].Y - punkt2[2].Y) tall
+    //   That's 2*sr × 2*sr, centered so the arc goes from fX1,fY1 area
+
+    // Inner arc (connects f-leg inner wall to e-leg inner wall)
+    // Center of arc circle: (fX1, fY1 + sr) — no
+    // The DrawArc rect for outer wall: starts at (fX1 - dist, fY0) w=2*dist, h=2*dist where dist = sr+sb
+    // For inner wall (second arc): similar but with r offset
+
+    // Let's use polyline arcs like the existing code
+    const arcSteps = 20;
+
+    // Outer arc: connects f-leg top wall (y=fY0) at x=fX1 to e-leg left wall (x=eX0) at y=eY0
+    // This is a quarter circle from 270° to 360° (SVG: -90° to 0°)
+    // Center: (fX1, fY1 + sr) — no, think of it differently
+    // The outer wall path goes: fX1 at y=fY0, curves to eX0+sb at y=eY0
+    // Center of outer arc: (fX1, eY0) = (fX1, fY1+sr)
+    const outerArcCx = fX1;
+    const outerArcCy = fY1 + sr;
+    const outerR = sr + sb;
+    const outerArc: string[] = [];
+    for (let i = 0; i <= arcSteps; i++) {
+      const angle = -Math.PI / 2 + (i / arcSteps) * (Math.PI / 2); // -90° to 0°
+      outerArc.push(`${outerArcCx + outerR * Math.cos(angle)},${outerArcCy + outerR * Math.sin(angle)}`);
+    }
+
+    // Inner arc: connects f-leg bottom wall (y=fY1) at x=fX1 to e-leg left wall (x=eX0) at y=eY0
+    // Center: same (fX1, outerArcCy) but radius = sr
+    const innerR = sr;
+    const innerArc: string[] = [];
+    for (let i = 0; i <= arcSteps; i++) {
+      const angle = -Math.PI / 2 + (i / arcSteps) * (Math.PI / 2);
+      innerArc.push(`${outerArcCx + innerR * Math.cos(angle)},${outerArcCy + innerR * Math.sin(angle)}`);
+    }
+
+    // === Cross-section (a×b rectangle at far right) ===
+    const crossGap = 25;
+    const crossX = eX1 + crossGap;
+    const crossY = pushY;
+    const crossScale = Math.min(50, 50) / Math.max(sa, sb) || 1;
+    const ca = Math.max(sa * crossScale, 12);
+    const cb = Math.max(sb * crossScale, 12);
+    const cp = Math.min(6, Math.max(3, p * crossScale * 0.5));
+
+    return (
+      <g>
+        {/* === F-leg (horizontal duct at top) === */}
+        <rect x={fX0} y={fY0} width={sf} height={sb}
+          fill="none" stroke="#004290" strokeWidth={1.5} />
+        {/* F-leg left flange */}
+        <line x1={fX0} y1={fY0 - p} x2={fX0} y2={fY1 + p}
+          stroke="#004290" strokeWidth={2} />
+        {/* F-leg inner frame line (right edge) */}
+        <line x1={fX0 + p} y1={fY0} x2={fX0 + p} y2={fY1}
+          stroke="#004290" strokeWidth={1} />
+
+        {/* === Arcs === */}
+        {sr > 0 && (
+          <>
+            <polyline points={outerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.5} />
+            <polyline points={innerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.5} />
+          </>
+        )}
+
+        {/* === E-leg (vertical duct going down) === */}
+        <rect x={eX0} y={eY0} width={sb} height={se}
+          fill="none" stroke="#004290" strokeWidth={1.5} />
+        {/* E-leg bottom flange */}
+        <line x1={eX0 - p} y1={eY1} x2={eX1 + p} y2={eY1}
+          stroke="#004290" strokeWidth={2} />
+        {/* E-leg inner frame line (top edge) */}
+        <line x1={eX0} y1={eY0 + p} x2={eX1} y2={eY0 + p}
+          stroke="#004290" strokeWidth={1} />
+
+        {/* r dimension (diagonal dashed line from arc area) */}
+        <line x1={fX1} y1={fY1} x2={fX1 + sr} y2={fY1 + sr}
+          stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
+        <text x={fX1 + sr + 3} y={fY1 + sr - 8}
+          fontSize={10} fill="#555555">r</text>
+
+        {/* f dimension (above f-leg) */}
+        <line x1={fX0} y1={fY0 - 12} x2={fX1} y2={fY0 - 12}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={(fX0 + fX1) / 2} y={fY0 - 16}
+          textAnchor="middle" fontSize={10} fill="#555555">f</text>
+
+        {/* b dimension (left of f-leg) */}
+        <line x1={fX0 - 12} y1={fY0} x2={fX0 - 12} y2={fY1}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={fX0 - 18} y={(fY0 + fY1) / 2 + 4}
+          textAnchor="middle" fontSize={10} fill="#555555">b</text>
+
+        {/* e dimension (right of e-leg) */}
+        <line x1={eX1 + 12} y1={eY0} x2={eX1 + 12} y2={eY1}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={eX1 + 22} y={(eY0 + eY1) / 2 + 4}
+          textAnchor="middle" fontSize={10} fill="#555555">e</text>
+
+        {/* === Cross-section (a×b) at far right === */}
+        <rect x={crossX} y={crossY} width={ca} height={cb}
+          fill="#e8edf2" stroke="#004290" strokeWidth={1.5} />
+        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
+          fill="none" stroke="#004290" strokeWidth={1} strokeDasharray="4 2" />
+
+        {/* a dimension (above cross-section) */}
+        <line x1={crossX} y1={crossY - cp - 8} x2={crossX + ca} y2={crossY - cp - 8}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca / 2} y={crossY - cp - 12}
+          textAnchor="middle" fontSize={10} fill="#555555">a</text>
+
+        {/* b dimension (right of cross-section) */}
+        <line x1={crossX + ca + cp + 6} y1={crossY} x2={crossX + ca + cp + 6} y2={crossY + cb}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + ca + cp + 16} y={crossY + cb / 2 + 4}
+          textAnchor="middle" fontSize={10} fill="#555555">b</text>
+
+        {/* Labels */}
+        <text x={(fX0 + fX1) / 2} y={8} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
+        <text x={crossX + ca / 2} y={8} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+      </g>
+    );
+  };
+
+  const renderSymmetricBend = () => {
+    // QBNa: symmetric bend — variable angle — parameters: a, b, e, f, r, alfa (degrees)
+    const a = values[0] || 200;
+    const b = values[1] || 200;
+    const e = values[2] || 150;
+    const f = values[3] || 150;
+    const r = values[4] || 200;
+    const alfa = values[5] || 60;
     const alfaRad = (alfa * Math.PI) / 180;
 
     // --- Left part: side view of the bend (use ~60% of width) ---
@@ -5361,7 +5542,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
   return (
     <div className="shape-diagram">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
         <defs>
           <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto">
             <polygon points="0 0, 8 2.5, 0 5" fill="#555555" />

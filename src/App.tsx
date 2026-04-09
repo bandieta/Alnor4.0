@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import Toolbar from './components/Toolbar';
 import ShapeList from './components/ShapeList';
 import DimensionInputs from './components/DimensionInputs';
@@ -17,6 +17,11 @@ import {
   RAMKI_WL_OPTIONS,
   RAMKI_WYL_OPTIONS,
   RAMKI_OD_OPTIONS,
+  MATERIAL_CHEMO_OPTIONS,
+  GRUBOSC_CHEMO_OPTIONS,
+  WYKONANIE_CHEMO_OPTIONS,
+  PLASZCZ_OPTIONS,
+  GRUBOSC_IZOLACJI_OPTIONS,
 } from './data';
 import { calculateArea, generateSymbol, generatePrzekroj, calculateKot } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
@@ -29,9 +34,19 @@ function App() {
   // Selected shape
   const [selectedSymbol, setSelectedSymbol] = useState('QDa');
 
-  // Designation counter
-  const [nextOznaczenie, setNextOznaczenie] = useState(100);
-  const [oznaczenie, setOznaczenie] = useState('100');
+  // Designation counter — restore from localStorage
+  const [nextOznaczenie, setNextOznaczenie] = useState(() => {
+    try {
+      const saved = localStorage.getItem('alnor-cam-oznaczenie');
+      return saved ? parseInt(saved) || 100 : 100;
+    } catch { return 100; }
+  });
+  const [oznaczenie, setOznaczenie] = useState(() => {
+    try {
+      const saved = localStorage.getItem('alnor-cam-oznaczenie');
+      return saved || '100';
+    } catch { return '100'; }
+  });
   const [oznaczenieEnabled, setOznaczenieEnabled] = useState(true);
 
   // Dimension values (up to 17 values)
@@ -51,17 +66,75 @@ function App() {
 
   // Properties
   const [blacha, setBlacha] = useState('0,8');
-  const [material, setMaterial] = useState('Aluminium');
+  const [material, setMaterial] = useState('Ocynk');
   const [wykonanie, setWykonanie] = useState('Niskociśnieniowe');
   const [klasaSzczelnosci, setKlasaSzczelnosci] = useState('A');
-  const [lwzmoc, setLwzmoc] = useState('2krzyżowe');
-  const [ramkiWL, setRamkiWL] = useState('P30');
+  const [lwzmoc, setLwzmoc] = useState('standard');
+  const [ramkiWL, setRamkiWL] = useState('P20');
   const [ramkiWYL, setRamkiWYL] = useState('P20');
-  const [ramkiOd, setRamkiOd] = useState('P40');
 
-  // Grid data
-  const [gridRows, setGridRows] = useState<GridRow[]>([]);
+  const isChemo = materialType === 'chemo';
+
+  // Handle B/C toggle — switch defaults
+  const handleMaterialTypeChange = useCallback((type: MaterialType) => {
+    setMaterialType(type);
+    if (type === 'chemo') {
+      setBlacha(GRUBOSC_CHEMO_OPTIONS[0]);
+      setMaterial(MATERIAL_CHEMO_OPTIONS[0]);
+      setWykonanie(WYKONANIE_CHEMO_OPTIONS[0]);
+    } else {
+      setBlacha(BLACHA_OPTIONS[2]); // 0,8
+      setMaterial(MATERIAL_OPTIONS[0]); // Ocynk
+      setWykonanie(WYKONANIE_OPTIONS[0]); // Niskociśnieniowe
+    }
+  }, []);
+  const [ramkiOd, setRamkiOd] = useState('');
+
+  // Insulation fields (visible when prostokatne_izolowane)
+  const [plaszcz, setPlaszcz] = useState(PLASZCZ_OPTIONS[0]);
+  const [gruboscIzolacji, setGruboscIzolacji] = useState(GRUBOSC_IZOLACJI_OPTIONS[0]);
+
+  const isIzolowane = systemType === 'prostokatne_izolowane';
+  const isUserElement = systemType === 'element_uzytkownika';
+
+  // Handle system type change — force blacha in insulated mode
+  const handleSystemTypeChange = useCallback((type: SystemType) => {
+    setSystemType(type);
+    if (type === 'prostokatne_izolowane') {
+      // C# behavior: force Blacha mode, hide Chemo toggle
+      setMaterialType('blacha');
+      setBlacha(BLACHA_OPTIONS[2]); // 0,8
+      setMaterial(MATERIAL_OPTIONS[0]); // Ocynk
+      setWykonanie(WYKONANIE_OPTIONS[0]); // Niskociśnieniowe
+    }
+  }, []);
+
+  // User element fields (visible when element_uzytkownika)
+  const [userNazwa, setUserNazwa] = useState('');
+  const [userSymbol, setUserSymbol] = useState('');
+
+  // Grid data — restore from localStorage
+  const [gridRows, setGridRows] = useState<GridRow[]>(() => {
+    try {
+      const saved = localStorage.getItem('alnor-cam-grid');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+
+  // Persist grid to localStorage on change
+  useEffect(() => {
+    try {
+      localStorage.setItem('alnor-cam-grid', JSON.stringify(gridRows));
+    } catch { /* quota exceeded — ignore */ }
+  }, [gridRows]);
+
+  // Persist oznaczenie counter
+  useEffect(() => {
+    try {
+      localStorage.setItem('alnor-cam-oznaczenie', String(nextOznaczenie));
+    } catch { /* ignore */ }
+  }, [nextOznaczenie]);
 
   // Validation highlight trigger
   const [showValidation, setShowValidation] = useState(false);
@@ -199,8 +272,8 @@ function App() {
   // Generate full symbol
   const fullSymbol = useMemo(() => {
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
-    return generateSymbol(selectedSymbol, material, wykonanie, numValues);
-  }, [selectedSymbol, material, wykonanie, dimensionValues]);
+    return generateSymbol(selectedSymbol, material, wykonanie, numValues, isChemo);
+  }, [selectedSymbol, material, wykonanie, dimensionValues, isChemo]);
 
   // Shape name for display
   const shapeName = useMemo(() => {
@@ -228,6 +301,69 @@ function App() {
 
   // Add element to grid
   const handleAdd = useCallback(() => {
+    // User element mode — simplified add
+    if (isUserElement) {
+      if (!userNazwa.trim() && !userSymbol.trim()) return;
+      const qty = parseInt(sztuk) || 1;
+      const ksztaltka: Ksztaltka = {
+        obcy: true,
+        symbol: userSymbol,
+        oznaczenie: oznaczenie,
+        nazwa: userNazwa,
+        sztuk: sztuk,
+        uwagi: uwagi,
+        przekroj: '',
+        material: '',
+        materialChemo: '',
+        gruboscChemo: '',
+        wykonanieChemo: '',
+        isChemo: false,
+        Qnazwa: '',
+        Qzamawia: '',
+        Qdata: '',
+        blacha: '',
+        wykonanie: '',
+        klasa_szczelnosci: '',
+        l_wzmoc: '',
+        ramkawl: '',
+        ramkawyl: '',
+        ramkaod: '',
+        powierznia: '0',
+        powierzniaIz: '',
+        pelny_symbol: userSymbol,
+        pelny_symbolIz: '',
+        izolowana: false,
+        plaszcz: '',
+        gruboscIlozacji: '',
+        tab: Array(17).fill(''),
+      };
+      const newRow: GridRow = {
+        id: crypto.randomUUID(),
+        oznaczenie: oznaczenie,
+        nazwa: userNazwa,
+        symbol: userSymbol,
+        sztuk: qty,
+        material: '',
+        m2: 0,
+        przekroj: '',
+        uwagi: uwagi,
+        shapeSymbol: userSymbol,
+        tab: Array(17).fill(''),
+        ksztaltka: ksztaltka,
+      };
+      if (editingRowId) {
+        setGridRows((prev) =>
+          prev.map((r) => (r.id === editingRowId ? { ...newRow, id: editingRowId } : r))
+        );
+        setEditingRowId(null);
+      } else {
+        setGridRows((prev) => [...prev, newRow]);
+        setNextOznaczenie((prev) => prev + 1);
+        setOznaczenie(String(nextOznaczenie + 1));
+      }
+      return;
+    }
+
     // Validate before adding
     if (validationErrors.length > 0 || Object.keys(propertyErrors).length > 0) {
       setShowValidation(true);
@@ -246,11 +382,11 @@ function App() {
       sztuk: sztuk,
       uwagi: uwagi,
       przekroj: calculatedPrzekroj,
-      material: material,
-      materialChemo: '',
-      gruboscChemo: '',
-      wykonanieChemo: '',
-      isChemo: materialType === 'chemo',
+      material: isChemo ? '' : material,
+      materialChemo: isChemo ? material : '',
+      gruboscChemo: isChemo ? blacha : '',
+      wykonanieChemo: isChemo ? wykonanie : '',
+      isChemo: isChemo,
       Qnazwa: '',
       Qzamawia: '',
       Qdata: '',
@@ -265,9 +401,9 @@ function App() {
       powierzniaIz: '',
       pelny_symbol: fullSymbol,
       pelny_symbolIz: '',
-      izolowana: systemType === 'prostokatne_izolowane',
-      plaszcz: '',
-      gruboscIlozacji: '',
+      izolowana: isIzolowane,
+      plaszcz: isIzolowane ? plaszcz : '',
+      gruboscIlozacji: isIzolowane ? gruboscIzolacji : '',
       tab: dimensionValues,
     };
 
@@ -301,7 +437,8 @@ function App() {
     validationErrors, propertyErrors, dimensionValues, selectedSymbol, oznaczenie, shapeName, sztuk, uwagi,
     material, materialType, blacha, wykonanie, klasaSzczelnosci, lwzmoc,
     ramkiWL, ramkiWYL, ramkiOd, systemType, fullSymbol, calculatedPrzekroj,
-    minM2, nextOznaczenie, editingRowId,
+    minM2, nextOznaczenie, editingRowId, isIzolowane, plaszcz, gruboscIzolacji,
+    isUserElement, userNazwa, userSymbol,
   ]);
 
   // Delete selected row
@@ -317,12 +454,37 @@ function App() {
     const row = gridRows.find((r) => r.id === selectedRowId);
     if (!row) return;
 
+    const k = row.ksztaltka;
+    const rowIsChemo = k?.isChemo ?? false;
+
     setSelectedSymbol(row.shapeSymbol);
     setDimensionValues(row.tab);
     setOznaczenie(row.oznaczenie);
     setSztuk(String(row.sztuk));
     setUwagi(row.uwagi);
-    setMaterial(row.material);
+    setMaterialType(rowIsChemo ? 'chemo' : 'blacha');
+    setMaterial(rowIsChemo ? (k?.materialChemo || '') : row.material);
+    setBlacha(rowIsChemo ? (k?.gruboscChemo || '') : (k?.blacha || '0,8'));
+    setWykonanie(rowIsChemo ? (k?.wykonanieChemo || '') : (k?.wykonanie || 'Niskociśnieniowe'));
+    if (!rowIsChemo && k) {
+      setKlasaSzczelnosci(k.klasa_szczelnosci || 'A');
+      setLwzmoc(k.l_wzmoc || 'standard');
+      setRamkiWL(k.ramkawl || 'P20');
+      setRamkiWYL(k.ramkawyl || 'P20');
+      setRamkiOd(k.ramkaod || '');
+    }
+    // Restore insulation fields
+    if (k?.izolowana) {
+      setSystemType('prostokatne_izolowane');
+      setPlaszcz(k.plaszcz || PLASZCZ_OPTIONS[0]);
+      setGruboscIzolacji(k.gruboscIlozacji || GRUBOSC_IZOLACJI_OPTIONS[0]);
+    }
+    // Restore user element mode
+    if (k?.obcy) {
+      setSystemType('element_uzytkownika');
+      setUserNazwa(k.nazwa || '');
+      setUserSymbol(k.pelny_symbol || '');
+    }
     setEditingRowId(selectedRowId);
   }, [selectedRowId, gridRows]);
 
@@ -333,10 +495,98 @@ function App() {
       return;
     }
 
+    // User element mode
+    if (isUserElement) {
+      if (!userNazwa.trim() && !userSymbol.trim()) return;
+      const qty = parseInt(sztuk) || 1;
+      const ksztaltka: Ksztaltka = {
+        obcy: true,
+        symbol: userSymbol,
+        oznaczenie: oznaczenie,
+        nazwa: userNazwa,
+        sztuk: sztuk,
+        uwagi: uwagi,
+        przekroj: '',
+        material: '',
+        materialChemo: '',
+        gruboscChemo: '',
+        wykonanieChemo: '',
+        isChemo: false,
+        Qnazwa: '', Qzamawia: '', Qdata: '',
+        blacha: '', wykonanie: '', klasa_szczelnosci: '', l_wzmoc: '',
+        ramkawl: '', ramkawyl: '', ramkaod: '',
+        powierznia: '0', powierzniaIz: '',
+        pelny_symbol: userSymbol, pelny_symbolIz: '',
+        izolowana: false, plaszcz: '', gruboscIlozacji: '',
+        tab: Array(17).fill(''),
+      };
+      const newRow: GridRow = {
+        id: crypto.randomUUID(),
+        oznaczenie: oznaczenie,
+        nazwa: userNazwa,
+        symbol: userSymbol,
+        sztuk: qty,
+        material: '',
+        m2: 0,
+        przekroj: '',
+        uwagi: uwagi,
+        shapeSymbol: userSymbol,
+        tab: Array(17).fill(''),
+        ksztaltka: ksztaltka,
+      };
+      setGridRows((prev) => {
+        const idx = prev.findIndex((r) => r.id === selectedRowId);
+        const next = [...prev];
+        next.splice(idx + 1, 0, newRow);
+        return next;
+      });
+      setNextOznaczenie((prev) => prev + 1);
+      setOznaczenie(String(nextOznaczenie + 1));
+      return;
+    }
+
+    if (validationErrors.length > 0 || Object.keys(propertyErrors).length > 0) {
+      setShowValidation(true);
+      return;
+    }
+
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
     const area = calculateArea(selectedSymbol, numValues);
     const unitArea = Math.max(area, parseFloat(minM2) || 0);
     const qty = parseInt(sztuk) || 1;
+
+    const ksztaltka: Ksztaltka = {
+      obcy: false,
+      symbol: selectedSymbol,
+      oznaczenie: oznaczenie,
+      nazwa: shapeName,
+      sztuk: sztuk,
+      uwagi: uwagi,
+      przekroj: calculatedPrzekroj,
+      material: isChemo ? '' : material,
+      materialChemo: isChemo ? material : '',
+      gruboscChemo: isChemo ? blacha : '',
+      wykonanieChemo: isChemo ? wykonanie : '',
+      isChemo: isChemo,
+      Qnazwa: '',
+      Qzamawia: '',
+      Qdata: '',
+      blacha: blacha,
+      wykonanie: wykonanie,
+      klasa_szczelnosci: klasaSzczelnosci,
+      l_wzmoc: lwzmoc,
+      ramkawl: ramkiWL,
+      ramkawyl: ramkiWYL,
+      ramkaod: ramkiOd,
+      powierznia: unitArea.toFixed(2),
+      powierzniaIz: '',
+      pelny_symbol: fullSymbol,
+      pelny_symbolIz: '',
+      izolowana: isIzolowane,
+      plaszcz: isIzolowane ? plaszcz : '',
+      gruboscIlozacji: isIzolowane ? gruboscIzolacji : '',
+      tab: dimensionValues,
+    };
 
     const newRow: GridRow = {
       id: crypto.randomUUID(),
@@ -350,7 +600,7 @@ function App() {
       uwagi: uwagi,
       shapeSymbol: selectedSymbol,
       tab: dimensionValues,
-      ksztaltka: {} as Ksztaltka,
+      ksztaltka: ksztaltka,
     };
 
     setGridRows((prev) => {
@@ -362,9 +612,12 @@ function App() {
     setNextOznaczenie((prev) => prev + 1);
     setOznaczenie(String(nextOznaczenie + 1));
   }, [
-    selectedRowId, dimensionValues, selectedSymbol, oznaczenie, shapeName,
-    sztuk, uwagi, material, fullSymbol, calculatedPrzekroj, minM2,
-    nextOznaczenie, handleAdd,
+    selectedRowId, validationErrors, propertyErrors, dimensionValues, selectedSymbol,
+    oznaczenie, shapeName, sztuk, uwagi, material, materialType, blacha, wykonanie,
+    klasaSzczelnosci, lwzmoc, ramkiWL, ramkiWYL, ramkiOd, systemType,
+    fullSymbol, calculatedPrzekroj, minM2, nextOznaczenie, handleAdd, isChemo,
+    isIzolowane, plaszcz, gruboscIzolacji,
+    isUserElement, userNazwa, userSymbol,
   ]);
 
   // New project
@@ -424,7 +677,7 @@ function App() {
         return {
           ...row,
           m2: unitArea,
-          symbol: generateSymbol(row.shapeSymbol, row.material, row.ksztaltka?.wykonanie || wykonanie, numValues),
+          symbol: generateSymbol(row.shapeSymbol, row.material, row.ksztaltka?.wykonanie || wykonanie, numValues, row.ksztaltka?.isChemo),
         };
       })
     );
@@ -443,7 +696,7 @@ function App() {
           </div>
           <Toolbar
             systemType={systemType}
-            onSystemTypeChange={setSystemType}
+            onSystemTypeChange={handleSystemTypeChange}
             onNew={handleNew}
             onSave={handleSave}
             onLoad={handleLoad}
@@ -452,6 +705,7 @@ function App() {
             shapes={SHAPE_DEFINITIONS}
             selectedSymbol={selectedSymbol}
             onSelect={handleSelectShape}
+            disabled={isUserElement}
           />
         </div>
 
@@ -459,6 +713,75 @@ function App() {
         <div className="main-panel">
           {/* Editor panel — stacked rows like original WinForms */}
           <div className="editor-panel">
+            {isUserElement ? (
+              /* User element mode — simplified input */
+              <div className="user-element-panel">
+                <div className="user-element-header">Element użytkownika</div>
+                <div className="user-element-fields">
+                  <div className="user-element-row">
+                    <label>Nazwa</label>
+                    <input
+                      type="text"
+                      value={userNazwa}
+                      onChange={(e) => setUserNazwa(e.target.value)}
+                      placeholder="Nazwa elementu..."
+                      className="user-element-input"
+                    />
+                  </div>
+                  <div className="user-element-row">
+                    <label>Symbol</label>
+                    <input
+                      type="text"
+                      value={userSymbol}
+                      onChange={(e) => setUserSymbol(e.target.value)}
+                      placeholder="Symbol / pełna nazwa..."
+                      className="user-element-input"
+                    />
+                  </div>
+                  <div className="user-element-row">
+                    <label>Sztuk</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={sztuk}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value);
+                        if (!isNaN(v) && v < 1) return;
+                        setSztuk(e.target.value);
+                      }}
+                      className="user-element-input user-element-input-short"
+                    />
+                  </div>
+                  <div className="user-element-row">
+                    <label>Uwagi</label>
+                    <input
+                      type="text"
+                      value={uwagi}
+                      onChange={(e) => setUwagi(e.target.value)}
+                      className="user-element-input"
+                    />
+                  </div>
+                  <div className="oznaczenie-row" style={{ marginTop: 8 }}>
+                    <span className="label">Oznaczenie</span>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={oznaczenieEnabled}
+                        onChange={(e) => setOznaczenieEnabled(e.target.checked)}
+                      />
+                    </label>
+                    <input
+                      type="text"
+                      className="oznaczenie-input"
+                      value={oznaczenie}
+                      onChange={(e) => setOznaczenie(e.target.value)}
+                      disabled={!oznaczenieEnabled}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+            <>
             {/* Row 1: 3D + 2D diagrams side by side */}
             <div className="diagrams-row">
               <ShapeDiagram3D
@@ -543,7 +866,7 @@ function App() {
               </div>
               <PropertiesPanel
                 materialType={materialType}
-                onMaterialTypeChange={setMaterialType}
+                onMaterialTypeChange={handleMaterialTypeChange}
                 blacha={blacha}
                 onBlachaChange={setBlacha}
                 material={material}
@@ -560,17 +883,27 @@ function App() {
                 onRamkiWYLChange={setRamkiWYL}
                 ramkiOd={ramkiOd}
                 onRamkiOdChange={setRamkiOd}
-                blachaOptions={BLACHA_OPTIONS}
-                materialOptions={MATERIAL_OPTIONS}
-                wykonanieOptions={WYKONANIE_OPTIONS}
+                blachaOptions={isChemo ? GRUBOSC_CHEMO_OPTIONS : BLACHA_OPTIONS}
+                materialOptions={isChemo ? MATERIAL_CHEMO_OPTIONS : MATERIAL_OPTIONS}
+                wykonanieOptions={isChemo ? WYKONANIE_CHEMO_OPTIONS : WYKONANIE_OPTIONS}
                 klasaOptions={KLASA_SZCZELNOSCI_OPTIONS}
                 wzmocOptions={WZMOCNIENIE_OPTIONS}
                 ramkiWLOptions={RAMKI_WL_OPTIONS}
                 ramkiWYLOptions={RAMKI_WYL_OPTIONS}
                 ramkiOdOptions={RAMKI_OD_OPTIONS}
                 propertyErrors={propertyErrors}
+                isChemo={isChemo}
+                isIzolowane={isIzolowane}
+                plaszcz={plaszcz}
+                onPlaszczChange={setPlaszcz}
+                gruboscIzolacji={gruboscIzolacji}
+                onGruboscIzolacjiChange={setGruboscIzolacji}
+                plaszczOptions={PLASZCZ_OPTIONS}
+                gruboscIzolacjiOptions={GRUBOSC_IZOLACJI_OPTIONS}
               />
             </div>
+            </>
+            )}
           </div>
 
           {/* Action buttons — toolbar above the element list (koszyk) */}
@@ -587,7 +920,10 @@ function App() {
             </span>
             <button className="btn btn-action" onClick={handleAdd}>{editingRowId ? 'Zapisz' : 'Dodaj'}</button>
             <button className="btn btn-danger" onClick={handleDelete}>Usuń</button>
-            <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId}>Edytuj</button>
+            <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId || !selectedRowId}>Edytuj</button>
+            {editingRowId && (
+              <button className="btn" onClick={() => setEditingRowId(null)}>Anuluj</button>
+            )}
             <button className="btn btn-action" onClick={handleInsertAfter}>Wstaw za ...</button>
             <span
               className={`btn btn-kot ${kotCompliant ? 'btn-kot-green' : ''}`}

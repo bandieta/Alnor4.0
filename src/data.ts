@@ -162,7 +162,7 @@ export const WZMOCNIENIE_OPTIONS = ['standard', '0', '1', '2', '3', '1krzyżowe'
 // Frame options
 export const RAMKI_WL_OPTIONS = ['P20', 'P30', 'P40'];
 export const RAMKI_WYL_OPTIONS = ['P20', 'P30', 'P40'];
-export const RAMKI_OD_OPTIONS = ['P20', 'P30', 'P40'];
+export const RAMKI_OD_OPTIONS = ['', 'P20', 'P30', 'P40'];
 
 // Outer coating options (for insulated)
 export const PLASZCZ_OPTIONS = ['Ocynk', 'Kwasówka', 'Aluminium', 'Bez Płaszcza'];

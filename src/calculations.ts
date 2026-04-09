@@ -239,10 +239,19 @@ export function generateSymbol(
   shapeSymbol: string,
   material: string,
   wykonanie: string,
-  tab: number[]
+  tab: number[],
+  isChemo?: boolean
 ): string {
-  const materialCode = material === 'Aluminium' ? 'A' : material === 'Kwasówka' ? 'KW' : 'OCY';
-  const wykonanieCode = wykonanie === 'Niskociśnieniowe' ? 'N' : 'S';
+  let materialCode: string;
+  let wykonanieCode: string;
+
+  if (isChemo) {
+    materialCode = material; // PVC, PP, PPs, PE
+    wykonanieCode = wykonanie === 'Mufy' ? 'M' : 'K';
+  } else {
+    materialCode = material === 'Aluminium' ? 'A' : material === 'Kwasówka' ? 'KW' : 'OCY';
+    wykonanieCode = wykonanie === 'Niskociśnieniowe' ? 'N' : 'S';
+  }
   
   const dims = tab.filter(v => v > 0).join('-');
   return `${shapeSymbol}-${wykonanieCode}-${materialCode}-${dims}`;

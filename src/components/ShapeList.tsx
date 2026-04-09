@@ -5,9 +5,10 @@ interface ShapeListProps {
   shapes: ShapeDefinition[];
   selectedSymbol: string;
   onSelect: (symbol: string) => void;
+  disabled?: boolean;
 }
 
-const ShapeList: React.FC<ShapeListProps> = ({ shapes, selectedSymbol, onSelect }) => {
+const ShapeList: React.FC<ShapeListProps> = ({ shapes, selectedSymbol, onSelect, disabled }) => {
   const [filter, setFilter] = useState('');
 
   const filteredShapes = useMemo(() => {
@@ -19,7 +20,7 @@ const ShapeList: React.FC<ShapeListProps> = ({ shapes, selectedSymbol, onSelect 
   }, [shapes, filter]);
 
   return (
-    <div className="shape-list">
+    <div className={`shape-list${disabled ? ' shape-list-disabled' : ''}`}>
       <div className="shape-list-filter">
         <input
           type="text"
@@ -38,7 +39,7 @@ const ShapeList: React.FC<ShapeListProps> = ({ shapes, selectedSymbol, onSelect 
           <div
             key={shape.symbol}
             className={`shape-list-item ${selectedSymbol === shape.symbol ? 'selected' : ''}`}
-            onClick={() => onSelect(shape.symbol)}
+            onClick={() => !disabled && onSelect(shape.symbol)}
           >
             <span className="shape-icon">🔧</span>
             <span className="shape-name" title={shape.name}>{shape.name}</span>
