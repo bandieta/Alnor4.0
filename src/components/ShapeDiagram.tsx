@@ -48,255 +48,281 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   };
 
   const renderRectangularDuct = () => {
-    // Two-view technical drawing like the original: side view (L x b) + front cross-section (a x b)
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const l = values[2] || 500;
+    // QDa port aligned to Form1.cs drawing sequence.
+    let a = values[0] || 200;
+    let b = values[1] || 200;
+    let l = values[2] || 500;
 
-    // Normalize dimensions to fit the viewport
-    const maxDim = Math.max(a, b, l);
-    const scale = 90 / maxDim;
-    let sa = Math.max(a * scale, 12);
-    let sb = Math.max(b * scale, 12);
-    let sl = Math.max(l * scale, 20);
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
 
-    // Flange size proportional
-    const p = Math.min(8, Math.max(4, sl * 0.08));
+    let max = Math.max(a, b, l, p);
+    const mnoznik = 80;
+    a = (a / max) * mnoznik;
+    b = (b / max) * mnoznik;
+    l = (l / max) * mnoznik;
+    p = (p / max) * mnoznik;
 
-    // Side view position (left part)
-    const sideX = 25;
-    const sideY = Math.max(20, (height - sb) / 2 - 10);
+    while ((l + 20) < 150 && (a + 20) < 100 && (b + 20) < 100) {
+      a *= 1.1;
+      b *= 1.1;
+      l *= 1.1;
+      p *= 1.1;
+    }
 
-    // Front cross-section position (right part)
-    const frontX = sideX + sl + 60;
-    const frontY = sideY;
+    let pushX = ((110 - a - l) % 110) / 2;
+    if (pushX < 0) pushX = -pushX;
+    const pushY = ((90 - b) / 2) + 5;
+
+    const rightViewOffset = 20;
+
+    const small = {
+      x0: 190 + pushX + rightViewOffset,
+      y0: 20 + pushY,
+      x1: 190 + pushX + rightViewOffset + a,
+      y1: 20 + pushY + b,
+    };
+
+    const big = {
+      x0: 190 - p + pushX + rightViewOffset,
+      y0: 20 - p + pushY,
+      x1: 190 + p + a + pushX + rightViewOffset,
+      y1: 20 + p + b + pushY,
+    };
+
+    const side = {
+      x0: 20 + pushX,
+      y0: 20 + pushY,
+      x1: 20 + l + pushX,
+      y1: 20 + b + pushY,
+    };
+
+    // Form1 mutates punkty2[0]/[3] by -p before drawing the side polygon.
+    const sidePoly = {
+      x0: side.x0 - p,
+      y0: side.y0,
+      x1: side.x1,
+      y1: side.y1,
+    };
+
+    const flangeRight = {
+      x1: side.x1,
+      y1: side.y0 - p,
+      x2: side.x1,
+      y2: side.y1 + p,
+    };
+    const flangeInnerLeft = {
+      x1: side.x1 - p,
+      y1: side.y0,
+      x2: side.x1 - p,
+      y2: side.y1,
+    };
+    const flangeInnerRight = {
+      x1: side.x0,
+      y1: side.y0,
+      x2: side.x0,
+      y2: side.y1,
+    };
+    const flangeLeft = {
+      x1: side.x0 - p,
+      y1: side.y0 - p,
+      x2: side.x0 - p,
+      y2: side.y1 + p,
+    };
+
+    const aDimY = small.y0 - 15;
+    const lDimY = sidePoly.y1 + 15;
+    const bDimX = side.x1 + 15;
+    const bDimY2 = side.y1;
 
     return (
       <g>
-        {/* Side view - rectangular duct showing L × b */}
-        <rect x={sideX} y={sideY} width={sl} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+        {/* Form1 flange extension lines around side view */}
+        <line x1={flangeRight.x1} y1={flangeRight.y1} x2={flangeRight.x2} y2={flangeRight.y2} stroke="#004290" strokeWidth={1.4} />
+        <line x1={flangeInnerLeft.x1} y1={flangeInnerLeft.y1} x2={flangeInnerLeft.x2} y2={flangeInnerLeft.y2} stroke="#004290" strokeWidth={1.2} />
+        <line x1={flangeInnerRight.x1} y1={flangeInnerRight.y1} x2={flangeInnerRight.x2} y2={flangeInnerRight.y2} stroke="#004290" strokeWidth={1.2} />
+        <line x1={flangeLeft.x1} y1={flangeLeft.y1} x2={flangeLeft.x2} y2={flangeLeft.y2} stroke="#004290" strokeWidth={1.4} />
 
-        {/* Left flange */}
-        <line x1={sideX} y1={sideY - p} x2={sideX} y2={sideY + sb + p}
-          stroke="#004290" strokeWidth={2.2} />
+        {/* Main outlines */}
+        <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
+          fill="none" stroke="#004290" strokeWidth={1.6} />
+        <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
+          fill="none" stroke="#004290" strokeWidth={1.2} />
+        <rect x={sidePoly.x0} y={sidePoly.y0} width={sidePoly.x1 - sidePoly.x0} height={sidePoly.y1 - sidePoly.y0}
+          fill="none" stroke="#004290" strokeWidth={1.6} />
 
-        {/* Right flange */}
-        <line x1={sideX + sl} y1={sideY - p} x2={sideX + sl} y2={sideY + sb + p}
-          stroke="#004290" strokeWidth={2.2} />
+        {/* a dimension (top of right view) */}
+        <line x1={small.x0} y1={aDimY} x2={small.x1} y2={aDimY}
+          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <line x1={small.x0} y1={aDimY - 3} x2={small.x0} y2={aDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <line x1={small.x1} y1={aDimY - 3} x2={small.x1} y2={aDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={(small.x0 + small.x1) / 2} y={aDimY - 11} textAnchor="middle" fontSize={10} fill="#555555">a</text>
 
-        {/* L dimension line (below side view) */}
-        <line x1={sideX} y1={sideY + sb + p + 15} x2={sideX + sl} y2={sideY + sb + p + 15}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={sideX + sl / 2} y={sideY + sb + p + 28}
-          textAnchor="middle" fontSize={11} fill="#555555">L</text>
+        {/* L dimension (below side view) */}
+        <line x1={sidePoly.x1} y1={lDimY} x2={sidePoly.x0} y2={lDimY}
+          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <line x1={sidePoly.x1} y1={lDimY - 3} x2={sidePoly.x1} y2={lDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <line x1={sidePoly.x0} y1={lDimY - 3} x2={sidePoly.x0} y2={lDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={(sidePoly.x0 + sidePoly.x1) / 2} y={lDimY + 16} textAnchor="middle" fontSize={10} fill="#555555">L</text>
 
-        {/* b dimension line (right of side view) */}
-        <line x1={sideX + sl + p + 12} y1={sideY} x2={sideX + sl + p + 12} y2={sideY + sb}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={sideX + sl + p + 26} y={sideY + sb / 2 + 4}
-          textAnchor="middle" fontSize={11} fill="#555555">b</text>
-
-        {/* Front cross-section view (a × b rectangle) */}
-        <rect x={frontX} y={frontY} width={sa} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
-
-        {/* Front flange frame (larger rectangle around cross-section) */}
-        <rect x={frontX - p} y={frontY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
-
-        {/* a dimension line (above front view) */}
-        <line x1={frontX} y1={frontY - p - 12} x2={frontX + sa} y2={frontY - p - 12}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={frontX + sa / 2} y={frontY - p - 16}
-          textAnchor="middle" fontSize={11} fill="#555555">a</text>
-
-        {/* View labels */}
-        <text x={sideX + sl / 2} y={12} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
-        <text x={frontX + sa / 2} y={12} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        {/* b dimension (right of side view) */}
+        <line x1={bDimX} y1={side.y0} x2={bDimX} y2={bDimY2}
+          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <line x1={bDimX - 3} y1={side.y0} x2={bDimX + 3} y2={side.y0} stroke="#9b9b9b" strokeWidth={0.9} />
+        <line x1={bDimX - 3} y1={bDimY2} x2={bDimX + 3} y2={bDimY2} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={bDimX + 5} y={(side.y0 + bDimY2) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
       </g>
     );
   };
 
   const renderQBa = () => {
-    // QBa: symmetric bend — fixed 90° — parameters: a, b, e, f, r
-    // C# layout: horizontal f-leg (left) → arc → vertical e-leg (down-right),
-    // cross-section (a×b) at far right
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const e = values[2] || 150;
-    const f = values[3] || 150;
-    const r = values[4] || 200;
+    // QBa port aligned with Form1.cs geometry block.
+    const rawA = values[0] || 200;
+    const rawB = values[1] || 200;
+    const rawE = values[2] || 150;
+    const rawF = values[3] || 150;
+    const rawR = values[4] || 200;
 
-    // Normalize: find max dimension and scale to fit
-    let max = Math.max(a, b);
-    if (f > max) max = f;
-    if (e > max) max = e;
-    if (r > max) max = r;
-    max = Math.max(max, 1);
+    let a = Math.max(rawA, 1);
+    let b = Math.max(rawB, 1);
+    let e = Math.max(rawE, 1);
+    let f = Math.max(rawF, 1);
+    let r = rawR < 100 ? 0 : Math.max(rawR, 0);
 
-    const mnoznik = 55; // scale factor
-    const sa = (a / max) * mnoznik;
-    const sb = (b / max) * mnoznik;
-    const se = (e / max) * mnoznik;
-    const sf = (f / max) * mnoznik;
-    const sr = (r / max) * mnoznik;
+      let pRaw = Math.max(rawA, rawB) > 2501 ? 40 : Math.max(rawA, rawB) > 1000 ? 30 : 25;
+      let maxNorm = Math.max(a, b) + r + e;
+      maxNorm = Math.max(maxNorm, pRaw, f, e, 1);
 
-    // Flange size proportional to max(a,b)
-    const rawMax = Math.max(a, b);
-    let p = rawMax > 2501 ? 40 : rawMax > 1000 ? 30 : 25;
-    p = (p / max) * mnoznik;
+      const scale = 80 / maxNorm;
+      a *= scale;
+      b *= scale;
+      e *= scale;
+      f *= scale;
+      r *= scale;
+      const p = pRaw * scale;
 
-    // Layout offsets
-    const pushX = 8;
-    const pushY = 12;
+      const l = 3;
+      let pushX = ((110 - a - l) % 110) / 2;
+      if (pushX < 0) pushX = -pushX;
+      const pushY = (90 - b) / 2 + 5;
 
-    // === F-leg (horizontal duct at top-left) ===
-    // f-leg: rectangle from (fX0, fY0) width=sf, height=sb
-    const fX0 = pushX;
-    const fY0 = pushY;
-    const fX1 = fX0 + sf;
-    const fY1 = fY0 + sb;
+      const small = {
+        x0: 190 + pushX,
+        y0: 20 + pushY,
+        x1: 190 + pushX + a,
+        y1: 20 + pushY + b,
+      };
 
-    // === Arc connection ===
-    // Arc center is at (fX1, fY1), radius from inner=0 to outer depending on r
-    // Inner arc: from fX1 bottom-right corner, swept 90° from 270° to 360°
-    // The arc connects f-leg right edge to e-leg top edge
-    // After arc: e-leg starts at (fX1 + sr, fY1 + sr) going down by e
+      const big = {
+        x0: 190 + pushX - p,
+        y0: 20 + pushY - p,
+        x1: 190 + pushX + a + p,
+        y1: 20 + pushY + b + p,
+      };
 
-    // === E-leg (vertical duct going down, to the right of f-leg) ===
-    const eX0 = fX1 + sr;
-    const eY0 = fY1 + sr;
-    const eX1 = eX0 + sb;
-    const eY1 = eY0 + se;
+      const left = {
+        x0: 20 + pushX,
+        y0: 20 + pushY,
+        x1: 20 + pushX + f,
+        y1: 20 + pushY + b,
+      };
 
-    // === Draw arcs ===
-    // Inner arc: center at (fX1, fY1+sr) — no wait.
-    // C# uses: arc from punkt2[2] corner going to punkt3[0]
-    // punkt2[2] = (fX1, fY1), punkt3[0] = (fX1+sr, fY1+sr)
-    // The inner arc (for the duct inner wall) goes from angle 270° (up) sweeping 90° to 0° (right)
-    // Arc center for inner wall: (fX1, fY1) with radius (sr+sb) for outer, sr for ... 
-    // Actually in C#: the arc rectangle is constructed as:
-    //   rect origin = 2*(punkt3[0].X - punkt2[2].X) wide, 2*(punkt3[0].Y - punkt2[2].Y) tall
-    //   That's 2*sr × 2*sr, centered so the arc goes from fX1,fY1 area
+      const underSmall = {
+        x0: small.x0,
+        y0: small.y1,
+        x1: small.x1,
+        y1: small.y1 + r,
+      };
 
-    // Inner arc (connects f-leg inner wall to e-leg inner wall)
-    // Center of arc circle: (fX1, fY1 + sr) — no
-    // The DrawArc rect for outer wall: starts at (fX1 - dist, fY0) w=2*dist, h=2*dist where dist = sr+sb
-    // For inner wall (second arc): similar but with r offset
+      const underSmallE = {
+        x0: underSmall.x0,
+        y0: underSmall.y1,
+        x1: underSmall.x1,
+        y1: underSmall.y1 + e,
+      };
 
-    // Let's use polyline arcs like the existing code
-    const arcSteps = 20;
+      const lower = {
+        x0: left.x1 + r,
+        y0: left.y1 + r,
+        x1: left.x1 + r + b,
+        y1: left.y1 + r + e,
+      };
 
-    // Outer arc: connects f-leg top wall (y=fY0) at x=fX1 to e-leg left wall (x=eX0) at y=eY0
-    // This is a quarter circle from 270° to 360° (SVG: -90° to 0°)
-    // Center: (fX1, fY1 + sr) — no, think of it differently
-    // The outer wall path goes: fX1 at y=fY0, curves to eX0+sb at y=eY0
-    // Center of outer arc: (fX1, eY0) = (fX1, fY1+sr)
-    const outerArcCx = fX1;
-    const outerArcCy = fY1 + sr;
-    const outerR = sr + sb;
-    const outerArc: string[] = [];
-    for (let i = 0; i <= arcSteps; i++) {
-      const angle = -Math.PI / 2 + (i / arcSteps) * (Math.PI / 2); // -90° to 0°
-      outerArc.push(`${outerArcCx + outerR * Math.cos(angle)},${outerArcCy + outerR * Math.sin(angle)}`);
-    }
+      const innerRect = r === 0
+        ? { x: left.x1 - b, y: left.y0, w: 2 * b, h: 2 * b }
+        : {
+            x: 2 * left.x1 - lower.x0,
+            y: left.y1,
+            w: 2 * (lower.x0 - left.x1),
+            h: 2 * (lower.y0 - left.y1),
+          };
 
-    // Inner arc: connects f-leg bottom wall (y=fY1) at x=fX1 to e-leg left wall (x=eX0) at y=eY0
-    // Center: same (fX1, outerArcCy) but radius = sr
-    const innerR = sr;
-    const innerArc: string[] = [];
-    for (let i = 0; i <= arcSteps; i++) {
-      const angle = -Math.PI / 2 + (i / arcSteps) * (Math.PI / 2);
-      innerArc.push(`${outerArcCx + innerR * Math.cos(angle)},${outerArcCy + innerR * Math.sin(angle)}`);
-    }
+      const outerRect = {
+        x: 2 * left.x1 - lower.x1,
+        y: left.y0,
+        w: 2 * (lower.x1 - left.x1),
+        h: 2 * (lower.y0 - left.y0),
+      };
 
-    // === Cross-section (a×b rectangle at far right) ===
-    const crossGap = 25;
-    const crossX = eX1 + crossGap;
-    const crossY = pushY;
-    const crossScale = Math.min(50, 50) / Math.max(sa, sb) || 1;
-    const ca = Math.max(sa * crossScale, 12);
-    const cb = Math.max(sb * crossScale, 12);
-    const cp = Math.min(6, Math.max(3, p * crossScale * 0.5));
+      const quarterArcPath = (rect: { x: number; y: number; w: number; h: number }) => {
+        const rx = rect.w / 2;
+        const ry = rect.h / 2;
+        const cx = rect.x + rx;
+        const cy = rect.y + ry;
+        const startX = cx;
+        const startY = cy - ry;
+        const endX = cx + rx;
+        const endY = cy;
+        return `M ${startX} ${startY} A ${rx} ${ry} 0 0 1 ${endX} ${endY}`;
+      };
 
-    return (
-      <g>
-        {/* === F-leg (horizontal duct at top) === */}
-        <rect x={fX0} y={fY0} width={sf} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
-        {/* F-leg left flange */}
-        <line x1={fX0} y1={fY0 - p} x2={fX0} y2={fY1 + p}
-          stroke="#004290" strokeWidth={2} />
-        {/* F-leg inner frame line (right edge) */}
-        <line x1={fX0 + p} y1={fY0} x2={fX0 + p} y2={fY1}
-          stroke="#004290" strokeWidth={1} />
+      return (
+        <g>
+          <rect x={left.x0} y={left.y0} width={left.x1 - left.x0} height={left.y1 - left.y0}
+            fill="none" stroke="#004290" strokeWidth={1.6} />
+          <line x1={left.x1} y1={left.y0} x2={left.x1} y2={left.y1} stroke="#004290" strokeWidth={1.2} />
+          <line x1={left.x0 + p} y1={left.y0} x2={left.x0 + p} y2={left.y1} stroke="#004290" strokeWidth={1.1} />
 
-        {/* === Arcs === */}
-        {sr > 0 && (
-          <>
-            <polyline points={outerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.5} />
-            <polyline points={innerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.5} />
-          </>
-        )}
+          <rect x={lower.x0} y={lower.y0} width={lower.x1 - lower.x0} height={lower.y1 - lower.y0}
+            fill="none" stroke="#004290" strokeWidth={1.6} />
+          <line x1={lower.x0} y1={lower.y0} x2={lower.x1} y2={lower.y0} stroke="#004290" strokeWidth={1.2} />
+          <line x1={lower.x0} y1={lower.y1 - p} x2={lower.x1} y2={lower.y1 - p} stroke="#004290" strokeWidth={1.1} />
 
-        {/* === E-leg (vertical duct going down) === */}
-        <rect x={eX0} y={eY0} width={sb} height={se}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
-        {/* E-leg bottom flange */}
-        <line x1={eX0 - p} y1={eY1} x2={eX1 + p} y2={eY1}
-          stroke="#004290" strokeWidth={2} />
-        {/* E-leg inner frame line (top edge) */}
-        <line x1={eX0} y1={eY0 + p} x2={eX1} y2={eY0 + p}
-          stroke="#004290" strokeWidth={1} />
+          <rect x={underSmall.x0} y={underSmall.y0} width={underSmall.x1 - underSmall.x0} height={underSmall.y1 - underSmall.y0}
+            fill="none" stroke="#004290" strokeWidth={1.2} />
+          <rect x={underSmallE.x0} y={underSmallE.y0} width={underSmallE.x1 - underSmallE.x0} height={underSmallE.y1 - underSmallE.y0}
+            fill="none" stroke="#004290" strokeWidth={1.2} />
 
-        {/* r dimension (diagonal dashed line from arc area) */}
-        <line x1={fX1} y1={fY1} x2={fX1 + sr} y2={fY1 + sr}
-          stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
-        <text x={fX1 + sr + 3} y={fY1 + sr - 8}
-          fontSize={10} fill="#555555">r</text>
+          <path d={quarterArcPath(innerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />
+          {r > 0 && <path d={quarterArcPath(outerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />}
 
-        {/* f dimension (above f-leg) */}
-        <line x1={fX0} y1={fY0 - 12} x2={fX1} y2={fY0 - 12}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(fX0 + fX1) / 2} y={fY0 - 16}
-          textAnchor="middle" fontSize={10} fill="#555555">f</text>
+          <line x1={left.x1} y1={lower.y0} x2={left.x1 + r} y2={left.y1}
+            stroke="#9b9b9b" strokeWidth={0.9} />
+          <text x={left.x1 + r + 3} y={left.y1 - 8} fontSize={10} fill="#555555">r</text>
 
-        {/* b dimension (left of f-leg) */}
-        <line x1={fX0 - 12} y1={fY0} x2={fX0 - 12} y2={fY1}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={fX0 - 18} y={(fY0 + fY1) / 2 + 4}
-          textAnchor="middle" fontSize={10} fill="#555555">b</text>
+          <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
+            fill="none" stroke="#004290" strokeWidth={1.2} />
+          <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
+            fill="none" stroke="#004290" strokeWidth={1.6} />
 
-        {/* e dimension (right of e-leg) */}
-        <line x1={eX1 + 12} y1={eY0} x2={eX1 + 12} y2={eY1}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={eX1 + 22} y={(eY0 + eY1) / 2 + 4}
-          textAnchor="middle" fontSize={10} fill="#555555">e</text>
+          <line x1={left.x0} y1={left.y0 - 15} x2={left.x1} y2={left.y0 - 15}
+            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+          <text x={(left.x0 + left.x1) / 2} y={left.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">f</text>
 
-        {/* === Cross-section (a×b) at far right === */}
-        <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="#e8edf2" stroke="#004290" strokeWidth={1.5} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1} strokeDasharray="4 2" />
+          <line x1={left.x0 - 15} y1={left.y0} x2={left.x0 - 15} y2={left.y1}
+            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+          <text x={left.x0 - 24} y={(left.y0 + left.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
 
-        {/* a dimension (above cross-section) */}
-        <line x1={crossX} y1={crossY - cp - 8} x2={crossX + ca} y2={crossY - cp - 8}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 12}
-          textAnchor="middle" fontSize={10} fill="#555555">a</text>
+          <line x1={lower.x0 - 15} y1={lower.y0} x2={lower.x0 - 15} y2={lower.y1}
+            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+          <text x={lower.x0 - 7} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
 
-        {/* b dimension (right of cross-section) */}
-        <line x1={crossX + ca + cp + 6} y1={crossY} x2={crossX + ca + cp + 6} y2={crossY + cb}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 16} y={crossY + cb / 2 + 4}
-          textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        {/* Labels */}
-        <text x={(fX0 + fX1) / 2} y={8} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
-        <text x={crossX + ca / 2} y={8} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
-      </g>
-    );
+          <line x1={small.x0} y1={small.y0 - 15} x2={small.x1} y2={small.y0 - 15}
+            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+          <text x={(small.x0 + small.x1) / 2} y={small.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        </g>
+      );
   };
 
   const renderSymmetricBend = () => {
@@ -338,6 +364,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       allX.push((r + b) * Math.cos(ang));
       allY.push((r + b) * Math.sin(ang));
     }
+
     const realMinX = Math.min(...allX);
     const realMaxX = Math.max(...allX);
     const realMinY = Math.min(...allY);

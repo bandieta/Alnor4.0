@@ -29,6 +29,200 @@ import './App.css';
 
 const DEMO_SHAPE_LIMIT = 4;
 
+function buildSumaBlachyReport(gridRows: GridRow[]): string {
+  const ocynkIdx: Record<string, number> = {
+    '0,6': 0,
+    '0.6': 0,
+    '0,7': 1,
+    '0.7': 1,
+    '0,8': 2,
+    '0.8': 2,
+    '0,9': 3,
+    '0.9': 3,
+    '1': 4,
+    '1,0': 4,
+    '1.0': 4,
+    '1,1': 5,
+    '1.1': 5,
+    '1,10': 5,
+    '1.10': 5,
+    '1,2': 6,
+    '1.2': 6,
+  };
+  const kwasAlIdx: Record<string, number> = {
+    '0,6': 0,
+    '0.6': 0,
+    '0,8': 1,
+    '0.8': 1,
+  };
+
+  const kanOcynk = Array(7).fill(0) as number[];
+  const kanKwasowka = Array(2).fill(0) as number[];
+  const kanAluminum = Array(2).fill(0) as number[];
+  const kszOcynk = Array(7).fill(0) as number[];
+  const kszKwasowka = Array(2).fill(0) as number[];
+  const kszAluminum = Array(2).fill(0) as number[];
+
+  const kanOcynkIz = Array(7).fill(0) as number[];
+  const kanKwasowkaIz = Array(2).fill(0) as number[];
+  const kanAluminumIz = Array(2).fill(0) as number[];
+  const kszOcynkIz = Array(7).fill(0) as number[];
+  const kszKwasowkaIz = Array(2).fill(0) as number[];
+  const kszAluminumIz = Array(2).fill(0) as number[];
+
+  const kanal1500 = [0, 0];
+  const izolacje = [0, 0, 0];
+
+  const parseNum = (v: string) => Number.parseFloat((v || '').replace(',', '.'));
+
+  const norm = (v: string) => {
+    const raw = (v || '').trim();
+    if (!raw) return '';
+
+    const cleaned = raw.replace(/[^0-9.,]/g, '');
+    if (!cleaned) return '';
+
+    // Accept both comma/dot variants (e.g. 1.1, 1,1, 1,10) and normalize to app keys.
+    const num = Number.parseFloat(cleaned.replace(',', '.'));
+    if (Number.isFinite(num)) {
+      const candidates = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2];
+      const match = candidates.find((c) => Math.abs(c - num) < 0.001);
+      if (match !== undefined) {
+        if (Math.abs(match - 1.0) < 0.001) return '1';
+        return match.toFixed(1).replace('.', ',');
+      }
+    }
+
+    const s = cleaned.replace('.', ',');
+    if (s === '1,0') return '1';
+    return s;
+  };
+
+  const extractThickness = (row: GridRow) => {
+    const k = row.ksztaltka;
+    const direct = norm(k?.blacha || '');
+    if (direct) return direct;
+
+    const fromSymbol = (row.symbol || '').match(/(?:^|[^0-9])(0[.,][6-9]|1(?:[.,](?:0|1|2))?)(?:[^0-9]|$)/);
+    if (fromSymbol?.[1]) return norm(fromSymbol[1]);
+
+    const fromPelny = (k?.pelny_symbol || '').match(/(?:^|[^0-9])(0[.,][6-9]|1(?:[.,](?:0|1|2))?)(?:[^0-9]|$)/);
+    if (fromPelny?.[1]) return norm(fromPelny[1]);
+
+    return '';
+  };
+
+  for (const row of gridRows) {
+    const k = row.ksztaltka;
+    const symbol = row.shapeSymbol;
+    const material = (row.material || k?.material || '').trim();
+    const blacha = extractThickness(row);
+    const qty = row.sztuk || 0;
+    // Form1 uses tab[15] as the sheet area source for this report.
+    const tab15Raw = k?.tab?.[15] || '';
+    const tab15 = tab15Raw === '1,0' ? 1.0 : parseNum(tab15Raw);
+    const unitArea = Number.isFinite(tab15) && tab15 > 0
+      ? tab15
+      : (Number.isFinite(row.m2) && row.m2 > 0
+        ? row.m2
+        : parseNum(k?.powierznia || '0') || 0);
+    const area = unitArea * qty;
+
+    const isIzolowana = Boolean(k?.izolowana);
+    const plaszcz = k?.plaszcz || '';
+    const insulatedWithJacket = isIzolowana && !plaszcz.includes('Bez Płaszcza');
+
+    if (isIzolowana && plaszcz.includes('Bez Płaszcza')) {
+      const powIz = parseNum(k?.powierzniaIz || '0') || 0;
+      const izArea = powIz > 0 ? powIz : area;
+      if ((k?.gruboscIlozacji || '').includes('30')) izolacje[0] += izArea;
+      else if ((k?.gruboscIlozacji || '').includes('50')) izolacje[1] += izArea;
+      else if ((k?.gruboscIlozacji || '').includes('100')) izolacje[2] += izArea;
+    }
+
+    const isQDa = symbol === 'QDa';
+
+    if (material === 'Ocynk') {
+      const idx = ocynkIdx[blacha];
+      if (idx !== undefined) {
+        const target = isQDa
+          ? (insulatedWithJacket ? kanOcynkIz : kanOcynk)
+          : (insulatedWithJacket ? kszOcynkIz : kszOcynk);
+        target[idx] += area;
+      }
+    } else if (material === 'Kwasówka') {
+      const idx = kwasAlIdx[blacha];
+      if (idx !== undefined) {
+        const target = isQDa
+          ? (insulatedWithJacket ? kanKwasowkaIz : kanKwasowka)
+          : (insulatedWithJacket ? kszKwasowkaIz : kszKwasowka);
+        target[idx] += area;
+      }
+      if (isQDa && k?.tab?.[9] === '1500') {
+        if (insulatedWithJacket) kanal1500[0] += area;
+        else kanal1500[1] += area;
+      }
+    } else if (material === 'Aluminium') {
+      const idx = kwasAlIdx[blacha];
+      if (idx !== undefined) {
+        const target = isQDa
+          ? (insulatedWithJacket ? kanAluminumIz : kanAluminum)
+          : (insulatedWithJacket ? kszAluminumIz : kszAluminum);
+        target[idx] += area;
+      }
+    }
+  }
+
+  const n2 = (v: number) => Math.round(v * 100) / 100;
+  const lines: string[] = [];
+  const izLines: string[] = [];
+
+  const pushPair = (
+    arrKan: number[],
+    arrKsz: number[],
+    label: string,
+    thicknesses: string[],
+    target: string[]
+  ) => {
+    thicknesses.forEach((t, i) => {
+      if (arrKan[i] > 0) target.push(`${label} ${t} kan: ${n2(arrKan[i]).toFixed(2)} m2`);
+      if (arrKsz[i] > 0) target.push(`${label} ${t} ksz: ${n2(arrKsz[i]).toFixed(2)} m2`);
+    });
+  };
+
+  pushPair(kanOcynk, kszOcynk, 'Ocynk', ['0,6', '0,7', '0,8', '0,9', '1', '1,1', '1,2'], lines);
+  pushPair(kanKwasowka, kszKwasowka, 'Kwasówka', ['0,6', '0,8'], lines);
+  pushPair(kanAluminum, kszAluminum, 'Aluminium', ['0,6', '0,8'], lines);
+
+  pushPair(kanOcynkIz, kszOcynkIz, 'Iz. Ocynk', ['0,6', '0,7', '0,8', '0,9', '1', '1,1', '1,2'], izLines);
+  pushPair(kanKwasowkaIz, kszKwasowkaIz, 'Iz. Kwasówka', ['0,6', '0,8'], izLines);
+  pushPair(kanAluminumIz, kszAluminumIz, 'Iz. Aluminium', ['0,6', '0,8'], izLines);
+
+  const report: string[] = [];
+  if (lines.length > 0) {
+    report.push('Nieizolowane:', ...lines);
+  }
+  if (izLines.length > 0) {
+    if (report.length > 0) report.push('');
+    report.push('Izolowane:', ...izLines);
+  }
+  if (izolacje.some((v) => v > 0)) {
+    if (report.length > 0) report.push('');
+    report.push('Izolacja bez płaszcza:');
+    if (izolacje[0] > 0) report.push(`30 mm: ${n2(izolacje[0]).toFixed(2)} m2`);
+    if (izolacje[1] > 0) report.push(`50 mm: ${n2(izolacje[1]).toFixed(2)} m2`);
+    if (izolacje[2] > 0) report.push(`100 mm: ${n2(izolacje[2]).toFixed(2)} m2`);
+  }
+  if (kanal1500[0] > 0 || kanal1500[1] > 0) {
+    if (report.length > 0) report.push('');
+    report.push('Kanały Kwasówka 1500:');
+    if (kanal1500[0] > 0) report.push(`Izolowane: ${n2(kanal1500[0]).toFixed(2)} m2`);
+    if (kanal1500[1] > 0) report.push(`Nieizolowane: ${n2(kanal1500[1]).toFixed(2)} m2`);
+  }
+
+  return report.join('\n');
+}
+
 function App() {
   // System type
   const [systemType, setSystemType] = useState<SystemType>('prostokatne');
@@ -677,6 +871,8 @@ function App() {
     input.click();
   }, []);
 
+  const sumaBlachyReport = useMemo(() => buildSumaBlachyReport(gridRows), [gridRows]);
+
   // Refresh/recalculate all rows
   const handleRefresh = useCallback(() => {
     setGridRows((prev) =>
@@ -710,6 +906,7 @@ function App() {
             onNew={handleNew}
             onSave={handleSave}
             onLoad={handleLoad}
+            sumaBlachyReport={sumaBlachyReport}
           />
           <ShapeList
             shapes={SHAPE_DEFINITIONS}

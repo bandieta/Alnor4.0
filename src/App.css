@@ -688,6 +688,131 @@ body {
   border-color: #e5e5e5;
 }
 
+.suma-blachy-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suma-icon {
+  font-size: 12px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.suma-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.suma-blachy-panel {
+  border: 1px solid #dfe5ea;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  padding: 8px;
+  margin: 0 0 8px;
+  max-height: 220px;
+  overflow: auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.suma-line {
+  font-size: 11px;
+  color: #2a2a2a;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.suma-line-gap {
+  height: 6px;
+}
+
+.suma-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #004290;
+  margin: 2px 0 4px;
+  padding: 3px 0;
+}
+
+.suma-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.suma-col-material {
+  width: 45%;
+}
+
+.suma-col-gr {
+  width: 14%;
+}
+
+.suma-col-typ {
+  width: 14%;
+}
+
+.suma-col-value {
+  width: 27%;
+}
+
+.suma-head-row th {
+  font-size: 10px;
+  font-weight: 800;
+  color: #5a6a7a;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-align: left;
+  padding: 0 0 4px;
+  border: none;
+}
+
+.suma-head-row .suma-head-gr {
+  text-align: left;
+  padding-left: 8px;
+}
+
+.suma-head-row .suma-head-value {
+  text-align: right;
+}
+
+.suma-row-label {
+  font-size: 11px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 0;
+}
+
+.suma-data-row td:nth-child(2) {
+  padding-left: 8px;
+}
+
+.suma-row-value {
+  font-family: 'Lato', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #004290;
+  white-space: nowrap;
+  text-align: right;
+  padding: 2px 0 2px 8px;
+}
+
+.suma-section-row td,
+.suma-data-row td,
+.suma-row-gap td {
+  border: none;
+}
+
+.suma-row-gap td {
+  height: 5px;
+  line-height: 5px;
+  padding: 0;
+}
+
 .btn-action {
   background: #004290;
   color: #ffffff;
