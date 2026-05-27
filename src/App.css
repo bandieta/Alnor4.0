@@ -191,6 +191,16 @@ body {
   border-bottom-color: #003570;
 }
 
+.shape-list-item.locked {
+  color: #8a8a8a;
+  cursor: not-allowed;
+}
+
+.shape-list-item.locked:hover {
+  background: #ffffff;
+  color: #8a8a8a;
+}
+
 .shape-icon {
   font-size: 14px;
   width: 20px;
@@ -206,6 +216,10 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.shape-name-locked {
+  text-decoration: line-through;
 }
 
 .shape-symbol {

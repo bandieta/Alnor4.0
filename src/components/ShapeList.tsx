@@ -6,10 +6,18 @@ interface ShapeListProps {
   selectedSymbol: string;
   onSelect: (symbol: string) => void;
   disabled?: boolean;
+  demoLimit?: number;
 }
 
-const ShapeList: React.FC<ShapeListProps> = ({ shapes, selectedSymbol, onSelect, disabled }) => {
+const ShapeList: React.FC<ShapeListProps> = ({
+  shapes,
+  selectedSymbol,
+  onSelect,
+  disabled,
+  demoLimit,
+}) => {
   const [filter, setFilter] = useState('');
+  const lockTooltip = 'Nie dostępne w wersji demo';
 
   const filteredShapes = useMemo(() => {
     if (!filter.trim()) return shapes;
@@ -35,17 +43,29 @@ const ShapeList: React.FC<ShapeListProps> = ({ shapes, selectedSymbol, onSelect,
         <span className="col-symbol">Symbol</span>
       </div>
       <div className="shape-list-items">
-        {filteredShapes.map((shape) => (
-          <div
-            key={shape.symbol}
-            className={`shape-list-item ${selectedSymbol === shape.symbol ? 'selected' : ''}`}
-            onClick={() => !disabled && onSelect(shape.symbol)}
-          >
-            <span className="shape-icon">🔧</span>
-            <span className="shape-name" title={shape.name}>{shape.name}</span>
-            <span className="shape-symbol">{shape.symbol}</span>
-          </div>
-        ))}
+        {filteredShapes.map((shape) => {
+          const shapeIndex = shapes.findIndex((s) => s.symbol === shape.symbol);
+          const isLocked = typeof demoLimit === 'number' && shapeIndex >= demoLimit;
+          const isSelected = selectedSymbol === shape.symbol;
+
+          return (
+            <div
+              key={shape.symbol}
+              className={`shape-list-item ${isSelected ? 'selected' : ''}${isLocked ? ' locked' : ''}`}
+              onClick={() => !disabled && !isLocked && onSelect(shape.symbol)}
+              title={isLocked ? lockTooltip : undefined}
+            >
+              <span className="shape-icon">🔧</span>
+              <span
+                className={`shape-name${isLocked ? ' shape-name-locked' : ''}`}
+                title={isLocked ? lockTooltip : shape.name}
+              >
+                {shape.name}
+              </span>
+              <span className="shape-symbol">{shape.symbol}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
