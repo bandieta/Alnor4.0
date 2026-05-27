@@ -136,56 +136,6 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
   );
 };
 
-/* Flange ring at each end of the duct */
-const Flange: React.FC<{ a: number; b: number; l: number; maxDim: number; side: 'front' | 'back' }> = ({
-  a, b, l, maxDim, side,
-}) => {
-  const na = (a / maxDim) * 2;
-  const nb = (b / maxDim) * 2;
-  const nl = (l / maxDim) * 2;
-  const flangeExtra = 0.08;
-  const flangeThickness = 0.04;
-  const zPos = side === 'front' ? -nl / 2 : nl / 2;
-
-  // Build a frame shape (outer rect minus inner rect)
-  const shape = useMemo(() => {
-    const s = new THREE.Shape();
-    const hw = (na + flangeExtra * 2) / 2;
-    const hh = (nb + flangeExtra * 2) / 2;
-    s.moveTo(-hw, -hh);
-    s.lineTo(hw, -hh);
-    s.lineTo(hw, hh);
-    s.lineTo(-hw, hh);
-    s.closePath();
-
-    const hole = new THREE.Path();
-    const ihw = na / 2;
-    const ihh = nb / 2;
-    hole.moveTo(-ihw, -ihh);
-    hole.lineTo(ihw, -ihh);
-    hole.lineTo(ihw, ihh);
-    hole.lineTo(-ihw, ihh);
-    hole.closePath();
-    s.holes.push(hole);
-    return s;
-  }, [na, nb]);
-
-  return (
-    <mesh position={[0, 0, zPos]} rotation={[0, 0, 0]}>
-      <extrudeGeometry args={[shape, { depth: flangeThickness, bevelEnabled: false }]} />
-      <meshPhysicalMaterial
-        color="#b0b8c8"
-        roughness={0.18}
-        metalness={0.9}
-        reflectivity={1.0}
-        clearcoat={0.4}
-        clearcoatRoughness={0.1}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
-  );
-};
-
 /* Dimension labels — always face camera via Billboard */
 const DimensionLabels: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) => {
   const maxDim = Math.max(a, b, l, 1);
@@ -5269,12 +5219,9 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
         }
     if (symbol === 'QDa') {
       const l = values[2] || 500;
-      const maxDim = Math.max(a, b, l, 1);
       return (
         <>
           <DuctMesh a={a} b={b} l={l} />
-          <Flange a={a} b={b} l={l} maxDim={maxDim} side="front" />
-          <Flange a={a} b={b} l={l} maxDim={maxDim} side="back" />
           {showDimensions && <DimensionLabels a={a} b={b} l={l} />}
         </>
       );
