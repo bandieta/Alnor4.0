@@ -1128,8 +1128,7 @@ function App() {
                 </div>
                 <div className="summary-row">
                   <label>{t('Uwagi')}</label>
-                  <input
-                    type="text"
+                  <textarea
                     value={uwagi}
                     onChange={(e) => setUwagi(e.target.value)}
                     className="summary-input uwagi-input"

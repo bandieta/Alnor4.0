@@ -3555,10 +3555,14 @@ const ReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l: num
   const s = 2 / maxDim;
   const na = a * s, nb = b * s, nc = c * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const reducerMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+    });
+    reducerMaterial.userData.preserveMetalFinish = true;
+    return reducerMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     // 16 vertices defining 4 cross-section planes along z-axis
@@ -3629,6 +3633,7 @@ const ReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l: num
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
     // Edge lines: 4 cross-section rects + longitudinal connections
     const edgePts: number[] = [];
@@ -3842,10 +3847,14 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
   const na = a * s, nb = b * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
   const nr = nd / 2;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const transitionMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
+      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
+    });
+    transitionMaterial.userData.preserveMetalFinish = true;
+    return transitionMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hh = nb / 2;
@@ -3853,7 +3862,8 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
     const z1 = -nl / 2 + nh;   // end of front straight
     const z2 = nl / 2 - nm;    // start of rear cylinder
     const z3 = nl / 2;         // rear face
-    const segments = 32;
+    const segments = 256;
+    const transitionRings = 128;
 
     const verts: number[] = [];
     const norms: number[] = [];
@@ -3893,37 +3903,44 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
       return [t * ct, t * st];
     };
 
-    // Section 2: Transition (rect a×b → circle d), z1→z2
-    for (let i = 0; i < segments; i++) {
-      const theta0 = (i / segments) * 2 * Math.PI;
-      const theta1 = ((i + 1) / segments) * 2 * Math.PI;
+    // Section 2: a curved, formed transition from the rectangular collar to the round outlet.
+    const transitionPoint = (theta: number, progress: number): [number, number, number] => {
+      const [rectX, rectY] = rectPoint(theta);
+      const circleX = nr * Math.cos(theta);
+      const circleY = nr * Math.sin(theta);
+      const blend = progress * progress * (3 - 2 * progress);
+      return [
+        THREE.MathUtils.lerp(rectX, circleX, blend),
+        THREE.MathUtils.lerp(rectY, circleY, blend),
+        THREE.MathUtils.lerp(z1, z2, progress),
+      ];
+    };
 
-      const [rx0, ry0] = rectPoint(theta0);
-      const [rx1, ry1] = rectPoint(theta1);
-      const cx0 = nr * Math.cos(theta0), cy0 = nr * Math.sin(theta0);
-      const cx1 = nr * Math.cos(theta1), cy1 = nr * Math.sin(theta1);
+    for (let ring = 0; ring < transitionRings; ring++) {
+      const startProgress = ring / transitionRings;
+      const endProgress = (ring + 1) / transitionRings;
+      for (let i = 0; i < segments; i++) {
+        const theta0 = (i / segments) * 2 * Math.PI;
+        const theta1 = ((i + 1) / segments) * 2 * Math.PI;
+        const p0t = transitionPoint(theta0, startProgress);
+        const p1t = transitionPoint(theta1, startProgress);
+        const p2t = transitionPoint(theta1, endProgress);
+        const p3t = transitionPoint(theta0, endProgress);
+        const e1 = [p1t[0] - p0t[0], p1t[1] - p0t[1], p1t[2] - p0t[2]];
+        const e2 = [p3t[0] - p0t[0], p3t[1] - p0t[1], p3t[2] - p0t[2]];
+        let fnx = e1[1] * e2[2] - e1[2] * e2[1];
+        let fny = e1[2] * e2[0] - e1[0] * e2[2];
+        let fnz = e1[0] * e2[1] - e1[1] * e2[0];
+        const flen = Math.sqrt(fnx * fnx + fny * fny + fnz * fnz) || 1;
+        fnx /= flen; fny /= flen; fnz /= flen;
 
-      const p0t = [rx0, ry0, z1];
-      const p1t = [rx1, ry1, z1];
-      const p2t = [cx1, cy1, z2];
-      const p3t = [cx0, cy0, z2];
+        verts.push(...p0t, ...p3t, ...p2t, ...p0t, ...p2t, ...p1t);
+        for (let j = 0; j < 6; j++) norms.push(fnx, fny, fnz);
+        uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Compute face normal via cross product
-      const e1 = [p1t[0] - p0t[0], p1t[1] - p0t[1], p1t[2] - p0t[2]];
-      const e2 = [p3t[0] - p0t[0], p3t[1] - p0t[1], p3t[2] - p0t[2]];
-      let fnx = e1[1] * e2[2] - e1[2] * e2[1];
-      let fny = e1[2] * e2[0] - e1[0] * e2[2];
-      let fnz = e1[0] * e2[1] - e1[1] * e2[0];
-      const flen = Math.sqrt(fnx * fnx + fny * fny + fnz * fnz) || 1;
-      fnx /= flen; fny /= flen; fnz /= flen;
-
-      verts.push(...p0t, ...p3t, ...p2t, ...p0t, ...p2t, ...p1t);
-      for (let j = 0; j < 6; j++) norms.push(fnx, fny, fnz);
-      uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
-
-      // Transition edges
-      if (i === 0 || i === segments / 4 || i === segments / 2 || i === (3 * segments) / 4) {
-        edgePts.push(rx0, ry0, z1, cx0, cy0, z2);
+        if (ring === 0 && (i === 0 || i === segments / 4 || i === segments / 2 || i === (3 * segments) / 4)) {
+          edgePts.push(...p0t, ...transitionPoint(theta0, 1));
+        }
       }
     }
 
@@ -3963,7 +3980,7 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
   return (
     <group>
       <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
+      <lineSegments geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#7a7e85" />
       </lineSegments>
     </group>
