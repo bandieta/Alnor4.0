@@ -483,7 +483,7 @@ const BendDimensionLabels: React.FC<{ a: number; b: number; e: number; f: number
 const ReductionBendMesh: React.FC<{
   a: number; b: number; d: number; e: number; f: number; r: number; alfa: number
 }> = ({ a, b, d, e, f, r, alfa }) => {
-  const maxDim = Math.max(a, b, d, e, f, r, b + r, 1);
+  const maxDim = Math.max(a, b, d, e, f, r, b + r, d + r, 1);
   const scale = 2 / maxDim;
   const sa = a * scale;
   const sb = b * scale;
@@ -493,15 +493,19 @@ const ReductionBendMesh: React.FC<{
   const sr = r * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    flatShading: false,
-  }), []);
+  const material = useMemo(() => {
+    const bendMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
+      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
+      flatShading: false,
+    });
+    bendMaterial.userData.preserveMetalFinish = true;
+    return bendMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = sa / 2;
-    const segments = 16;
+    const segments = Math.max(64, Math.ceil((Math.abs(alfaRad) / (Math.PI / 2)) * 128));
     const verts: number[] = [];
     const norms: number[] = [];
     const uvArr: number[] = [];
@@ -651,7 +655,7 @@ const ReductionBendMesh: React.FC<{
   return (
     <group>
       <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
+      <lineSegments geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#7a7e85" />
       </lineSegments>
     </group>
@@ -662,7 +666,7 @@ const ReductionBendMesh: React.FC<{
 const ReductionBendLabels: React.FC<{
   a: number; b: number; d: number; e: number; f: number; r: number; alfa: number
 }> = ({ a, b, d, e, f, r, alfa }) => {
-  const maxDim = Math.max(a, b, d, e, f, r, b + r, 1);
+  const maxDim = Math.max(a, b, d, e, f, r, b + r, d + r, 1);
   const scale = 2 / maxDim;
   const sb = b * scale;
   const sd = d * scale;
@@ -4024,10 +4028,14 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
   const ccx = -na / 2 + nf + nr;
   const ccy = nb / 2 - ne - nr;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const transitionMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
+      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
+    });
+    transitionMaterial.userData.preserveMetalFinish = true;
+    return transitionMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hh = nb / 2;
@@ -4035,7 +4043,8 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
     const z1 = -nl / 2 + nh;
     const z2 = nl / 2 - nm;
     const z3 = nl / 2;
-    const segments = 32;
+    const segments = 256;
+    const transitionRings = 128;
 
     const verts: number[] = [];
     const norms: number[] = [];
@@ -4071,35 +4080,44 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
       return [t * ct, t * st];
     };
 
-    // Transition (rect → offset circle), z1→z2
-    for (let i = 0; i < segments; i++) {
-      const theta0 = (i / segments) * 2 * Math.PI;
-      const theta1 = ((i + 1) / segments) * 2 * Math.PI;
+    // Formed transition from the rectangular collar to the offset circular outlet.
+    const transitionPoint = (theta: number, progress: number): [number, number, number] => {
+      const [rectX, rectY] = rectPoint(theta);
+      const circleX = ccx + nr * Math.cos(theta);
+      const circleY = ccy + nr * Math.sin(theta);
+      const blend = progress * progress * (3 - 2 * progress);
+      return [
+        THREE.MathUtils.lerp(rectX, circleX, blend),
+        THREE.MathUtils.lerp(rectY, circleY, blend),
+        THREE.MathUtils.lerp(z1, z2, progress),
+      ];
+    };
 
-      const [rx0, ry0] = rectPoint(theta0);
-      const [rx1, ry1] = rectPoint(theta1);
-      const cx0 = ccx + nr * Math.cos(theta0), cy0 = ccy + nr * Math.sin(theta0);
-      const cx1 = ccx + nr * Math.cos(theta1), cy1 = ccy + nr * Math.sin(theta1);
+    for (let ring = 0; ring < transitionRings; ring++) {
+      const startProgress = ring / transitionRings;
+      const endProgress = (ring + 1) / transitionRings;
+      for (let i = 0; i < segments; i++) {
+        const theta0 = (i / segments) * 2 * Math.PI;
+        const theta1 = ((i + 1) / segments) * 2 * Math.PI;
+        const p0t = transitionPoint(theta0, startProgress);
+        const p1t = transitionPoint(theta1, startProgress);
+        const p2t = transitionPoint(theta1, endProgress);
+        const p3t = transitionPoint(theta0, endProgress);
+        const e1 = [p1t[0] - p0t[0], p1t[1] - p0t[1], p1t[2] - p0t[2]];
+        const e2 = [p3t[0] - p0t[0], p3t[1] - p0t[1], p3t[2] - p0t[2]];
+        let fnx = e1[1] * e2[2] - e1[2] * e2[1];
+        let fny = e1[2] * e2[0] - e1[0] * e2[2];
+        let fnz = e1[0] * e2[1] - e1[1] * e2[0];
+        const flen = Math.sqrt(fnx * fnx + fny * fny + fnz * fnz) || 1;
+        fnx /= flen; fny /= flen; fnz /= flen;
 
-      const p0t = [rx0, ry0, z1];
-      const p1t = [rx1, ry1, z1];
-      const p2t = [cx1, cy1, z2];
-      const p3t = [cx0, cy0, z2];
+        verts.push(...p0t, ...p3t, ...p2t, ...p0t, ...p2t, ...p1t);
+        for (let j = 0; j < 6; j++) norms.push(fnx, fny, fnz);
+        uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      const e1 = [p1t[0] - p0t[0], p1t[1] - p0t[1], p1t[2] - p0t[2]];
-      const e2 = [p3t[0] - p0t[0], p3t[1] - p0t[1], p3t[2] - p0t[2]];
-      let fnx = e1[1] * e2[2] - e1[2] * e2[1];
-      let fny = e1[2] * e2[0] - e1[0] * e2[2];
-      let fnz = e1[0] * e2[1] - e1[1] * e2[0];
-      const flen = Math.sqrt(fnx * fnx + fny * fny + fnz * fnz) || 1;
-      fnx /= flen; fny /= flen; fnz /= flen;
-
-      verts.push(...p0t, ...p3t, ...p2t, ...p0t, ...p2t, ...p1t);
-      for (let j = 0; j < 6; j++) norms.push(fnx, fny, fnz);
-      uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
-
-      if (i === 0 || i === segments / 4 || i === segments / 2 || i === (3 * segments) / 4) {
-        edgePts.push(rx0, ry0, z1, cx0, cy0, z2);
+        if (ring === 0 && (i === 0 || i === segments / 4 || i === segments / 2 || i === (3 * segments) / 4)) {
+          edgePts.push(...p0t, ...transitionPoint(theta0, 1));
+        }
       }
     }
 
@@ -4136,7 +4154,7 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
   return (
     <group>
       <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
+      <lineSegments geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#7a7e85" />
       </lineSegments>
     </group>
@@ -5544,7 +5562,7 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
       const rr = values[5] || 200;
       const rAlfa = values[6] || 90;
       // Center the geometry
-      const bMaxDim = Math.max(a, rb, rd, re, rf, rr, rb + rr, 1);
+      const bMaxDim = Math.max(a, rb, rd, re, rf, rr, rb + rr, rd + rr, 1);
       const bScale = 2 / bMaxDim;
       const bsb = rb * bScale, bsd = rd * bScale, bse = re * bScale, bsf = rf * bScale, bsr = rr * bScale;
       const bAlfaRad = (rAlfa * Math.PI) / 180;
@@ -5554,10 +5572,23 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
       const eEndIy = bsr * Math.sin(bAlfaRad) + eDirY * bse;
       const eEndOx = (bsr + bsd) * Math.cos(bAlfaRad) + eDirX * bse;
       const eEndOy = (bsr + bsd) * Math.sin(bAlfaRad) + eDirY * bse;
-      const minX = Math.min(0, eEndIx, eEndOx);
-      const maxX = Math.max(bsr + bsb, eEndIx, eEndOx);
-      const minY = Math.min(-bsf, eEndIy, eEndOy);
-      const maxY = Math.max(bsr + bsb, eEndIy, eEndOy);
+      const bendBounds = [
+        [bsr, 0], [bsr + bsb, 0], [bsr, -bsf], [bsr + bsb, -bsf],
+        [eEndIx, eEndIy], [eEndOx, eEndOy],
+      ];
+      for (let i = 0; i <= 128; i++) {
+        const progress = i / 128;
+        const angle = progress * bAlfaRad;
+        const outerRadius = bsr + bsb + (bsd - bsb) * progress;
+        bendBounds.push(
+          [bsr * Math.cos(angle), bsr * Math.sin(angle)],
+          [outerRadius * Math.cos(angle), outerRadius * Math.sin(angle)],
+        );
+      }
+      const minX = Math.min(...bendBounds.map(([x]) => x));
+      const maxX = Math.max(...bendBounds.map(([x]) => x));
+      const minY = Math.min(...bendBounds.map(([, y]) => y));
+      const maxY = Math.max(...bendBounds.map(([, y]) => y));
       const cx = (minX + maxX) / 2;
       const cy = (minY + maxY) / 2;
       return (
