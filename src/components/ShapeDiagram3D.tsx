@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { Text, Environment, Billboard } from '@react-three/drei';
 import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as THREE from 'three';
 
 extend({ TrackballControls });
@@ -39,6 +40,72 @@ interface ShapeDiagram3DProps {
   values: number[];
   t?: (text: string) => string;
 }
+
+const CONSISTENT_MESH_COLOR = new THREE.Color('#8a9bae');
+const CONSISTENT_EDGE_COLOR = new THREE.Color('#7a7e85');
+const HIDE_POLYGON_CONNECTION_LINES = true;
+
+const normalizeGroupAppearance = (root: THREE.Object3D | null) => {
+  if (!root) return;
+
+  root.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      let geo = obj.geometry as THREE.BufferGeometry | undefined;
+      if (geo && !geo.userData.preserveNormals) {
+        // Weld duplicated vertices before normal rebuild so contiguous plates shade as one surface.
+        if (!geo.index) {
+          const welded = mergeVertices(geo, 1e-6);
+          if (welded !== geo) {
+            geo = welded;
+            obj.geometry = geo;
+          }
+        }
+        geo.deleteAttribute('normal');
+        geo.computeVertexNormals();
+        geo.normalizeNormals();
+      }
+
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of materials) {
+        if (mat.userData.preserveMetalFinish) continue;
+        if (
+          mat instanceof THREE.MeshPhysicalMaterial ||
+          mat instanceof THREE.MeshStandardMaterial ||
+          mat instanceof THREE.MeshPhongMaterial ||
+          mat instanceof THREE.MeshLambertMaterial
+        ) {
+          mat.color.copy(CONSISTENT_MESH_COLOR);
+          if ('roughness' in mat) mat.roughness = 0.92;
+          if ('metalness' in mat) mat.metalness = 0.08;
+          if ('reflectivity' in mat) mat.reflectivity = 0.08;
+          if ('clearcoat' in mat) mat.clearcoat = 0.0;
+          if ('clearcoatRoughness' in mat) mat.clearcoatRoughness = 1.0;
+          if ('flatShading' in mat) mat.flatShading = false;
+          if ('vertexColors' in mat) mat.vertexColors = false;
+          if ('emissive' in mat) mat.emissive = new THREE.Color('#000000');
+          if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0;
+          if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
+          mat.side = THREE.DoubleSide;
+          mat.needsUpdate = true;
+        }
+      }
+    }
+
+    if (obj instanceof THREE.LineSegments) {
+      if (HIDE_POLYGON_CONNECTION_LINES) {
+        obj.visible = false;
+        return;
+      }
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) {
+        if (mat instanceof THREE.LineBasicMaterial) {
+          mat.color.copy(CONSISTENT_EDGE_COLOR);
+          mat.needsUpdate = true;
+        }
+      }
+    }
+  });
+};
 
 /* Duct mesh — 4 side walls only (open inlet/outlet like original) */
 const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) => {
@@ -190,15 +257,20 @@ const BendMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number
   const sr = r * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    flatShading: false,
-  }), []);
+  const material = useMemo(() => {
+    const bendMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+      flatShading: false,
+    });
+    bendMaterial.userData.preserveMetalFinish = true;
+    return bendMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = sa / 2; // half-width (a dimension, z-axis)
-    const segments = 16;
+    // Keep a consistent angular resolution for QBNa's variable-angle curve.
+    const segments = Math.max(24, Math.ceil((Math.abs(alfaRad) / (Math.PI / 2)) * 48));
     const verts: number[] = [];
     const norms: number[] = [];
     const uvArr: number[] = [];
@@ -291,20 +363,20 @@ const BendMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number
       for (let j = 0; j < 6; j++) norms.push(0, 0, 1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Inner wall (radius = sr)
-      const nix = -(ix0 + ix1) / 2 / sr;
-      const niy = -(iy0 + iy1) / 2 / sr;
+      // Inner wall: radial normals at each arc vertex produce a smooth formed curve.
+      const in0: [number, number, number] = [-ix0 / sr, -iy0 / sr, 0];
+      const in1: [number, number, number] = [-ix1 / sr, -iy1 / sr, 0];
       verts.push(ix0, iy0, hw, ix0, iy0, -hw, ix1, iy1, -hw);
       verts.push(ix0, iy0, hw, ix1, iy1, -hw, ix1, iy1, hw);
-      for (let j = 0; j < 6; j++) norms.push(nix, niy, 0);
+      norms.push(...in0, ...in0, ...in1, ...in0, ...in1, ...in1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Outer wall (radius = sr + sb)
-      const nox = (ox0 + ox1) / 2 / (sr + sb);
-      const noy = (oy0 + oy1) / 2 / (sr + sb);
+      // Outer wall: likewise retain continuous radial normals across all arc slices.
+      const out0: [number, number, number] = [ox0 / (sr + sb), oy0 / (sr + sb), 0];
+      const out1: [number, number, number] = [ox1 / (sr + sb), oy1 / (sr + sb), 0];
       verts.push(ox0, oy0, -hw, ox0, oy0, hw, ox1, oy1, hw);
       verts.push(ox0, oy0, -hw, ox1, oy1, hw, ox1, oy1, -hw);
-      for (let j = 0; j < 6; j++) norms.push(nox, noy, 0);
+      norms.push(...out0, ...out0, ...out1, ...out0, ...out1, ...out1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
     }
 
@@ -351,6 +423,7 @@ const BendMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
@@ -4760,9 +4833,41 @@ const TR9aMesh: React.FC<{
     addQ(p[7], p[6], p[22], p[23]);
     addQ(p[6], p[5], p[21], p[22]);
 
-    // Circular branch pipe wall (line 600-610): circ[i] to circ2[i]
-    for (let ii = 0; ii < 24; ii++) {
-      addQ(circ[ii], circ[ii + 1], circ2[ii + 1], circ2[ii]);
+    // Smooth the legacy 24-sided branch profile into a 96-sided sleeve while
+    // retaining its exact square-to-round transition at the connection ring.
+    const BRANCH_SEGMENTS = 96;
+    const interpolateRing = (ring: [number, number, number][], position: number): [number, number, number] => {
+      const base = Math.floor(position);
+      const t = position - base;
+      const sample = (offset: number) => ring[(base + offset + 24) % 24];
+      const previous = sample(-1);
+      const current = sample(0);
+      const next = sample(1);
+      const afterNext = sample(2);
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const spline = (p0: number, p1: number, p2: number, p3: number) => 0.5 * (
+        2 * p1 +
+        (-p0 + p2) * t +
+        (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+        (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+      );
+      return [
+        spline(previous[0], current[0], next[0], afterNext[0]),
+        spline(previous[1], current[1], next[1], afterNext[1]),
+        spline(previous[2], current[2], next[2], afterNext[2]),
+      ];
+    };
+
+    for (let ii = 0; ii < BRANCH_SEGMENTS; ii++) {
+      const current = ii * 24 / BRANCH_SEGMENTS;
+      const next = (ii + 1) * 24 / BRANCH_SEGMENTS;
+      addQ(
+        interpolateRing(circ, current),
+        interpolateRing(circ, next),
+        interpolateRing(circ2, next),
+        interpolateRing(circ2, current),
+      );
     }
 
     // Square-to-circle transition (lines 615-632)
@@ -5030,6 +5135,11 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
   const [showDimensions, setShowDimensions] = useState(true);
   const [autoRotate, setAutoRotate] = useState(true);
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    normalizeGroupAppearance(groupRef.current);
+    normalizeGroupAppearance(modalGroupRef.current);
+  }, [symbol, values, showDimensions, expanded]);
 
   if (!SUPPORTED_3D.includes(symbol)) {
     return (
@@ -5492,7 +5602,7 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
     const bendE = values[2] || 150;
     const bendF = values[3] || 150;
     const bendR = values[4] || 200;
-    const bendAlfa = (symbol === 'QBNa' && values[5]) ? values[5] : 90;
+    const bendAlfa = symbol === 'QBNa' ? (values[5] || 60) : 90;
     // Center the bend geometry: compute bounding box center
     const bMaxDim = Math.max(a, b, bendE, bendF, bendR, b + bendR, 1);
     const bScale = 2 / bMaxDim;
