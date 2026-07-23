@@ -6,7 +6,6 @@ interface ShapeListProps {
   selectedSymbol: string;
   onSelect: (symbol: string) => void;
   disabled?: boolean;
-  demoLimit?: number;
   t: (text: string) => string;
 }
 
@@ -15,11 +14,9 @@ const ShapeList: React.FC<ShapeListProps> = ({
   selectedSymbol,
   onSelect,
   disabled,
-  demoLimit,
   t,
 }) => {
   const [filter, setFilter] = useState('');
-  const lockTooltip = t('Nie dostępne w wersji demo');
 
   const filteredShapes = useMemo(() => {
     if (!filter.trim()) return shapes;
@@ -46,22 +43,16 @@ const ShapeList: React.FC<ShapeListProps> = ({
       </div>
       <div className="shape-list-items">
         {filteredShapes.map((shape) => {
-          const shapeIndex = shapes.findIndex((s) => s.symbol === shape.symbol);
-          const isLocked = typeof demoLimit === 'number' && shapeIndex >= demoLimit;
           const isSelected = selectedSymbol === shape.symbol;
 
           return (
             <div
               key={shape.symbol}
-              className={`shape-list-item ${isSelected ? 'selected' : ''}${isLocked ? ' locked' : ''}`}
-              onClick={() => !disabled && !isLocked && onSelect(shape.symbol)}
-              title={isLocked ? lockTooltip : undefined}
+              className={`shape-list-item ${isSelected ? 'selected' : ''}`}
+              onClick={() => !disabled && onSelect(shape.symbol)}
             >
               <span className="shape-icon">🔧</span>
-              <span
-                className={`shape-name${isLocked ? ' shape-name-locked' : ''}`}
-                title={isLocked ? lockTooltip : t(shape.name)}
-              >
+              <span className="shape-name" title={t(shape.name)}>
                 {t(shape.name)}
               </span>
               <span className="shape-symbol">{shape.symbol}</span>

@@ -1200,14 +1200,20 @@ const TR1aMesh: React.FC<{
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
 
+    // Keep branch footprint inside the main duct opening to prevent invalid/self-intersecting meshes.
+    const swSafe = Math.min(sw, Math.max(0.001, sl * 0.98));
+    const sdSafe = Math.min(sd, Math.max(0.001, sa * 0.98));
+    const seSafe = Math.min(sl - swSafe / 2, Math.max(swSafe / 2, se));
+    const sfSafe = Math.min(sa - sdSafe / 2, Math.max(sdSafe / 2, sf));
+
     // Branch reference offsets (C# dx, dy, dz)
-    const brDX = -hL + se;           // branch center x
+    const brDX = -hL + seSafe;           // branch center x
     const brTopY = -hb;              // branch top y = main duct bottom
     const brBotY = -hb - sl3;        // branch bottom y
-    const brFrtZ = -ha + sf - sd / 2; // branch front z
-    const brBckZ = -ha + sf + sd / 2; // branch back z
-    const brLftX = brDX - sw / 2;    // branch left x
-    const brRgtX = brDX + sw / 2;    // branch right x
+    const brFrtZ = -ha + sfSafe - sdSafe / 2; // branch front z
+    const brBckZ = -ha + sfSafe + sdSafe / 2; // branch back z
+    const brLftX = brDX - swSafe / 2;    // branch left x
+    const brRgtX = brDX + swSafe / 2;    // branch right x
 
     // Main duct corners (p0-p7)
     const p0 = [-hL,  hb, -ha];
@@ -1331,14 +1337,21 @@ const TR1aMesh: React.FC<{
 const TR1aLabels: React.FC<{
   a: number; b: number; d: number; w: number; L: number;
   e: number; f: number; l3: number;
-}> = ({ a, b, d, w, L, e, f: _f, l3 }) => {
+}> = ({ a, b, d, w, L, e, f, l3 }) => {
   const maxDim = Math.max(a, b, d, w, L, e, l3, 1);
   const scale = 2 / maxDim;
-  const sb = b * scale, sl = L * scale, sw = w * scale, sl3 = l3 * scale;
+  const sa = a * scale, sb = b * scale, sd = d * scale, sl = L * scale, sw = w * scale, sl3 = l3 * scale;
   const hb = sb / 2, hL = sl / 2;
-  const brDX = -hL + e * scale;
+
+  const swSafe = Math.min(sw, Math.max(0.001, sl * 0.98));
+  const sdSafe = Math.min(sd, Math.max(0.001, sa * 0.98));
+  const seSafe = Math.min(sl - swSafe / 2, Math.max(swSafe / 2, e * scale));
+  const sfSafe = Math.min(sa - sdSafe / 2, Math.max(sdSafe / 2, f * scale));
+
+  const brDX = -hL + seSafe;
   const brTopY = -hb;
   const brBotY = -hb - sl3;
+  const branchCenterZ = -sa / 2 + sfSafe;
 
   return (
     <>
@@ -1357,6 +1370,14 @@ const TR1aLabels: React.FC<{
       {/* l3 — branch length */}
       <Billboard position={[brDX + sw / 2 + 0.18, (brTopY + brBotY) / 2, 0]}>
         <Text fontSize={0.11} color="#004290" anchorX="left" anchorY="middle">{`l3 = ${Math.round(l3)}`}</Text>
+      </Billboard>
+      {/* d — branch depth in z */}
+      <Billboard position={[brDX, brTopY + 0.1, branchCenterZ]}>
+        <Text fontSize={0.10} color="#666666" anchorX="center" anchorY="bottom">{`d = ${Math.round(d)}`}</Text>
+      </Billboard>
+      {/* f — branch offset from front face */}
+      <Billboard position={[-hL - 0.16, brTopY - 0.02, branchCenterZ]}>
+        <Text fontSize={0.10} color="#666666" anchorX="right" anchorY="middle">{`f = ${Math.round(f)}`}</Text>
       </Billboard>
       {/* a label */}
       <Billboard position={[0, -hb - sl3 / 2, 0]}>
@@ -1386,13 +1407,18 @@ const TR2aMesh: React.FC<{
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
-    const hr = sd / 2; // branch radius
+
+    // Keep branch placement valid inside main duct footprint.
+    const sdSafe = Math.min(sd, Math.max(0.001, sa * 0.98));
+    const hr = sdSafe / 2; // branch radius
+    const seSafe = Math.min(sl - hr, Math.max(hr, se));
+    const sfSafe = Math.min(sa - hr, Math.max(hr, sf));
 
     // Branch center (matching C#)
-    const brX = -hL + se;
-    const brZ = -ha + sf; // circle center z
-    const brTopY = -hb;
-    const brBotY = -hb - sl3;
+    const brX = -hL + seSafe;
+    const brZ = -ha + sfSafe; // circle center z
+    const brTopY = hb;
+    const brBotY = hb + sl3;
 
     // Main duct corners (p0-p7)
     const p0: number[] = [-hL,  hb, -ha];
@@ -1404,11 +1430,11 @@ const TR2aMesh: React.FC<{
     const p6: number[] = [ hL, -hb,  ha];
     const p7: number[] = [-hL, -hb,  ha];
 
-    // Rectangular collar corners at duct bottom (y = -hb)
-    const rcFL: number[] = [brX - hr, -hb, brZ - hr]; // front-left
-    const rcFR: number[] = [brX + hr, -hb, brZ - hr]; // front-right
-    const rcBR: number[] = [brX + hr, -hb, brZ + hr]; // back-right
-    const rcBL: number[] = [brX - hr, -hb, brZ + hr]; // back-left
+    // Rectangular collar corners at duct top (y = +hb)
+    const rcFL: number[] = [brX - hr, hb, brZ - hr]; // front-left
+    const rcFR: number[] = [brX + hr, hb, brZ - hr]; // front-right
+    const rcBR: number[] = [brX + hr, hb, brZ + hr]; // back-right
+    const rcBL: number[] = [brX - hr, hb, brZ + hr]; // back-left
 
     // Generate circle + rectangle perimeter using angular correspondence
     // This ensures the transition quads don't twist
@@ -1450,16 +1476,16 @@ const TR2aMesh: React.FC<{
 
     // ── Main duct walls (3 walls, open at both x-ends) ──────────────────────
     addQuad(p3, p0, p1, p2);       // Front face (z=-ha)
-    addQuad(p0, p4, p5, p1);       // Top face (y=hb)
     addQuad(p4, p7, p6, p5);       // Back face (z=ha)
+    addQuad(p3, p2, p6, p7);       // Bottom face (y=-hb)
 
-    // ── Bottom face with hole (4 strips from duct corners to rectangular collar) ─
-    addQuad(p2, rcFR, rcFL, p3);   // front strip
-    addQuad(p2, p6, rcBR, rcFR);   // right strip
-    addQuad(rcBR, p6, p7, rcBL);   // back strip
-    addQuad(p3, rcFL, rcBL, p7);   // left strip
+    // ── Top face with branch hole (4 strips from duct corners to rectangular collar) ─
+    addQuad(p0, p1, rcFR, rcFL);   // front strip
+    addQuad(p1, p5, rcBR, rcFR);   // right strip
+    addQuad(p5, p4, rcBL, rcBR);   // back strip
+    addQuad(p4, p0, rcFL, rcBL);   // left strip
 
-    // ── Flat transition from rectangular collar to circle (at y=-hb) ────────
+    // ── Flat transition from rectangular collar to circle (at y=+hb) ────────
     for (let i = 0; i < segs; i++) {
       addQuad(rectPerim[i], rectPerim[i + 1], topCircle[i + 1], topCircle[i]);
     }
@@ -1478,10 +1504,10 @@ const TR2aMesh: React.FC<{
     seg(p0, p1); seg(p1, p2); seg(p2, p3); seg(p3, p0);
     seg(p4, p5); seg(p5, p6); seg(p6, p7); seg(p7, p4);
     seg(p0, p4); seg(p1, p5); seg(p2, p6); seg(p3, p7);
-    // Hole edges on bottom face
+    // Hole edges on top face
     seg(rcFL, rcFR); seg(rcFR, rcBR); seg(rcBR, rcBL); seg(rcBL, rcFL);
-    // Bottom strips connections
-    seg(p2, rcFR); seg(p3, rcFL); seg(p6, rcBR); seg(p7, rcBL);
+    // Top strips connections
+    seg(p1, rcFR); seg(p0, rcFL); seg(p5, rcBR); seg(p4, rcBL);
     // Top circle outline
     for (let i = 0; i < segs; i++) seg(topCircle[i], topCircle[i + 1]);
     // Bottom circle outline
@@ -1509,14 +1535,21 @@ const TR2aMesh: React.FC<{
 const TR2aLabels: React.FC<{
   a: number; b: number; d: number; L: number;
   l3: number; e: number; f: number;
-}> = ({ a, b, d, L, l3, e, f: _f }) => {
+}> = ({ a, b, d, L, l3, e, f }) => {
   const maxDim = Math.max(a, b, d, L, l3, e, 1);
   const scale = 2 / maxDim;
-  const sb = b * scale, sl = L * scale, sl3 = l3 * scale;
+  const sa = a * scale, sd = d * scale, sb = b * scale, sl = L * scale, sl3 = l3 * scale;
   const hb = sb / 2, hL = sl / 2;
-  const brDX = -hL + e * scale;
-  const brTopY = -hb;
-  const brBotY = -hb - sl3;
+
+  const sdSafe = Math.min(sd, Math.max(0.001, sa * 0.98));
+  const hr = sdSafe / 2;
+  const seSafe = Math.min(sl - hr, Math.max(hr, e * scale));
+  const sfSafe = Math.min(sa - hr, Math.max(hr, f * scale));
+
+  const brDX = -hL + seSafe;
+  const brTopY = hb;
+  const brBotY = hb + sl3;
+  const branchCenterZ = -sa / 2 + sfSafe;
 
   return (
     <>
@@ -1529,8 +1562,11 @@ const TR2aLabels: React.FC<{
       <Billboard position={[brDX, brBotY - 0.18, 0]}>
         <Text fontSize={0.11} color="#004290" anchorX="center" anchorY="top">{`d = ${Math.round(d)}`}</Text>
       </Billboard>
-      <Billboard position={[brDX + d * scale / 2 + 0.18, (brTopY + brBotY) / 2, 0]}>
+      <Billboard position={[brDX + sdSafe / 2 + 0.18, (brTopY + brBotY) / 2, 0]}>
         <Text fontSize={0.11} color="#004290" anchorX="left" anchorY="middle">{`l3 = ${Math.round(l3)}`}</Text>
+      </Billboard>
+      <Billboard position={[-hL - 0.16, brTopY - 0.02, branchCenterZ]}>
+        <Text fontSize={0.10} color="#666666" anchorX="right" anchorY="middle">{`f = ${Math.round(f)}`}</Text>
       </Billboard>
       <Billboard position={[0, -hb - sl3 / 2, 0]}>
         <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`a=${Math.round(a)}`}</Text>
@@ -2002,7 +2038,10 @@ const TR6aMesh: React.FC<{
 }> = ({ a, e, f, L: _L, g }) => {
   const maxDim = Math.max(a, e, f, g, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, se = e * scale, sf = f * scale, sg = g * scale;
+  const sa = a * scale, seRaw = e * scale, sfRaw = f * scale, sgRaw = g * scale;
+  const se = Math.max(0.02, seRaw);
+  const sf = Math.min(Math.max(0.02, sfRaw), Math.max(0.02, sa));
+  const sg = Math.max(0.02, sgRaw);
   const sr = sa / 2; // pipe radius
 
   const material = useMemo(() => new THREE.MeshPhysicalMaterial({
@@ -2015,9 +2054,20 @@ const TR6aMesh: React.FC<{
     // y(x, r) = sqrt(r² - x²) — circle
     const yCirc = (x: number) => Math.sqrt(Math.max(0, sr * sr - x * x));
 
-    // 9 curve points across z from -sf/2 to +sf/2
-    const N = 9;
-    const zFracs = [-1/2, -3/8, -1/4, -1/8, 0, 1/8, 1/4, 3/8, 1/2];
+    // Legacy TR6a uses 9 fixed sample bands across z:
+    // -f/2, -3f/8, -f/4, -f/8, 0, f/8, f/4, 3f/8, f/2
+    const zBands = [
+      -sf / 2,
+      -3 * sf / 8,
+      -sf / 4,
+      -sf / 8,
+      0,
+      sf / 8,
+      sf / 4,
+      3 * sf / 8,
+      sf / 2,
+    ];
+    const N = zBands.length;
 
     // Build left face (x=-he) and right face (x=+he)
     // Top ring follows pipe surface, bottom ring is flat at y=-sg
@@ -2027,7 +2077,7 @@ const TR6aMesh: React.FC<{
     const rightBot: number[][] = [];
 
     for (let i = 0; i < N; i++) {
-      const z = zFracs[i] * sf;
+      const z = zBands[i];
       const yTop = -yCirc(z) + sr; // C# formula: -y(z, r) + r
       leftTop.push([-he, yTop, z]);
       leftBot.push([-he, -sg, z]);
@@ -2061,6 +2111,9 @@ const TR6aMesh: React.FC<{
     // Back side (z=+sf/2): left[N-1] to right[N-1], top to bottom
     addQuad(rightTop[N - 1], leftTop[N - 1], leftBot[N - 1], rightBot[N - 1]);
 
+    // Intentionally keep top and bottom open: this matches legacy TR6a,
+    // which is modeled as a saddle shell (side walls + two end caps).
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.computeVertexNormals();
@@ -2076,10 +2129,9 @@ const TR6aMesh: React.FC<{
     seg(rightBot[0], rightBot[N - 1]);
     seg(rightTop[0], rightBot[0]);
     seg(rightTop[N - 1], rightBot[N - 1]);
-    // Depth edges at corners and mid-top
+    // Depth edges at profile endpoints and apex
     seg(leftTop[0], rightTop[0]);
     seg(leftTop[N - 1], rightTop[N - 1]);
-    seg(leftTop[4], rightTop[4]); // apex
     seg(leftBot[0], rightBot[0]);
     seg(leftBot[N - 1], rightBot[N - 1]);
 
@@ -2105,7 +2157,9 @@ const TR6aLabels: React.FC<{
 }> = ({ a, e, f, g }) => {
   const maxDim = Math.max(a, e, f, g, 1);
   const scale = 2 / maxDim;
-  const se = e * scale, sf = f * scale, sg = g * scale;
+  const se = Math.max(0.02, e * scale);
+  const sf = Math.min(Math.max(0.02, f * scale), Math.max(0.02, a * scale * 0.98));
+  const sg = g * scale;
 
   return (
     <>
@@ -2132,7 +2186,7 @@ const CZ1aMesh: React.FC<{
   const sc = 2 / maxDim;
   const sa = a * sc, sb = b * sc, sd = d * sc, sw = w * sc;
   const sL = L * sc, sd1 = d1 * sc, sw1 = w1 * sc;
-  const se1 = e1 * sc, sf1 = f1 * sc;
+  const se = e * sc, se1 = e1 * sc, sf1 = f1 * sc;
   const sf = f * sc, sl3 = l3 * sc, sl4 = l4 * sc;
 
   const material = useMemo(() => new THREE.MeshPhysicalMaterial({
@@ -2141,6 +2195,20 @@ const CZ1aMesh: React.FC<{
   }), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+    // Keep branch widths and depth centers inside the main duct span (Z axis).
+    const swEff = Math.min(sw, sL);
+    const sw1Eff = Math.min(sw1, sL);
+
+    const topCzTarget = -sL / 2 + se;
+    const topRange = Math.max(0, sL / 2 - swEff / 2);
+    const topCz = clamp(topCzTarget, -topRange, topRange);
+
+    const botCzTarget = -sL / 2 + se1;
+    const botRange = Math.max(0, sL / 2 - sw1Eff / 2);
+    const botCz = clamp(botCzTarget, -botRange, botRange);
+
     // Main duct box (pts 0-7)
     const P: number[][] = [
       [-sa / 2,  sb / 2, -sL / 2],  // 0
@@ -2153,34 +2221,32 @@ const CZ1aMesh: React.FC<{
       [ sa / 2, -sb / 2, -sL / 2],  // 7
     ];
 
-    // Top branch offset (pts 8-15): d1 wide, l4 tall, w1 deep
-    const tdx = -sa / 2 + sf1;
-    const tdy = sb / 2 + sl4 / 2;
-    const tdz = -sL / 2 + se1;
+    // Top branch offset (pts 8-15): d wide, l3 tall, w deep
+    const tdx = -sa / 2 + sf;
+    const tdy = sb / 2 + sl3 / 2;
     P.push(
-      [-sd1 / 2 + tdx,  sl4 / 2 + tdy, -sw1 / 2 + tdz],  // 8
-      [-sd1 / 2 + tdx,  sl4 / 2 + tdy,  sw1 / 2 + tdz],  // 9
-      [-sd1 / 2 + tdx, -sl4 / 2 + tdy,  sw1 / 2 + tdz],  // 10
-      [-sd1 / 2 + tdx, -sl4 / 2 + tdy, -sw1 / 2 + tdz],  // 11
-      [ sd1 / 2 + tdx,  sl4 / 2 + tdy, -sw1 / 2 + tdz],  // 12
-      [ sd1 / 2 + tdx,  sl4 / 2 + tdy,  sw1 / 2 + tdz],  // 13
-      [ sd1 / 2 + tdx, -sl4 / 2 + tdy,  sw1 / 2 + tdz],  // 14
-      [ sd1 / 2 + tdx, -sl4 / 2 + tdy, -sw1 / 2 + tdz],  // 15
+      [-sd / 2 + tdx,  sl3 / 2 + tdy, -swEff / 2 + topCz],  // 8
+      [-sd / 2 + tdx,  sl3 / 2 + tdy,  swEff / 2 + topCz],  // 9
+      [-sd / 2 + tdx, -sl3 / 2 + tdy,  swEff / 2 + topCz],  // 10
+      [-sd / 2 + tdx, -sl3 / 2 + tdy, -swEff / 2 + topCz],  // 11
+      [ sd / 2 + tdx,  sl3 / 2 + tdy, -swEff / 2 + topCz],  // 12
+      [ sd / 2 + tdx,  sl3 / 2 + tdy,  swEff / 2 + topCz],  // 13
+      [ sd / 2 + tdx, -sl3 / 2 + tdy,  swEff / 2 + topCz],  // 14
+      [ sd / 2 + tdx, -sl3 / 2 + tdy, -swEff / 2 + topCz],  // 15
     );
 
-    // Bottom branch offset (pts 16-23): d wide, l3 tall, w deep
-    const bdx = -sa / 2 + sf;
-    const bdy = -sb / 2 - sl3 / 2;
-    const bdz = -sL / 2 + se1;
+    // Bottom branch offset (pts 16-23): d1 wide, l4 tall, w1 deep
+    const bdx = -sa / 2 + sf1;
+    const bdy = -sb / 2 - sl4 / 2;
     P.push(
-      [-sd / 2 + bdx,  sl3 / 2 + bdy, -sw / 2 + bdz],  // 16
-      [-sd / 2 + bdx,  sl3 / 2 + bdy,  sw / 2 + bdz],  // 17
-      [-sd / 2 + bdx, -sl3 / 2 + bdy,  sw / 2 + bdz],  // 18
-      [-sd / 2 + bdx, -sl3 / 2 + bdy, -sw / 2 + bdz],  // 19
-      [ sd / 2 + bdx,  sl3 / 2 + bdy, -sw / 2 + bdz],  // 20
-      [ sd / 2 + bdx,  sl3 / 2 + bdy,  sw / 2 + bdz],  // 21
-      [ sd / 2 + bdx, -sl3 / 2 + bdy,  sw / 2 + bdz],  // 22
-      [ sd / 2 + bdx, -sl3 / 2 + bdy, -sw / 2 + bdz],  // 23
+      [-sd1 / 2 + bdx,  sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 16
+      [-sd1 / 2 + bdx,  sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 17
+      [-sd1 / 2 + bdx, -sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 18
+      [-sd1 / 2 + bdx, -sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 19
+      [ sd1 / 2 + bdx,  sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 20
+      [ sd1 / 2 + bdx,  sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 21
+      [ sd1 / 2 + bdx, -sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 22
+      [ sd1 / 2 + bdx, -sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 23
     );
 
     const verts: number[] = [];
@@ -2238,7 +2304,7 @@ const CZ1aMesh: React.FC<{
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
     return { geometry: geo, edgeGeo: eGeo };
-  }, [sa, sb, sd, sw, sL, sd1, sw1, se1, sf1, sf, sl3, sl4]);
+  }, [sa, sb, sd, sw, sL, sd1, sw1, se, se1, sf1, sf, sl3, sl4]);
 
   return (
     <group>
@@ -4029,12 +4095,7 @@ const QD1aMesh: React.FC<{
     clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
   }), []);
 
-  const flangeMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#a0aec0', roughness: 0.25, metalness: 0.88, reflectivity: 0.9,
-    clearcoat: 0.3, clearcoatRoughness: 0.1, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
-
-  const { ductGeo, plateGeo, flangeGeo, edgeGeo } = useMemo(() => {
+  const { geometry, edgeGeo } = useMemo(() => {
     const max = Math.max(aR, bR, eR, fR, lR, 1);
     const a = aR / max, b = bR / max, e = eR / max, f = fR / max, l = lR / max;
     const alfaRad = alfaDeg * Math.PI / 180;
@@ -4043,7 +4104,6 @@ const QD1aMesh: React.FC<{
     const h2 = cosA * b;
     const b1 = b / sinA;
     const zOff = (h1 + h2) / 2;
-    const flangeW = 0.06; // flange lip width
 
     // plate outer corners (e × f)
     const plate: [number, number, number][] = [
@@ -4078,51 +4138,26 @@ const QD1aMesh: React.FC<{
     const czOff = (minZ + maxZ) / 2;
     for (const pt of allPts) { pt[1] -= cyOff; pt[2] -= czOff; }
 
-    // Helper: build triangles from quads
-    const quadTris = (pts: [number, number, number][], q: [number, number, number, number][]) => {
-      const v: number[] = [];
-      for (const [a0, a1, a2, a3] of q) {
-        v.push(...pts[a0], ...pts[a1], ...pts[a2], ...pts[a0], ...pts[a2], ...pts[a3]);
-      }
-      return v;
-    };
-
-    // Plate: 4 flat panels between outer (plate) and inner (opening)
-    const plateVerts = quadTris(allPts, [
-      [0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7],
-    ]);
-    const pGeo = new THREE.BufferGeometry();
-    pGeo.setAttribute('position', new THREE.Float32BufferAttribute(plateVerts, 3));
-    pGeo.computeVertexNormals();
-
-    // Duct body: 4 walls from opening to ductEnd
-    const ductVerts = quadTris(allPts, [
-      [4,5,9,8], [5,6,10,9], [6,7,11,10], [7,4,8,11],
-    ]);
-    const dGeo = new THREE.BufferGeometry();
-    dGeo.setAttribute('position', new THREE.Float32BufferAttribute(ductVerts, 3));
-    dGeo.computeVertexNormals();
-
-    // Flanges: lip at duct far end (8-11) extending outward
-    // Compute outward normal direction for each edge of duct end
-    const de = allPts.slice(8, 12); // duct end pts
-    const ductDir: [number, number, number] = [0, de[0][1] - allPts[4][1], de[0][2] - allPts[4][2]];
-    const ductLen = Math.sqrt(ductDir[1]**2 + ductDir[2]**2) || 1;
-    ductDir[1] /= ductLen; ductDir[2] /= ductLen;
-    // Flange extends perpendicular to duct axis in the wall plane
-    const flangeOuter: [number, number, number][] = [
-      [ a/2 + flangeW, de[0][1] - flangeW * ductDir[1], de[0][2] - flangeW * ductDir[2]],
-      [ a/2 + flangeW, de[1][1] - flangeW * ductDir[1], de[1][2] - flangeW * ductDir[2]],
-      [-a/2 - flangeW, de[2][1] - flangeW * ductDir[1], de[2][2] - flangeW * ductDir[2]],
-      [-a/2 - flangeW, de[3][1] - flangeW * ductDir[1], de[3][2] - flangeW * ductDir[2]],
+    // .NET QD1a uses exactly 8 quads (0-3 -> 4-7 and 4-7 -> 8-11).
+    const quads: [number, number, number, number][] = [
+      [0, 1, 5, 4],
+      [1, 2, 6, 5],
+      [2, 3, 7, 6],
+      [3, 0, 4, 7],
+      [4, 5, 9, 8],
+      [5, 6, 10, 9],
+      [6, 7, 11, 10],
+      [7, 4, 8, 11],
     ];
-    const fPts = [...de, ...flangeOuter]; // 0-3: inner, 4-7: outer
-    const flangeVerts = quadTris(fPts, [
-      [0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7],
-    ]);
-    const fGeo = new THREE.BufferGeometry();
-    fGeo.setAttribute('position', new THREE.Float32BufferAttribute(flangeVerts, 3));
-    fGeo.computeVertexNormals();
+
+    const verts: number[] = [];
+    for (const [q0, q1, q2, q3] of quads) {
+      verts.push(...allPts[q0], ...allPts[q1], ...allPts[q2], ...allPts[q0], ...allPts[q2], ...allPts[q3]);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.computeVertexNormals();
 
     // Edges
     const edgePts: number[] = [];
@@ -4139,22 +4174,16 @@ const QD1aMesh: React.FC<{
     for (let i = 0; i < 4; i++) addEdge(allPts[i], allPts[i+4]);
     // Connecting opening to duct end
     for (let i = 4; i < 8; i++) addEdge(allPts[i], allPts[i+4]);
-    // Flange outer edges
-    for (let i = 0; i < 4; i++) addEdge(flangeOuter[i], flangeOuter[(i+1)%4]);
-    // Flange inner to outer
-    for (let i = 0; i < 4; i++) addEdge(de[i], flangeOuter[i]);
 
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
 
-    return { ductGeo: dGeo, plateGeo: pGeo, flangeGeo: fGeo, edgeGeo: eGeo };
+    return { geometry: geo, edgeGeo: eGeo };
   }, [aR, bR, lR, alfaDeg, eR, fR]);
 
   return (
     <group>
-      <mesh geometry={plateGeo} material={flangeMaterial} />
-      <mesh geometry={ductGeo} material={material} />
-      <mesh geometry={flangeGeo} material={flangeMaterial} />
+      <mesh geometry={geometry} material={material} />
       <lineSegments geometry={edgeGeo}>
         <lineBasicMaterial color="#222222" linewidth={1} />
       </lineSegments>
@@ -5025,7 +5054,7 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
           const w   = values[3] || 200;
           const tL  = values[4] || 500;
           const te  = values[5] || 150;
-          const tf  = values[6] || 0;
+          const tf  = values[6] || (a / 2);
           const tl3 = values[7] || 200;
           return (
             <>
@@ -5040,7 +5069,7 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
           const tL  = values[3] || 500;
           const tl3 = values[4] || 200;
           const te  = values[5] || 150;
-          const tf  = values[6] || 0;
+          const tf  = values[6] || (a / 2);
           return (
             <>
               <TR2aMesh a={a} b={b} d={d} L={tL} l3={tl3} e={te} f={tf} />
@@ -5230,9 +5259,9 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
     // QD1a — angled rectangular duct
     if (symbol === 'QD1a') {
       const qL = values[2] || 500;
-      const qAlfa = values[3] || 45;
-      const qE = values[4] || 200;
-      const qF = values[5] || 200;
+      const qAlfa = values[3] || 30;
+      const qE = values[4] || (3 * b);
+      const qF = values[5] || (2 * a);
       return (
         <>
           <QD1aMesh a={a} b={b} L={qL} alfa={qAlfa} e={qE} f={qF} />
@@ -5242,9 +5271,9 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
     }
     // QD2a — perpendicular rectangular duct
     if (symbol === 'QD2a') {
-      const qL = values[2] || 500;
-      const qE = values[3] || 200;
-      const qF = values[4] || 200;
+      const qL = values[2] || 150;
+      const qE = values[3] || (2 * b);
+      const qF = values[4] || (2 * a);
       return (
         <>
           <QD2aMesh a={a} b={b} L={qL} e={qE} f={qF} />
@@ -5254,18 +5283,20 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
     }
     // TR7a — skew tee
     if (symbol === 'TR7a') {
-      const td = values[2] || 200;
+      const ta = values[0] || 100;
+      const tb = values[1] || 300;
+      const td = values[2] || 400;
       const th = values[3] || 200;
       const te = values[4] || 100;
       const tr = values[5] || 100;
       const tq = values[6] || 100;
-      const ti = values[7] || 100;
-      const tj = values[8] || 100;
-      const tp = values[9] || 100;
+      const ti = values[7] || 50;
+      const tj = values[8] || 50;
+      const tp = values[9] || 50;
       return (
         <>
-          <TR7aMesh a={a} b={b} d={td} h={th} e={te} r={tr} q={tq} i={ti} j={tj} p={tp} />
-          {showDimensions && <TR7aLabels a={a} b={b} d={td} h={th} e={te} r={tr} q={tq} i={ti} j={tj} p={tp} />}
+          <TR7aMesh a={ta} b={tb} d={td} h={th} e={te} r={tr} q={tq} i={ti} j={tj} p={tp} />
+          {showDimensions && <TR7aLabels a={ta} b={tb} d={td} h={th} e={te} r={tr} q={tq} i={ti} j={tj} p={tp} />}
         </>
       );
     }
@@ -5275,18 +5306,18 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
       // w=tb7→v[4], g=tb8→v[5], l=tb9→v[6], l3=tb18→v[7], m=tb20→v[8], n=tb14→v[9],
       // e=tb13→v[10], f=tb10→v[11], i=tb17→v[12]
       const ta = values[0] || 200;
-      const td_cs = values[1] || 200;  // "b" in labels = d in C# 3D code
-      const tc = values[2] || 200;
+      const td_cs = values[1] || 400;  // "b" in labels = d in C# 3D code
+      const tc = values[2] || 400;
       const tb_cs = values[3] || 200;  // "d" in labels = b in C# 3D code
-      const tw = values[4] || 100;
+      const tw = values[4] || 200;
       const tg = values[5] || 100;
       const tl = values[6] || 500;
       const tl3 = values[7] || 100;
-      const tm = values[8] || 0;
-      const tn = values[9] || 0;
-      const te = values[10] || 100;
-      const tf = values[11] || 100;
-      const ti = values[12] || 30;
+      const tm = values[8] || -100;
+      const tn = values[9] || -150;
+      const te = values[10] || Math.trunc(tl / 2);
+      const tf = values[11] || Math.trunc(td_cs / 2);
+      const ti = Math.max(values[12] || 30, 30);
       return (
         <>
           <TR8aMesh a={ta} b={tb_cs} c={tc} d={td_cs} w={tw} g={tg} l={tl} l3={tl3} m={tm} n={tn} e={te} f={tf} i={ti} />
@@ -5299,19 +5330,19 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
       // C# 3D mapping: a=tb4→v[0], b=tb6→v[3]("d" label), c=tb15→v[2], d=tb5→v[1]("b" label),
       // d1=tb7→v[4], l=tb8→v[5], l3=tb9→v[6], m=tb18→v[7], n=tb20→v[8],
       // e=tb14→v[9], f=tb13→v[10], i=tb10→v[11], j=tb17→v[12]
-      const ta = values[0] || 200;
-      const td_cs = values[1] || 200;  // "b" label = d in C# 3D code
-      const tc = values[2] || 200;
-      const tb_cs = values[3] || 200;  // "d" label = b in C# 3D code
-      const td1 = values[4] || 100;
-      const tl = values[5] || 500;
+      const ta = values[0] || 400;
+      const td_cs = values[1] || 400;  // "b" label = d in C# 3D code
+      const tc = values[2] || 250;
+      const tb_cs = values[3] || 250;  // "d" label = b in C# 3D code
+      const td1 = values[4] || 200;
+      const tl = values[5] || 600;
       const tl3 = values[6] || 100;
       const tm = values[7] || 0;
       const tn = values[8] || 0;
-      const te = values[9] || 100;
-      const tf = values[10] || 100;
-      const ti = values[11] || 30;
-      const tj = values[12] || 30;
+      const te = values[9] || Math.trunc(tl / 2);
+      const tf = values[10] || Math.trunc(td_cs / 2);
+      const ti = Math.max(values[11] || 30, 30);
+      const tj = Math.max(values[12] || 30, 30);
       return (
         <>
           <TR9aMesh a={ta} b={tb_cs} c={tc} d={td_cs} d1={td1} l={tl} l3={tl3} m={tm} n={tn} e={te} f={tf} i={ti} j={tj} />

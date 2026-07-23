@@ -1945,10 +1945,11 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // values: a, b, d, w, L, e, f, l3
     const a   = values[0] || 200;
     const b   = values[1] || 200;
-    // d = values[2] — branch z-depth (shown in cross-section only)
+    const d   = values[2] || 120;  // branch z-depth (cross-section)
     const w   = values[3] || 200;  // branch x-width
     const L   = values[4] || 500;  // main duct length
     const e   = values[5] || 150;  // branch x-offset from left
+    const f   = values[6] || (a / 2); // branch center offset in z-depth
     const l3  = values[7] || 200;  // branch y-length (downward)
 
     // Left panel (~60%): front view showing main duct + branch
@@ -1971,9 +1972,16 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const csc = Math.min(crossAreaW * 0.7, (height - 44) * 0.7) / Math.max(a, b, 1);
     const ca = Math.max(a * csc, 12);
     const cb = Math.max(b * csc, 12);
+    const cd = Math.max(d * csc, 8);
     const cp = Math.min(6, Math.max(3, ca * 0.08));
     const crossX = crossAreaX + (crossAreaW - ca) / 2;
     const crossY = (height - cb) / 2 + 4;
+    const cf = f * csc;
+    const branchCenterX = Math.min(crossX + ca, Math.max(crossX, crossX + cf));
+    const branchLeftX = Math.max(crossX, branchCenterX - cd / 2);
+    const branchRightX = Math.min(crossX + ca, branchCenterX + cd / 2);
+    const branchY = crossY + cb * 0.22;
+    const branchH = Math.max(8, cb * 0.56);
 
     return (
       <g>
@@ -2050,6 +2058,13 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           fill="none" stroke="#004290" strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
           fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+
+        {/* Branch opening location in cross-section (d and f) */}
+        <rect x={branchLeftX} y={branchY} width={Math.max(2, branchRightX - branchLeftX)} height={branchH}
+          fill="none" stroke="#004290" strokeWidth={1.4} strokeDasharray="3 2" />
+        <line x1={branchCenterX} y1={crossY - cp - 18} x2={branchCenterX} y2={crossY + cb + cp + 12}
+          stroke="#b3b3b3" strokeWidth={0.7} strokeDasharray="3 3" />
+
         <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
           stroke="#9b9b9b" strokeWidth={0.8}
           markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
@@ -2060,6 +2075,20 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
         <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
           textAnchor="start" fontSize={10} fill="#555555">b</text>
+
+        {/* d dimension (branch depth in cross-section) */}
+        <line x1={branchLeftX} y1={crossY + cb + cp + 10} x2={branchRightX} y2={crossY + cb + cp + 10}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={(branchLeftX + branchRightX) / 2} y={crossY + cb + cp + 22}
+          textAnchor="middle" fontSize={10} fill="#555555">d</text>
+
+        {/* f dimension (offset to branch center in cross-section) */}
+        <line x1={crossX} y1={crossY + cb + cp + 30} x2={branchCenterX} y2={crossY + cb + cp + 30}
+          stroke="#9b9b9b" strokeWidth={0.8}
+          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={crossX + (branchCenterX - crossX) / 2} y={crossY + cb + cp + 42}
+          textAnchor="middle" fontSize={10} fill="#555555">f</text>
       </g>
     );
   };
@@ -2074,12 +2103,14 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const L  = values[3] || 500;
     const l3 = values[4] || 200;
     const e  = values[5] || 250;
-    const f  = values[6] || 100;
+    const f  = values[6] || (a / 2);
 
     const sideW = width * 0.6;
     const sc = Math.min((sideW - 60) / L, (height - 60) / (a + l3));
-    const sl = L * sc, sa = a * sc, sd = d * sc, sl3 = l3 * sc;
-    const se = e * sc;
+    const sl = L * sc, sa = a * sc, sdRaw = d * sc, sl3 = l3 * sc;
+    const sd = Math.min(sdRaw, Math.max(8, sa * 0.98));
+    const seRaw = e * sc;
+    const se = Math.min(sl - sd / 2, Math.max(sd / 2, seRaw));
     const sp = Math.min(6, Math.max(3, Math.min(sa, sl) * 0.08));
 
     // Main duct origin — push down to leave room for branch above
@@ -2099,19 +2130,20 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // Cross-section panel (right side): a×b rectangle
     const crossAreaX = sideW + 10;
     const crossAreaW = width - crossAreaX - 10;
-    const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / Math.max(a, b);
+    const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / Math.max(a, b, d);
     const ca = Math.max(a * crossScale, 14);
     const cb = Math.max(b * crossScale, 14);
     const cp = Math.min(6, Math.max(3, ca * 0.08));
     const crossX = crossAreaX + (crossAreaW - ca) / 2;
     const crossY = (height - cb) / 2 + 4;
 
-    // Branch indicator on cross-section
-    const cdCross = Math.max(d * crossScale, 8);
-    const cl3Cross = Math.max(l3 * crossScale * 0.4, 8);
+    // Branch indicator on cross-section (round branch placement by f)
+    const cdCross = Math.min(Math.max(d * crossScale, 8), Math.max(8, ca * 0.95));
+    const branchR = cdCross / 2;
     const cfCross = f * crossScale;
-    const brCrossX = crossX + cb - cfCross - cdCross / 2;
-    const brCrossLeft = brCrossX - cdCross / 2;
+    const brCrossXRaw = crossX + ca - cfCross;
+    const brCrossX = Math.min(crossX + ca - branchR, Math.max(crossX + branchR, brCrossXRaw));
+    const brCrossY = crossY - cp - branchR;
 
     return (
       <g>
@@ -2155,11 +2187,6 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2" />
         <text x={(ox + bCenterX) / 2} y={oy + sa * 0.3 + 12} textAnchor="middle" fontSize={9} fill="#555555">e</text>
 
-        {/* f dimension — from right duct edge */}
-        <line x1={bCenterX} y1={oy + sa * 0.6} x2={mRight} y2={oy + sa * 0.6}
-          stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2" />
-        <text x={(bCenterX + mRight) / 2} y={oy + sa * 0.6 + 12} textAnchor="middle" fontSize={9} fill="#555555">f</text>
-
         {/* === CROSS-SECTION === */}
         <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
@@ -2170,9 +2197,16 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
           fill="none" stroke="#004290" strokeWidth={1.2} />
 
-        {/* Branch indicator on cross-section (d×l3 rectangle above) */}
-        <rect x={brCrossLeft} y={crossY - cp - cl3Cross} width={cdCross} height={cl3Cross}
+        {/* Branch indicator on cross-section (round opening) */}
+        <circle cx={brCrossX} cy={brCrossY} r={branchR}
           fill="none" stroke="#004290" strokeWidth={1.2} />
+        <line x1={brCrossX} y1={brCrossY + branchR} x2={brCrossX} y2={crossY}
+          stroke="#b3b3b3" strokeWidth={0.7} strokeDasharray="3 2" />
+
+        {/* d dimension — branch diameter */}
+        <line x1={brCrossX - branchR} y1={brCrossY - branchR - 8} x2={brCrossX + branchR} y2={brCrossY - branchR - 8}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={brCrossX} y={brCrossY - branchR - 12} textAnchor="middle" fontSize={9} fill="#555555">d</text>
 
         {/* b dimension — below cross-section */}
         <line x1={crossX} y1={crossY + cb + cp + 10} x2={crossX + ca} y2={crossY + cb + cp + 10}
@@ -2183,6 +2217,12 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
           stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
         <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+
+        {/* f dimension — from right duct edge to branch center in cross-section */}
+        <line x1={brCrossX} y1={crossY + cb + cp + 30} x2={crossX + ca} y2={crossY + cb + cp + 30}
+          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={brCrossX + (crossX + ca - brCrossX) / 2} y={crossY + cb + cp + 42}
+          textAnchor="middle" fontSize={10} fill="#555555">f</text>
       </g>
     );
   };
@@ -3879,9 +3919,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const a_raw = values[0] || 200;
     const b_raw = values[1] || 200;
     const L_raw = values[2] || 500;
-    const alfa_raw = values[3] || 45;
-    const e_raw = values[4] || 200;
-    const f_raw = values[5] || 200;
+    const alfa_raw = values[3] || 30;
+    const e_raw = values[4] || (3 * b_raw);
+    const f_raw = values[5] || (2 * a_raw);
 
     // ── max & p matching C# ──
     let max = Math.max(a_raw, b_raw);
@@ -4093,7 +4133,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         fontSize={6} fill="#333">alfa</text>);
     }
 
-    // 11. "alfa" dim along left edge (0→3)
+    // 11. "L" dim along left edge (0→3)
     {
       const lx1 = p2x0 - lwx, ly1 = p2y0 + lwy;
       const lx2 = p2x3 - lwx, ly2 = p2y3 + lwy;
@@ -4110,7 +4150,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       els.push(<text key={K()}
         x={sx(Math.trunc((lx1 + lx2) / 2)) - 5}
         y={sy(Math.trunc((ly1 + ly2) / 2))}
-        fontSize={7} fill="#333">alfa</text>);
+        fontSize={7} fill="#333">L</text>);
     }
 
     // 12. "a" dim along top-left edge (0→1) of parallelogram
@@ -4139,9 +4179,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   const renderPerpendicularDuct = () => {
     const a_raw = values[0] || 200;
     const b_raw = values[1] || 200;
-    const L_raw = values[2] || 500;
-    const e_raw = values[3] || 200;
-    const f_raw = values[4] || 200;
+    const L_raw = values[2] || 150;
+    const e_raw = values[3] || (2 * b_raw);
+    const f_raw = values[4] || (2 * a_raw);
 
     let max = Math.max(a_raw, b_raw);
     let p = 25;
@@ -4310,16 +4350,16 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   };
 
   const renderSkewTee = () => {
-    const a_raw = values[0] || 200;
-    const b_raw = values[1] || 200;
-    const d_raw = values[2] || 200;
+    const a_raw = values[0] || 100;
+    const b_raw = values[1] || 300;
+    const d_raw = values[2] || 400;
     const h_raw = values[3] || 200;
     const e_raw = values[4] || 100;
     const r_raw = values[5] || 100;
     const q_raw = values[6] || 100;
-    const i_raw = values[7] || 100;
-    const j_raw = values[8] || 100;
-    const pp_raw = values[9] || 100;
+    const i_raw = values[7] || 50;
+    const j_raw = values[8] || 50;
+    const pp_raw = values[9] || 50;
 
     let max = Math.max(a_raw, b_raw);
     let p = 25;
@@ -4661,18 +4701,18 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // TR8a: Coaxial skew tee - 1:1 C# port
     // params: a, b, c, d, w, g, l, l3, m, n, ee, f, i
     const a_raw = values[0] || 200;
-    const b_raw = values[1] || 200;
-    const c_raw = values[2] || 200;
+    const b_raw = values[1] || 400;
+    const c_raw = values[2] || 400;
     const d_raw = values[3] || 200;
-    const w_raw = values[4] || 100;
+    const w_raw = values[4] || 200;
     const g_raw = values[5] || 100;
     const l_raw = values[6] || 500;
-    const l3_raw = values[7] || 200;
-    const m_raw = values[8] || 50;
-    const n_raw = values[9] || 50;
-    const ee_raw = values[10] || 150;
-    const f_raw = values[11] || 50;
-    const i_raw = values[12] || 25;
+    const l3_raw = values[7] || 100;
+    const m_raw = values[8] || -100;
+    const n_raw = values[9] || -150;
+    const ee_raw = values[10] || Math.trunc(l_raw / 2);
+    const f_raw = values[11] || Math.trunc(b_raw / 2);
+    const i_raw = Math.max(values[12] || 30, 30);
 
     let p = 25;
     if (l_raw > 1000) p = 30;
@@ -5158,19 +5198,19 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   const renderCoaxialTee = () => {
     // TR9a: Coaxial skew tee with round branch — literal C# port (Form1.cs lines 15640-15968)
     // Every mutation step matches the C# exactly. Variables aa, bb are mutable just like C# Point structs.
-    let a = values[0] || 200;
-    let b = values[1] || 200;
-    let c = values[2] || 200;
-    let d = values[3] || 200;
-    let d1 = values[4] || 100;
-    let l = values[5] || 500;
-    let l3 = values[6] || 200;
-    let m = values[7] || 50;
-    let n = values[8] || 50;
-    let ee = values[9] || 150;
-    let f = values[10] || 50;
-    let i = values[11] || 25;
-    let j = values[12] || 25;
+    let a = values[0] || 400;
+    let b = values[1] || 400;
+    let c = values[2] || 250;
+    let d = values[3] || 250;
+    let d1 = values[4] || 200;
+    let l = values[5] || 600;
+    let l3 = values[6] || 100;
+    let m = values[7] || 0;
+    let n = values[8] || 0;
+    let ee = values[9] || Math.trunc(l / 2);
+    let f = values[10] || Math.trunc(b / 2);
+    let i = Math.max(values[11] || 30, 30);
+    let j = Math.max(values[12] || 30, 30);
 
     let p = 25;
     if (l > 1000) p = 30;

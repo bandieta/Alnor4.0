@@ -28,8 +28,6 @@ import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
 import { LANGUAGE_OPTIONS, parseDictionary, translate, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
 
-const DEMO_SHAPE_LIMIT = 4;
-
 function buildSumaBlachyReport(gridRows: GridRow[]): string {
   const ocynkIdx: Record<string, number> = {
     '0,6': 0,
@@ -331,14 +329,6 @@ function App() {
 
   const isIzolowane = systemType === 'prostokatne_izolowane';
   const isUserElement = systemType === 'element_uzytkownika';
-
-  useEffect(() => {
-    const selectedIndex = SHAPE_DEFINITIONS.findIndex((s) => s.symbol === selectedSymbol);
-    if (selectedIndex >= DEMO_SHAPE_LIMIT) {
-      setSelectedSymbol(SHAPE_DEFINITIONS[0].symbol);
-      setDimensionValues(Array(17).fill(''));
-    }
-  }, [selectedSymbol]);
 
   // Handle system type change — force blacha in insulated mode
   const handleSystemTypeChange = useCallback((type: SystemType) => {
@@ -985,7 +975,6 @@ function App() {
             selectedSymbol={selectedSymbol}
             onSelect={handleSelectShape}
             disabled={isUserElement}
-            demoLimit={DEMO_SHAPE_LIMIT}
             t={t}
           />
         </div>
