@@ -1,0 +1,470 @@
+{
+  "communities": {
+    "0": [
+      "backgroundworker",
+      "bindingsource",
+      "checkbox",
+      "colordialog",
+      "combobox",
+      "datagridview",
+      "datagridviewex_cs_datagridviewex",
+      "datagridviewex_windowsapplication1_datagridviewex",
+      "datagridviewex_windowsapplication1_datagridviewex_onmousewheel",
+      "datagridviewimagecolumn",
+      "datagridviewtextboxcolumn",
+      "flowlayoutpanel",
+      "fontdialog",
+      "form1_designer_cs_button",
+      "form1_designer_cs_datagridview",
+      "form1_designer_cs_icontainer",
+      "form1_designer_cs_label",
+      "form1_designer_cs_picturebox",
+      "form1_designer_cs_textbox",
+      "form1_designer_windowsapplication1_form1",
+      "form1_designer_windowsapplication1_form1_dispose",
+      "form1_designer_windowsapplication1_form1_initializecomponent",
+      "groupbox",
+      "menustrip",
+      "mouseeventargs",
+      "panel",
+      "radiobutton",
+      "timer",
+      "toolstripmenuitem",
+      "tooltip"
+    ],
+    "1": [
+      "blacha",
+      "class1",
+      "class1_windowsapplication1_decoder",
+      "class1_windowsapplication1_decoder_decodesymbol",
+      "csharp_namespace:b8f9f8a6ab2567f0",
+      "form1_designer",
+      "form6_designer",
+      "form6_designer_cs_icontainer",
+      "form6_designer_cs_linklabel",
+      "form6_designer_cs_picturebox",
+      "form6_designer_cs_richtextbox",
+      "form6_designer_windowsapplication1_form6",
+      "form6_designer_windowsapplication1_form6_dispose",
+      "form6_designer_windowsapplication1_form6_initializecomponent",
+      "gridclass",
+      "gridclass_cs_string",
+      "gridclass_windowsapplication1_gridclass",
+      "loadingdialog_designer",
+      "loadingdialog_designer_cs_icontainer",
+      "loadingdialog_designer_cs_picturebox",
+      "loadingdialog_designer_windowsapplication1_loadingdialog",
+      "loadingdialog_designer_windowsapplication1_loadingdialog_dispose",
+      "loadingdialog_designer_windowsapplication1_loadingdialog_initializecomponent",
+      "mydatagridrow",
+      "mydatagridrow_cs_bitmap",
+      "mydatagridrow_cs_string",
+      "mydatagridrow_windowsapplication1_mydatagridrow",
+      "thicknesscalc",
+      "thicknesscalc_windowsapplication1_thicknesscalc",
+      "thicknesscalc_windowsapplication1_thicknesscalc_calculatethikness"
+    ],
+    "2": [
+      "blacha_windowsapplication1_blacha",
+      "blacha_windowsapplication1_blacha_rozwiniecie_cz1a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_cz2a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_pr7a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qba",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qbfa",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qbfra",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qbna",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qbr1a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qbra",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qd1a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qd2a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qda",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qesa",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qpr1a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qpr2a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qpr3a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qpr4a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_qpr6a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr1a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr2a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr3a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr4a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr5a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr6a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr7a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr8",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tr9a",
+      "blacha_windowsapplication1_blacha_rozwiniecie_tra"
+    ],
+    "3": [
+      "csgl",
+      "csgl_windowsapplication1_csgl",
+      "form",
+      "form6_cs_eventargs",
+      "form6_windowsapplication1_form6",
+      "form6_windowsapplication1_form6_form6_load",
+      "form6_windowsapplication1_form6_form6_shown",
+      "form6_windowsapplication1_form6_timer1_tick",
+      "form7",
+      "form7_cs_eventargs",
+      "form7_windowsapplication1_form7",
+      "form7_windowsapplication1_form7_form7_formclosed",
+      "form7_windowsapplication1_form7_form7_load",
+      "form7_windowsapplication1_form7_richtextbox1_textchanged",
+      "formclosedeventargs",
+      "loadingdialog",
+      "loadingdialog_windowsapplication1_loadingdialog"
+    ],
+    "4": [
+      "form2",
+      "form2_cs_bool",
+      "form2_cs_dictionary",
+      "form2_cs_eventargs",
+      "form2_windowsapplication1_form2",
+      "form2_windowsapplication1_form2_button1_click",
+      "form2_windowsapplication1_form2_button2_click",
+      "form2_windowsapplication1_form2_form2_formclosing",
+      "form2_windowsapplication1_form2_form2_load",
+      "form2_windowsapplication1_form2_listbox1_selectedindexchanged",
+      "form2_windowsapplication1_form2_translate",
+      "form2_windowsapplication1_form2_trytranslate",
+      "form2_windowsapplication1_form2_wybrany",
+      "formclosingeventargs"
+    ],
+    "5": [
+      "form2_cs_string",
+      "form2_windowsapplication1_form2_elementy",
+      "form3",
+      "form3_cs_dictionary",
+      "form3_cs_eventargs",
+      "form3_cs_string",
+      "form3_windowsapplication1_form3",
+      "form3_windowsapplication1_form3_button1_click",
+      "form3_windowsapplication1_form3_form3_load",
+      "form3_windowsapplication1_form3_translate",
+      "form3_windowsapplication1_form3_trytranslate",
+      "form3_windowsapplication1_form3_wylpelnij"
+    ],
+    "6": [
+      "aboutbox1",
+      "aboutbox1_cs_dictionary",
+      "aboutbox1_cs_eventargs",
+      "aboutbox1_windowsapplication1_aboutbox1",
+      "aboutbox1_windowsapplication1_aboutbox1_labelversion_click",
+      "aboutbox1_windowsapplication1_aboutbox1_translate",
+      "aboutbox1_windowsapplication1_aboutbox1_trytranslate",
+      "imultilang_cs_dictionary",
+      "imultilang_cs_imultilang",
+      "imultilang_windowsapplication1_imultilang",
+      "imultilang_windowsapplication1_imultilang_translate"
+    ],
+    "7": [
+      "aboutbox1_designer",
+      "aboutbox1_designer_cs_button",
+      "aboutbox1_designer_cs_icontainer",
+      "aboutbox1_designer_cs_label",
+      "aboutbox1_designer_cs_picturebox",
+      "aboutbox1_designer_cs_textbox",
+      "aboutbox1_designer_windowsapplication1_aboutbox1",
+      "aboutbox1_designer_windowsapplication1_aboutbox1_dispose",
+      "aboutbox1_designer_windowsapplication1_aboutbox1_initializecomponent",
+      "tablelayoutpanel"
+    ],
+    "8": [
+      "applicationsettingsbase",
+      "csharp_namespace:2ac124be17f36526",
+      "cultureinfo",
+      "form6",
+      "properties_resources_designer",
+      "properties_resources_designer_cs_bitmap",
+      "properties_resources_designer_windowsapplication1_properties_resources",
+      "properties_settings_designer",
+      "properties_settings_designer_windowsapplication1_properties_settings",
+      "resourcemanager"
+    ],
+    "9": [
+      "currentlanguage_cs_currentlanguage",
+      "currentlanguage_windowsapplication1_currentlanguage",
+      "dictionariesmanager",
+      "dictionariesmanager_cs_dictionary",
+      "dictionariesmanager_windowsapplication1_dictionariesmanager",
+      "dictionariesmanager_windowsapplication1_dictionariesmanager_deserialize",
+      "dictionariesmanager_windowsapplication1_dictionariesmanager_getcurrentdictionary",
+      "dictionariesmanager_windowsapplication1_dictionariesmanager_loaddictionaries",
+      "dictionariesmanager_windowsapplication1_dictionariesmanager_serialize"
+    ],
+    "10": [
+      "datetimepicker",
+      "form3_designer",
+      "form3_designer_cs_button",
+      "form3_designer_cs_icontainer",
+      "form3_designer_cs_label",
+      "form3_designer_cs_textbox",
+      "form3_designer_windowsapplication1_form3",
+      "form3_designer_windowsapplication1_form3_dispose",
+      "form3_designer_windowsapplication1_form3_initializecomponent"
+    ],
+    "11": [
+      "form4",
+      "form4_cs_dictionary",
+      "form4_cs_eventargs",
+      "form4_windowsapplication1_form4",
+      "form4_windowsapplication1_form4_form4_load",
+      "form4_windowsapplication1_form4_picturebox1_click",
+      "form4_windowsapplication1_form4_richtextbox1_textchanged",
+      "form4_windowsapplication1_form4_translate",
+      "form4_windowsapplication1_form4_trytranslate"
+    ],
+    "12": [
+      "ksztaltka",
+      "ksztaltka_cs_bool",
+      "ksztaltka_cs_string",
+      "ksztaltka_windowsapplication1_ksztaltka",
+      "ksztaltka_windowsapplication1_ksztaltka_add",
+      "ksztaltka_windowsapplication1_ksztaltka_pobierz_wartosci_liczbowe",
+      "ksztaltka_windowsapplication1_ksztaltka_pobierzl",
+      "ksztaltka_windowsapplication1_ksztaltka_prawe_menu",
+      "ksztaltka_windowsapplication1_ksztaltka_tabizo"
+    ],
+    "13": [
+      "form7_designer",
+      "form7_designer_cs_icontainer",
+      "form7_designer_cs_linklabel",
+      "form7_designer_cs_picturebox",
+      "form7_designer_cs_richtextbox",
+      "form7_designer_windowsapplication1_form7",
+      "form7_designer_windowsapplication1_form7_dispose",
+      "form7_designer_windowsapplication1_form7_initializecomponent"
+    ],
+    "14": [
+      "info",
+      "info_cs_dictionary",
+      "info_cs_eventargs",
+      "info_windowsapplication1_info",
+      "info_windowsapplication1_info_button1_click",
+      "info_windowsapplication1_info_info_load",
+      "info_windowsapplication1_info_translate",
+      "info_windowsapplication1_info_trytranslate"
+    ],
+    "15": [
+      "form2_designer",
+      "form2_designer_cs_button",
+      "form2_designer_cs_icontainer",
+      "form2_designer_windowsapplication1_form2",
+      "form2_designer_windowsapplication1_form2_dispose",
+      "form2_designer_windowsapplication1_form2_initializecomponent",
+      "listbox"
+    ],
+    "16": [
+      "form4_designer",
+      "form4_designer_cs_icontainer",
+      "form4_designer_cs_picturebox",
+      "form4_designer_cs_richtextbox",
+      "form4_designer_windowsapplication1_form4",
+      "form4_designer_windowsapplication1_form4_dispose",
+      "form4_designer_windowsapplication1_form4_initializecomponent"
+    ],
+    "17": [
+      "info_designer",
+      "info_designer_cs_button",
+      "info_designer_cs_icontainer",
+      "info_designer_cs_label",
+      "info_designer_windowsapplication1_info",
+      "info_designer_windowsapplication1_info_dispose",
+      "info_designer_windowsapplication1_info_initializecomponent"
+    ],
+    "18": [
+      "csgl_designer",
+      "csgl_designer_cs_icontainer",
+      "csgl_designer_cs_textbox",
+      "csgl_designer_windowsapplication1_csgl",
+      "csgl_designer_windowsapplication1_csgl_dispose",
+      "csgl_designer_windowsapplication1_csgl_initializecomponent"
+    ],
+    "19": [
+      "program",
+      "program_windowsapplication1_program",
+      "program_windowsapplication1_program_main",
+      "stathread"
+    ],
+    "20": [
+      "form1"
+    ],
+    "21": [
+      "properties_assemblyinfo"
+    ],
+    "22": [
+      "s"
+    ]
+  },
+  "cohesion": {
+    "0": 0.06666666666666667,
+    "1": 0.06666666666666667,
+    "2": 0.06896551724137931,
+    "3": 0.13970588235294118,
+    "4": 0.1978021978021978,
+    "5": 0.21212121212121213,
+    "6": 0.2,
+    "7": 0.2,
+    "8": 0.2222222222222222,
+    "9": 0.2777777777777778,
+    "10": 0.2222222222222222,
+    "11": 0.3333333333333333,
+    "12": 0.3055555555555556,
+    "13": 0.25,
+    "14": 0.32142857142857145,
+    "15": 0.2857142857142857,
+    "16": 0.2857142857142857,
+    "17": 0.2857142857142857,
+    "18": 0.3333333333333333,
+    "19": 0.5,
+    "20": 1.0,
+    "21": 1.0,
+    "22": 1.0
+  },
+  "gods": [
+    {
+      "id": "csharp_namespace:b8f9f8a6ab2567f0",
+      "label": "WindowsApplication1",
+      "degree": 30
+    },
+    {
+      "id": "blacha_windowsapplication1_blacha",
+      "label": "Blacha",
+      "degree": 29
+    },
+    {
+      "id": "form1_designer_windowsapplication1_form1",
+      "label": "Form1",
+      "degree": 26
+    },
+    {
+      "id": "form2_windowsapplication1_form2",
+      "label": "Form2",
+      "degree": 13
+    },
+    {
+      "id": "aboutbox1_designer_windowsapplication1_aboutbox1",
+      "label": "AboutBox1",
+      "degree": 9
+    },
+    {
+      "id": "dictionariesmanager_windowsapplication1_dictionariesmanager",
+      "label": "DictionariesManager",
+      "degree": 9
+    },
+    {
+      "id": "form3_windowsapplication1_form3",
+      "label": "Form3",
+      "degree": 9
+    },
+    {
+      "id": "ksztaltka_windowsapplication1_ksztaltka",
+      "label": "ksztaltka",
+      "degree": 9
+    },
+    {
+      "id": "form3_designer_windowsapplication1_form3",
+      "label": "Form3",
+      "degree": 8
+    },
+    {
+      "id": "form4_windowsapplication1_form4",
+      "label": "Form4",
+      "degree": 8
+    }
+  ],
+  "surprises": [
+    {
+      "source": "DictionariesManager",
+      "target": "CurrentLanguage",
+      "source_files": [
+        "DictionariesManager.cs",
+        "CurrentLanguage.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; peripheral node `CurrentLanguage` unexpectedly reaches hub `DictionariesManager`"
+    },
+    {
+      "source": "Form2",
+      "target": "IMultiLang",
+      "source_files": [
+        "Form2.cs",
+        "IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Form3",
+      "target": "IMultiLang",
+      "source_files": [
+        "Form3.cs",
+        "IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Form4",
+      "target": "IMultiLang",
+      "source_files": [
+        "Form4.cs",
+        "IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Info",
+      "target": "IMultiLang",
+      "source_files": [
+        "Info.cs",
+        "IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `WindowsApplication1` connect `WindowsApplication1` to `Form1`, `Form`, `Form2`, `Form3`, `IMultiLang`, `AboutBox1`, `Resources`, `DictionariesManager`, `Form3`, `Form4`, `ksztaltka`, `Form7`, `Info`, `Form2`, `Form4`, `Info`, `csgl`, `Program.cs`?",
+      "why": "High betweenness centrality (0.839) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Blacha` connect `Blacha` to `WindowsApplication1`?",
+      "why": "High betweenness centrality (0.211) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Form1` connect `Form1` to `WindowsApplication1`?",
+      "why": "High betweenness centrality (0.182) - this node is a cross-community bridge."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Form1` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06666666666666667 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `WindowsApplication1` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06666666666666667 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Blacha` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06896551724137931 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Form` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.13970588235294118 - nodes in this community are weakly interconnected."
+    }
+  ]
+}

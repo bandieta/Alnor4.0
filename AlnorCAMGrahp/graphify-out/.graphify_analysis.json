@@ -1,0 +1,804 @@
+{
+  "communities": {
+    "0": [
+      "backup_projekto_datagridviewex",
+      "backup_projekto_datagridviewex_cs_mouseeventargs",
+      "backup_projekto_datagridviewex_windowsapplication1_datagridviewex",
+      "backup_projekto_datagridviewex_windowsapplication1_datagridviewex_onmousewheel",
+      "backup_projekto_form1_designer",
+      "backup_projekto_form1_designer_cs_backgroundworker",
+      "backup_projekto_form1_designer_cs_bindingsource",
+      "backup_projekto_form1_designer_cs_button",
+      "backup_projekto_form1_designer_cs_colordialog",
+      "backup_projekto_form1_designer_cs_combobox",
+      "backup_projekto_form1_designer_cs_datagridview",
+      "backup_projekto_form1_designer_cs_datagridviewimagecolumn",
+      "backup_projekto_form1_designer_cs_datagridviewtextboxcolumn",
+      "backup_projekto_form1_designer_cs_flowlayoutpanel",
+      "backup_projekto_form1_designer_cs_fontdialog",
+      "backup_projekto_form1_designer_cs_groupbox",
+      "backup_projekto_form1_designer_cs_icontainer",
+      "backup_projekto_form1_designer_cs_label",
+      "backup_projekto_form1_designer_cs_menustrip",
+      "backup_projekto_form1_designer_cs_panel",
+      "backup_projekto_form1_designer_cs_picturebox",
+      "backup_projekto_form1_designer_cs_radiobutton",
+      "backup_projekto_form1_designer_cs_textbox",
+      "backup_projekto_form1_designer_cs_timer",
+      "backup_projekto_form1_designer_cs_toolstripmenuitem",
+      "backup_projekto_form1_designer_windowsapplication1_form1",
+      "backup_projekto_form1_designer_windowsapplication1_form1_dispose",
+      "backup_projekto_form1_designer_windowsapplication1_form1_initializecomponent",
+      "datagridview",
+      "projekto_datagridviewex",
+      "projekto_datagridviewex_cs_mouseeventargs",
+      "projekto_datagridviewex_windowsapplication1_datagridviewex",
+      "projekto_datagridviewex_windowsapplication1_datagridviewex_onmousewheel"
+    ],
+    "1": [
+      "backup_projekto_form2",
+      "backup_projekto_form2_cs_bool",
+      "backup_projekto_form2_cs_dictionary",
+      "backup_projekto_form2_cs_eventargs",
+      "backup_projekto_form2_cs_formclosingeventargs",
+      "backup_projekto_form2_cs_string",
+      "backup_projekto_form2_windowsapplication1_form2",
+      "backup_projekto_form2_windowsapplication1_form2_button1_click",
+      "backup_projekto_form2_windowsapplication1_form2_button2_click",
+      "backup_projekto_form2_windowsapplication1_form2_elementy",
+      "backup_projekto_form2_windowsapplication1_form2_form2_formclosing",
+      "backup_projekto_form2_windowsapplication1_form2_form2_load",
+      "backup_projekto_form2_windowsapplication1_form2_listbox1_selectedindexchanged",
+      "backup_projekto_form2_windowsapplication1_form2_translate",
+      "backup_projekto_form2_windowsapplication1_form2_trytranslate",
+      "backup_projekto_form2_windowsapplication1_form2_wybrany",
+      "backup_projekto_form3_windowsapplication1_form3_wylpelnij",
+      "backup_projekto_imultilang",
+      "backup_projekto_imultilang_cs_dictionary",
+      "backup_projekto_imultilang_windowsapplication1_imultilang",
+      "backup_projekto_imultilang_windowsapplication1_imultilang_translate",
+      "projekto_form3",
+      "projekto_form3_cs_dictionary",
+      "projekto_form3_cs_eventargs",
+      "projekto_form3_cs_string",
+      "projekto_form3_windowsapplication1_form3",
+      "projekto_form3_windowsapplication1_form3_button1_click",
+      "projekto_form3_windowsapplication1_form3_form3_load",
+      "projekto_form3_windowsapplication1_form3_translate",
+      "projekto_form3_windowsapplication1_form3_trytranslate",
+      "projekto_form3_windowsapplication1_form3_wylpelnij"
+    ],
+    "2": [
+      "backup_projekto_blacha",
+      "backup_projekto_blacha_windowsapplication1_blacha",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_cz1a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_cz2a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_pr7a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qba",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbfa",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbfra",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbna",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbr1a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbra",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qd1a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qd2a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qda",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qesa",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr1a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr2a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr3a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr4a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr6a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr1a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr2a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr3a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr4a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr5a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr6a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr7a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr8",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr9a",
+      "backup_projekto_blacha_windowsapplication1_blacha_rozwiniecie_tra"
+    ],
+    "3": [
+      "projekto_blacha",
+      "projekto_blacha_windowsapplication1_blacha",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_cz1a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_cz2a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_pr7a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qba",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbfa",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbfra",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbna",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbr1a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qbra",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qd1a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qd2a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qda",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qesa",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr1a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr2a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr3a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr4a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_qpr6a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr1a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr2a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr3a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr4a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr5a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr6a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr7a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr8",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tr9a",
+      "projekto_blacha_windowsapplication1_blacha_rozwiniecie_tra"
+    ],
+    "4": [
+      "backup_projekto_csgl",
+      "backup_projekto_csgl_windowsapplication1_csgl",
+      "backup_projekto_form7",
+      "backup_projekto_form7_cs_eventargs",
+      "backup_projekto_form7_cs_formclosedeventargs",
+      "backup_projekto_form7_windowsapplication1_form7",
+      "backup_projekto_form7_windowsapplication1_form7_form7_formclosed",
+      "backup_projekto_form7_windowsapplication1_form7_form7_load",
+      "backup_projekto_form7_windowsapplication1_form7_richtextbox1_textchanged",
+      "backup_projekto_loadingdialog",
+      "backup_projekto_loadingdialog_windowsapplication1_loadingdialog",
+      "form",
+      "projekto_csgl",
+      "projekto_csgl_windowsapplication1_csgl",
+      "projekto_form6",
+      "projekto_form6_cs_eventargs",
+      "projekto_form6_windowsapplication1_form6",
+      "projekto_form6_windowsapplication1_form6_form6_load",
+      "projekto_form6_windowsapplication1_form6_form6_shown",
+      "projekto_form6_windowsapplication1_form6_timer1_tick",
+      "projekto_form7",
+      "projekto_form7_cs_eventargs",
+      "projekto_form7_cs_formclosedeventargs",
+      "projekto_form7_windowsapplication1_form7",
+      "projekto_form7_windowsapplication1_form7_form7_formclosed",
+      "projekto_form7_windowsapplication1_form7_form7_load",
+      "projekto_form7_windowsapplication1_form7_richtextbox1_textchanged",
+      "projekto_loadingdialog",
+      "projekto_loadingdialog_windowsapplication1_loadingdialog"
+    ],
+    "5": [
+      "checkbox",
+      "projekto_form1_designer",
+      "projekto_form1_designer_cs_backgroundworker",
+      "projekto_form1_designer_cs_bindingsource",
+      "projekto_form1_designer_cs_button",
+      "projekto_form1_designer_cs_colordialog",
+      "projekto_form1_designer_cs_combobox",
+      "projekto_form1_designer_cs_datagridview",
+      "projekto_form1_designer_cs_datagridviewimagecolumn",
+      "projekto_form1_designer_cs_datagridviewtextboxcolumn",
+      "projekto_form1_designer_cs_flowlayoutpanel",
+      "projekto_form1_designer_cs_fontdialog",
+      "projekto_form1_designer_cs_groupbox",
+      "projekto_form1_designer_cs_icontainer",
+      "projekto_form1_designer_cs_label",
+      "projekto_form1_designer_cs_menustrip",
+      "projekto_form1_designer_cs_panel",
+      "projekto_form1_designer_cs_picturebox",
+      "projekto_form1_designer_cs_radiobutton",
+      "projekto_form1_designer_cs_textbox",
+      "projekto_form1_designer_cs_timer",
+      "projekto_form1_designer_cs_toolstripmenuitem",
+      "projekto_form1_designer_windowsapplication1_form1",
+      "projekto_form1_designer_windowsapplication1_form1_dispose",
+      "projekto_form1_designer_windowsapplication1_form1_initializecomponent",
+      "tooltip"
+    ],
+    "6": [
+      "applicationsettingsbase",
+      "backup_projekto_form6",
+      "backup_projekto_form6_cs_eventargs",
+      "backup_projekto_form6_windowsapplication1_form6",
+      "backup_projekto_form6_windowsapplication1_form6_form6_load",
+      "backup_projekto_form6_windowsapplication1_form6_form6_shown",
+      "backup_projekto_form6_windowsapplication1_form6_timer1_tick",
+      "backup_projekto_properties_resources_designer",
+      "backup_projekto_properties_resources_designer_cs_bitmap",
+      "backup_projekto_properties_resources_designer_cs_cultureinfo",
+      "backup_projekto_properties_resources_designer_cs_resourcemanager",
+      "backup_projekto_properties_resources_designer_windowsapplication1_properties_resources",
+      "backup_projekto_properties_settings_designer",
+      "backup_projekto_properties_settings_designer_windowsapplication1_properties_settings",
+      "csharp_namespace:2ac124be17f36526",
+      "projekto_properties_resources_designer",
+      "projekto_properties_resources_designer_cs_bitmap",
+      "projekto_properties_resources_designer_cs_cultureinfo",
+      "projekto_properties_resources_designer_cs_resourcemanager",
+      "projekto_properties_resources_designer_windowsapplication1_properties_resources",
+      "projekto_properties_settings_designer",
+      "projekto_properties_settings_designer_windowsapplication1_properties_settings"
+    ],
+    "7": [
+      "backup_projekto_form3",
+      "backup_projekto_form3_cs_dictionary",
+      "backup_projekto_form3_cs_eventargs",
+      "backup_projekto_form3_cs_string",
+      "backup_projekto_form3_windowsapplication1_form3",
+      "backup_projekto_form3_windowsapplication1_form3_button1_click",
+      "backup_projekto_form3_windowsapplication1_form3_form3_load",
+      "backup_projekto_form3_windowsapplication1_form3_translate",
+      "backup_projekto_form3_windowsapplication1_form3_trytranslate",
+      "backup_projekto_ksztaltka",
+      "backup_projekto_ksztaltka_cs_bool",
+      "backup_projekto_ksztaltka_cs_string",
+      "backup_projekto_ksztaltka_windowsapplication1_ksztaltka",
+      "backup_projekto_ksztaltka_windowsapplication1_ksztaltka_add",
+      "backup_projekto_ksztaltka_windowsapplication1_ksztaltka_pobierz_wartosci_liczbowe",
+      "backup_projekto_ksztaltka_windowsapplication1_ksztaltka_prawe_menu",
+      "backup_projekto_ksztaltka_windowsapplication1_ksztaltka_tabizo"
+    ],
+    "8": [
+      "backup_projekto_currentlanguage",
+      "backup_projekto_currentlanguage_windowsapplication1_currentlanguage",
+      "backup_projekto_dictionariesmanager",
+      "backup_projekto_dictionariesmanager_cs_dictionary",
+      "backup_projekto_dictionariesmanager_windowsapplication1_dictionariesmanager",
+      "backup_projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_deserialize",
+      "backup_projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_getcurrentdictionary",
+      "backup_projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_loaddictionaries",
+      "backup_projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_serialize",
+      "projekto_dictionariesmanager",
+      "projekto_dictionariesmanager_cs_dictionary",
+      "projekto_dictionariesmanager_windowsapplication1_dictionariesmanager",
+      "projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_deserialize",
+      "projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_getcurrentdictionary",
+      "projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_loaddictionaries",
+      "projekto_dictionariesmanager_windowsapplication1_dictionariesmanager_serialize"
+    ],
+    "9": [
+      "projekto_form2",
+      "projekto_form2_cs_bool",
+      "projekto_form2_cs_dictionary",
+      "projekto_form2_cs_eventargs",
+      "projekto_form2_cs_formclosingeventargs",
+      "projekto_form2_cs_string",
+      "projekto_form2_windowsapplication1_form2",
+      "projekto_form2_windowsapplication1_form2_button1_click",
+      "projekto_form2_windowsapplication1_form2_button2_click",
+      "projekto_form2_windowsapplication1_form2_elementy",
+      "projekto_form2_windowsapplication1_form2_form2_formclosing",
+      "projekto_form2_windowsapplication1_form2_form2_load",
+      "projekto_form2_windowsapplication1_form2_listbox1_selectedindexchanged",
+      "projekto_form2_windowsapplication1_form2_translate",
+      "projekto_form2_windowsapplication1_form2_trytranslate",
+      "projekto_form2_windowsapplication1_form2_wybrany"
+    ],
+    "10": [
+      "backup_projekto_aboutbox1_designer",
+      "backup_projekto_aboutbox1_designer_cs_button",
+      "backup_projekto_aboutbox1_designer_cs_icontainer",
+      "backup_projekto_aboutbox1_designer_cs_label",
+      "backup_projekto_aboutbox1_designer_cs_picturebox",
+      "backup_projekto_aboutbox1_designer_cs_tablelayoutpanel",
+      "backup_projekto_aboutbox1_designer_cs_textbox",
+      "backup_projekto_aboutbox1_designer_windowsapplication1_aboutbox1",
+      "backup_projekto_aboutbox1_designer_windowsapplication1_aboutbox1_dispose",
+      "backup_projekto_aboutbox1_designer_windowsapplication1_aboutbox1_initializecomponent"
+    ],
+    "11": [
+      "projekto_aboutbox1_designer",
+      "projekto_aboutbox1_designer_cs_button",
+      "projekto_aboutbox1_designer_cs_icontainer",
+      "projekto_aboutbox1_designer_cs_label",
+      "projekto_aboutbox1_designer_cs_picturebox",
+      "projekto_aboutbox1_designer_cs_tablelayoutpanel",
+      "projekto_aboutbox1_designer_cs_textbox",
+      "projekto_aboutbox1_designer_windowsapplication1_aboutbox1",
+      "projekto_aboutbox1_designer_windowsapplication1_aboutbox1_dispose",
+      "projekto_aboutbox1_designer_windowsapplication1_aboutbox1_initializecomponent"
+    ],
+    "12": [
+      "backup_projekto_form3_designer",
+      "backup_projekto_form3_designer_cs_button",
+      "backup_projekto_form3_designer_cs_datetimepicker",
+      "backup_projekto_form3_designer_cs_icontainer",
+      "backup_projekto_form3_designer_cs_label",
+      "backup_projekto_form3_designer_cs_textbox",
+      "backup_projekto_form3_designer_windowsapplication1_form3",
+      "backup_projekto_form3_designer_windowsapplication1_form3_dispose",
+      "backup_projekto_form3_designer_windowsapplication1_form3_initializecomponent"
+    ],
+    "13": [
+      "backup_projekto_form4",
+      "backup_projekto_form4_cs_dictionary",
+      "backup_projekto_form4_cs_eventargs",
+      "backup_projekto_form4_windowsapplication1_form4",
+      "backup_projekto_form4_windowsapplication1_form4_form4_load",
+      "backup_projekto_form4_windowsapplication1_form4_picturebox1_click",
+      "backup_projekto_form4_windowsapplication1_form4_richtextbox1_textchanged",
+      "backup_projekto_form4_windowsapplication1_form4_translate",
+      "backup_projekto_form4_windowsapplication1_form4_trytranslate"
+    ],
+    "14": [
+      "backup_projekto_gridclass",
+      "backup_projekto_gridclass_cs_string",
+      "backup_projekto_gridclass_windowsapplication1_gridclass",
+      "csharp_namespace:b8f9f8a6ab2567f0",
+      "projekto_currentlanguage",
+      "projekto_currentlanguage_windowsapplication1_currentlanguage",
+      "projekto_thicknesscalc",
+      "projekto_thicknesscalc_windowsapplication1_thicknesscalc",
+      "projekto_thicknesscalc_windowsapplication1_thicknesscalc_calculatethikness"
+    ],
+    "15": [
+      "projekto_form3_designer",
+      "projekto_form3_designer_cs_button",
+      "projekto_form3_designer_cs_datetimepicker",
+      "projekto_form3_designer_cs_icontainer",
+      "projekto_form3_designer_cs_label",
+      "projekto_form3_designer_cs_textbox",
+      "projekto_form3_designer_windowsapplication1_form3",
+      "projekto_form3_designer_windowsapplication1_form3_dispose",
+      "projekto_form3_designer_windowsapplication1_form3_initializecomponent"
+    ],
+    "16": [
+      "projekto_form4",
+      "projekto_form4_cs_dictionary",
+      "projekto_form4_cs_eventargs",
+      "projekto_form4_windowsapplication1_form4",
+      "projekto_form4_windowsapplication1_form4_form4_load",
+      "projekto_form4_windowsapplication1_form4_picturebox1_click",
+      "projekto_form4_windowsapplication1_form4_richtextbox1_textchanged",
+      "projekto_form4_windowsapplication1_form4_translate",
+      "projekto_form4_windowsapplication1_form4_trytranslate"
+    ],
+    "17": [
+      "projekto_ksztaltka",
+      "projekto_ksztaltka_cs_bool",
+      "projekto_ksztaltka_cs_string",
+      "projekto_ksztaltka_windowsapplication1_ksztaltka",
+      "projekto_ksztaltka_windowsapplication1_ksztaltka_add",
+      "projekto_ksztaltka_windowsapplication1_ksztaltka_pobierz_wartosci_liczbowe",
+      "projekto_ksztaltka_windowsapplication1_ksztaltka_pobierzl",
+      "projekto_ksztaltka_windowsapplication1_ksztaltka_prawe_menu",
+      "projekto_ksztaltka_windowsapplication1_ksztaltka_tabizo"
+    ],
+    "18": [
+      "backup_projekto_form6_designer",
+      "backup_projekto_form6_designer_cs_icontainer",
+      "backup_projekto_form6_designer_cs_linklabel",
+      "backup_projekto_form6_designer_cs_picturebox",
+      "backup_projekto_form6_designer_cs_richtextbox",
+      "backup_projekto_form6_designer_windowsapplication1_form6",
+      "backup_projekto_form6_designer_windowsapplication1_form6_dispose",
+      "backup_projekto_form6_designer_windowsapplication1_form6_initializecomponent"
+    ],
+    "19": [
+      "backup_projekto_form7_designer",
+      "backup_projekto_form7_designer_cs_icontainer",
+      "backup_projekto_form7_designer_cs_linklabel",
+      "backup_projekto_form7_designer_cs_picturebox",
+      "backup_projekto_form7_designer_cs_richtextbox",
+      "backup_projekto_form7_designer_windowsapplication1_form7",
+      "backup_projekto_form7_designer_windowsapplication1_form7_dispose",
+      "backup_projekto_form7_designer_windowsapplication1_form7_initializecomponent"
+    ],
+    "20": [
+      "backup_projekto_info",
+      "backup_projekto_info_cs_dictionary",
+      "backup_projekto_info_cs_eventargs",
+      "backup_projekto_info_windowsapplication1_info",
+      "backup_projekto_info_windowsapplication1_info_button1_click",
+      "backup_projekto_info_windowsapplication1_info_info_load",
+      "backup_projekto_info_windowsapplication1_info_translate",
+      "backup_projekto_info_windowsapplication1_info_trytranslate"
+    ],
+    "21": [
+      "projekto_form6_designer",
+      "projekto_form6_designer_cs_icontainer",
+      "projekto_form6_designer_cs_linklabel",
+      "projekto_form6_designer_cs_picturebox",
+      "projekto_form6_designer_cs_richtextbox",
+      "projekto_form6_designer_windowsapplication1_form6",
+      "projekto_form6_designer_windowsapplication1_form6_dispose",
+      "projekto_form6_designer_windowsapplication1_form6_initializecomponent"
+    ],
+    "22": [
+      "projekto_form7_designer",
+      "projekto_form7_designer_cs_icontainer",
+      "projekto_form7_designer_cs_linklabel",
+      "projekto_form7_designer_cs_picturebox",
+      "projekto_form7_designer_cs_richtextbox",
+      "projekto_form7_designer_windowsapplication1_form7",
+      "projekto_form7_designer_windowsapplication1_form7_dispose",
+      "projekto_form7_designer_windowsapplication1_form7_initializecomponent"
+    ],
+    "23": [
+      "projekto_info",
+      "projekto_info_cs_dictionary",
+      "projekto_info_cs_eventargs",
+      "projekto_info_windowsapplication1_info",
+      "projekto_info_windowsapplication1_info_button1_click",
+      "projekto_info_windowsapplication1_info_info_load",
+      "projekto_info_windowsapplication1_info_translate",
+      "projekto_info_windowsapplication1_info_trytranslate"
+    ],
+    "24": [
+      "backup_projekto_aboutbox1",
+      "backup_projekto_aboutbox1_cs_dictionary",
+      "backup_projekto_aboutbox1_cs_eventargs",
+      "backup_projekto_aboutbox1_windowsapplication1_aboutbox1",
+      "backup_projekto_aboutbox1_windowsapplication1_aboutbox1_labelversion_click",
+      "backup_projekto_aboutbox1_windowsapplication1_aboutbox1_translate",
+      "backup_projekto_aboutbox1_windowsapplication1_aboutbox1_trytranslate"
+    ],
+    "25": [
+      "backup_projekto_form2_designer",
+      "backup_projekto_form2_designer_cs_button",
+      "backup_projekto_form2_designer_cs_icontainer",
+      "backup_projekto_form2_designer_cs_listbox",
+      "backup_projekto_form2_designer_windowsapplication1_form2",
+      "backup_projekto_form2_designer_windowsapplication1_form2_dispose",
+      "backup_projekto_form2_designer_windowsapplication1_form2_initializecomponent"
+    ],
+    "26": [
+      "backup_projekto_form4_designer",
+      "backup_projekto_form4_designer_cs_icontainer",
+      "backup_projekto_form4_designer_cs_picturebox",
+      "backup_projekto_form4_designer_cs_richtextbox",
+      "backup_projekto_form4_designer_windowsapplication1_form4",
+      "backup_projekto_form4_designer_windowsapplication1_form4_dispose",
+      "backup_projekto_form4_designer_windowsapplication1_form4_initializecomponent"
+    ],
+    "27": [
+      "backup_projekto_info_designer",
+      "backup_projekto_info_designer_cs_button",
+      "backup_projekto_info_designer_cs_icontainer",
+      "backup_projekto_info_designer_cs_label",
+      "backup_projekto_info_designer_windowsapplication1_info",
+      "backup_projekto_info_designer_windowsapplication1_info_dispose",
+      "backup_projekto_info_designer_windowsapplication1_info_initializecomponent"
+    ],
+    "28": [
+      "projekto_aboutbox1",
+      "projekto_aboutbox1_cs_dictionary",
+      "projekto_aboutbox1_cs_eventargs",
+      "projekto_aboutbox1_windowsapplication1_aboutbox1",
+      "projekto_aboutbox1_windowsapplication1_aboutbox1_labelversion_click",
+      "projekto_aboutbox1_windowsapplication1_aboutbox1_translate",
+      "projekto_aboutbox1_windowsapplication1_aboutbox1_trytranslate"
+    ],
+    "29": [
+      "projekto_form2_designer",
+      "projekto_form2_designer_cs_button",
+      "projekto_form2_designer_cs_icontainer",
+      "projekto_form2_designer_cs_listbox",
+      "projekto_form2_designer_windowsapplication1_form2",
+      "projekto_form2_designer_windowsapplication1_form2_dispose",
+      "projekto_form2_designer_windowsapplication1_form2_initializecomponent"
+    ],
+    "30": [
+      "projekto_form4_designer",
+      "projekto_form4_designer_cs_icontainer",
+      "projekto_form4_designer_cs_picturebox",
+      "projekto_form4_designer_cs_richtextbox",
+      "projekto_form4_designer_windowsapplication1_form4",
+      "projekto_form4_designer_windowsapplication1_form4_dispose",
+      "projekto_form4_designer_windowsapplication1_form4_initializecomponent"
+    ],
+    "31": [
+      "projekto_info_designer",
+      "projekto_info_designer_cs_button",
+      "projekto_info_designer_cs_icontainer",
+      "projekto_info_designer_cs_label",
+      "projekto_info_designer_windowsapplication1_info",
+      "projekto_info_designer_windowsapplication1_info_dispose",
+      "projekto_info_designer_windowsapplication1_info_initializecomponent"
+    ],
+    "32": [
+      "backup_projekto_csgl_designer",
+      "backup_projekto_csgl_designer_cs_icontainer",
+      "backup_projekto_csgl_designer_cs_textbox",
+      "backup_projekto_csgl_designer_windowsapplication1_csgl",
+      "backup_projekto_csgl_designer_windowsapplication1_csgl_dispose",
+      "backup_projekto_csgl_designer_windowsapplication1_csgl_initializecomponent"
+    ],
+    "33": [
+      "backup_projekto_loadingdialog_designer",
+      "backup_projekto_loadingdialog_designer_cs_icontainer",
+      "backup_projekto_loadingdialog_designer_cs_picturebox",
+      "backup_projekto_loadingdialog_designer_windowsapplication1_loadingdialog",
+      "backup_projekto_loadingdialog_designer_windowsapplication1_loadingdialog_dispose",
+      "backup_projekto_loadingdialog_designer_windowsapplication1_loadingdialog_initializecomponent"
+    ],
+    "34": [
+      "projekto_csgl_designer",
+      "projekto_csgl_designer_cs_icontainer",
+      "projekto_csgl_designer_cs_textbox",
+      "projekto_csgl_designer_windowsapplication1_csgl",
+      "projekto_csgl_designer_windowsapplication1_csgl_dispose",
+      "projekto_csgl_designer_windowsapplication1_csgl_initializecomponent"
+    ],
+    "35": [
+      "projekto_loadingdialog_designer",
+      "projekto_loadingdialog_designer_cs_icontainer",
+      "projekto_loadingdialog_designer_cs_picturebox",
+      "projekto_loadingdialog_designer_windowsapplication1_loadingdialog",
+      "projekto_loadingdialog_designer_windowsapplication1_loadingdialog_dispose",
+      "projekto_loadingdialog_designer_windowsapplication1_loadingdialog_initializecomponent"
+    ],
+    "36": [
+      "backup_projekto_mydatagridrow",
+      "backup_projekto_mydatagridrow_cs_bitmap",
+      "backup_projekto_mydatagridrow_cs_string",
+      "backup_projekto_mydatagridrow_windowsapplication1_mydatagridrow"
+    ],
+    "37": [
+      "backup_projekto_program",
+      "backup_projekto_program_cs_stathread",
+      "backup_projekto_program_windowsapplication1_program",
+      "backup_projekto_program_windowsapplication1_program_main"
+    ],
+    "38": [
+      "csharp_namespace:aca2ae34cee61b12",
+      "langselected_program",
+      "langselected_program_langselected_program",
+      "langselected_program_langselected_program_main"
+    ],
+    "39": [
+      "projekto_imultilang",
+      "projekto_imultilang_cs_dictionary",
+      "projekto_imultilang_windowsapplication1_imultilang",
+      "projekto_imultilang_windowsapplication1_imultilang_translate"
+    ],
+    "40": [
+      "projekto_mydatagridrow",
+      "projekto_mydatagridrow_cs_bitmap",
+      "projekto_mydatagridrow_cs_string",
+      "projekto_mydatagridrow_windowsapplication1_mydatagridrow"
+    ],
+    "41": [
+      "projekto_program",
+      "projekto_program_cs_stathread",
+      "projekto_program_windowsapplication1_program",
+      "projekto_program_windowsapplication1_program_main"
+    ],
+    "42": [
+      "projekto_class1",
+      "projekto_class1_windowsapplication1_decoder",
+      "projekto_class1_windowsapplication1_decoder_decodesymbol"
+    ],
+    "43": [
+      "projekto_gridclass",
+      "projekto_gridclass_cs_string",
+      "projekto_gridclass_windowsapplication1_gridclass"
+    ],
+    "44": [
+      "backup_projekto",
+      "backup_projekto_s"
+    ],
+    "45": [
+      "projekto",
+      "projekto_s"
+    ],
+    "46": [
+      "backup_projekto_form1"
+    ],
+    "47": [
+      "backup_projekto_properties_assemblyinfo"
+    ],
+    "48": [
+      "langselected_langselected_langselected_csproj_langselected_langselected_langselected"
+    ],
+    "49": [
+      "langselected_langselected_langselected_sln_langselected_langselected_langselected"
+    ],
+    "50": [
+      "langselected_langselected_properties_assemblyinfo"
+    ],
+    "51": [
+      "projekto_form1"
+    ],
+    "52": [
+      "projekto_properties_assemblyinfo"
+    ]
+  },
+  "cohesion": {
+    "0": 0.06060606060606061,
+    "1": 0.08387096774193549,
+    "2": 0.06666666666666667,
+    "3": 0.06666666666666667,
+    "4": 0.07881773399014778,
+    "5": 0.07692307692307693,
+    "6": 0.11255411255411256,
+    "7": 0.16176470588235295,
+    "8": 0.15833333333333333,
+    "9": 0.16666666666666666,
+    "10": 0.2,
+    "11": 0.2,
+    "12": 0.2222222222222222,
+    "13": 0.3333333333333333,
+    "14": 0.2222222222222222,
+    "15": 0.2222222222222222,
+    "16": 0.3333333333333333,
+    "17": 0.3055555555555556,
+    "18": 0.25,
+    "19": 0.25,
+    "20": 0.32142857142857145,
+    "21": 0.25,
+    "22": 0.25,
+    "23": 0.32142857142857145,
+    "24": 0.3333333333333333,
+    "25": 0.2857142857142857,
+    "26": 0.2857142857142857,
+    "27": 0.2857142857142857,
+    "28": 0.3333333333333333,
+    "29": 0.2857142857142857,
+    "30": 0.2857142857142857,
+    "31": 0.2857142857142857,
+    "32": 0.3333333333333333,
+    "33": 0.3333333333333333,
+    "34": 0.3333333333333333,
+    "35": 0.3333333333333333,
+    "36": 0.5,
+    "37": 0.5,
+    "38": 0.5,
+    "39": 0.5,
+    "40": 0.5,
+    "41": 0.5,
+    "42": 0.6666666666666666,
+    "43": 0.6666666666666666,
+    "44": 1.0,
+    "45": 1.0,
+    "46": 1.0,
+    "47": 1.0,
+    "48": 1.0,
+    "49": 1.0,
+    "50": 1.0,
+    "51": 1.0,
+    "52": 1.0
+  },
+  "gods": [
+    {
+      "id": "csharp_namespace:b8f9f8a6ab2567f0",
+      "label": "WindowsApplication1",
+      "degree": 58
+    },
+    {
+      "id": "backup_projekto_blacha_windowsapplication1_blacha",
+      "label": "Blacha",
+      "degree": 29
+    },
+    {
+      "id": "projekto_blacha_windowsapplication1_blacha",
+      "label": "Blacha",
+      "degree": 29
+    },
+    {
+      "id": "projekto_form1_designer_windowsapplication1_form1",
+      "label": "Form1",
+      "degree": 26
+    },
+    {
+      "id": "backup_projekto_form1_designer_windowsapplication1_form1",
+      "label": "Form1",
+      "degree": 24
+    },
+    {
+      "id": "backup_projekto_form2_windowsapplication1_form2",
+      "label": "Form2",
+      "degree": 13
+    },
+    {
+      "id": "projekto_form2_windowsapplication1_form2",
+      "label": "Form2",
+      "degree": 13
+    },
+    {
+      "id": "backup_projekto_imultilang_windowsapplication1_imultilang",
+      "label": "IMultiLang",
+      "degree": 12
+    },
+    {
+      "id": "backup_projekto_dictionariesmanager_windowsapplication1_dictionariesmanager",
+      "label": "DictionariesManager",
+      "degree": 10
+    },
+    {
+      "id": "backup_projekto_aboutbox1_designer_windowsapplication1_aboutbox1",
+      "label": "AboutBox1",
+      "degree": 9
+    }
+  ],
+  "surprises": [
+    {
+      "source": "AboutBox1",
+      "target": "IMultiLang",
+      "source_files": [
+        "projekto/AboutBox1.cs",
+        "Backup/projekto/IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Form2",
+      "target": "IMultiLang",
+      "source_files": [
+        "projekto/Form2.cs",
+        "Backup/projekto/IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Form4",
+      "target": "IMultiLang",
+      "source_files": [
+        "projekto/Form4.cs",
+        "Backup/projekto/IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Info",
+      "target": "IMultiLang",
+      "source_files": [
+        "projekto/Info.cs",
+        "Backup/projekto/IMultiLang.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "implements",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Form1",
+      "target": "datagridviewex",
+      "source_files": [
+        "projekto/Form1.Designer.cs",
+        "Backup/projekto/datagridviewex.cs"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; bridges separate communities"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `WindowsApplication1` connect `WindowsApplication1` to `Form1`, `Form2`, `Blacha`, `Blacha`, `Form`, `Form1`, `WindowsApplication1.Properties`, `Form3`, `DictionariesManager`, `Form2`, `AboutBox1`, `AboutBox1`, `Form3`, `Form4`, `Form3`, `Form4`, `ksztaltka`, `Form6`, `Form7`, `Info`, `Form6`, `Form7`, `Info`, `AboutBox1`, `Form2`, `Form4`, `Info`, `AboutBox1`, `Form2`, `Form4`, `Info`, `csgl`, `loadingdialog`, `csgl`, `loadingdialog`, `MyDataGridRow`, `Backup/projekto/Program.cs`, `projekto/IMultiLang.cs`, `MyDataGridRow`, `projekto/Program.cs`, `Class1.cs`, `projekto/gridclass.cs`?",
+      "why": "High betweenness centrality (0.823) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `S`, `langselected`, `langselected` to the rest of the system?",
+      "why": "5 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Form1` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06060606060606061 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Form2` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.08387096774193549 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Blacha` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06666666666666667 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Blacha` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.06666666666666667 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `Form` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.07881773399014778 - nodes in this community are weakly interconnected."
+    }
+  ]
+}

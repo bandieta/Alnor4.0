@@ -1,0 +1,10 @@
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\bin\Release\AlnorCAM - deszyfrator.exe
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\bin\Release\AlnorCAM - deszyfrator.pdb
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\gen.csproj.AssemblyReference.cache
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\gen.Form1.resources
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\gen.Form2.resources
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\gen.Properties.Resources.resources
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\gen.csproj.GenerateResource.cache
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\gen.csproj.CoreCompileInputs.cache
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\AlnorCAM - deszyfrator.exe
+C:\Users\michal_bandrowski\Desktop\New folder\Git AL\AlnorIzoChemoUpdate\generator\gen\obj\Release\AlnorCAM - deszyfrator.pdb

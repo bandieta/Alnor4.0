@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="gen">
+</Property><Property Name="Solution File" Value="C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\gen.sln">
+</Property><Property Name="User Options File" Value="C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\gen.suo">
+</Property><Property Name="Date" Value="3 czerwca 2008">
+</Property><Property Name="Time" Value="20:39">
+</Property></Properties><Event ErrorLevel="0" Project="" Source="gen.sln" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen.sln">
+</Event><Event ErrorLevel="0" Project="" Source="gen.suo" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen.suo">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\gen.csproj" Description="Project file successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\gen.csproj">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\gen.csproj.user" Description="Project user file successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\gen.csproj.user">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Form1.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Form1.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Form1.Designer.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Form1.Designer.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Form2.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Form2.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Form2.Designer.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Form2.Designer.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\ksztaltka.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\ksztaltka.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Program.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Program.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Properties\AssemblyInfo.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Properties\AssemblyInfo.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Properties\Resources.Designer.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Properties\Resources.Designer.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Properties\Settings.Designer.cs" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Properties\Settings.Designer.cs">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Properties\Settings.settings" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Properties\Settings.settings">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Form1.resx" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Form1.resx">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Form2.resx" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Form2.resx">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\Properties\Resources.resx" Description="File successfully backed up as C:\Users\bandieta\Desktop\tomik\-Source- - 2008\gen\Backup\gen\Properties\Resources.resx">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\gen.csproj" Description="Project converted successfully">
+</Event><Event ErrorLevel="3" Project="gen" Source="gen\gen.csproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="gen.sln" Description="Solution converted successfully">
+</Event><Event ErrorLevel="3" Project="" Source="gen.sln" Description="Converted">
+</Event><Event ErrorLevel="0" Project="gen" Source="gen\gen.csproj" Description="Scan complete: Upgrade not required for project files.">
+</Event></UpgradeLog>

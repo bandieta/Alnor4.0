@@ -5,9 +5,10 @@ interface DataGridProps {
   rows: GridRow[];
   selectedRowId: string | null;
   onSelectRow: (id: string) => void;
+  t: (text: string) => string;
 }
 
-const DataGrid: React.FC<DataGridProps> = ({ rows, selectedRowId, onSelectRow }) => {
+const DataGrid: React.FC<DataGridProps> = ({ rows, selectedRowId, onSelectRow, t }) => {
   const [filter, setFilter] = useState('');
 
   const filteredRows = useMemo(() => {
@@ -29,22 +30,22 @@ const DataGrid: React.FC<DataGridProps> = ({ rows, selectedRowId, onSelectRow })
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filtruj elementy..."
+          placeholder={`${t('Filtruj')} ${t('Elementy').toLowerCase()}...`}
           className="data-grid-filter-input"
         />
       </div>
       <table>
         <thead>
           <tr>
-            <th className="col-oznacz">Oznaczenie</th>
-            <th className="col-nazwa">Nazwa</th>
-            <th className="col-symbol">Symbol</th>
-            <th className="col-sztuk">Sztuk</th>
-            <th className="col-material">Materiał</th>
-            <th className="col-m2">Blacha</th>
-            <th className="col-m2-total">Suma</th>
-            <th className="col-przekroj">Przekrój</th>
-            <th className="col-uwagi">Uwagi</th>
+            <th className="col-oznacz">{t('Oznaczenie')}</th>
+            <th className="col-nazwa">{t('Nazwa')}</th>
+            <th className="col-symbol">{t('Symbol')}</th>
+            <th className="col-sztuk">{t('Sztuk')}</th>
+            <th className="col-material">{t('Materiał')}</th>
+            <th className="col-m2">{t('Blacha')}</th>
+            <th className="col-m2-total">{t('Suma')}</th>
+            <th className="col-przekroj">{t('Przekrój')}</th>
+            <th className="col-uwagi">{t('Uwagi')}</th>
           </tr>
         </thead>
         <tbody>
@@ -55,10 +56,10 @@ const DataGrid: React.FC<DataGridProps> = ({ rows, selectedRowId, onSelectRow })
               onClick={() => onSelectRow(row.id)}
             >
               <td>{row.oznaczenie}</td>
-              <td title={row.nazwa}>{row.nazwa}</td>
+              <td title={t(row.nazwa)}>{t(row.nazwa)}</td>
               <td title={row.symbol}>{row.symbol}</td>
               <td>{row.sztuk}</td>
-              <td>{row.material}</td>
+              <td>{t(row.material)}</td>
               <td>{row.m2.toFixed(2)}</td>
               <td>{(row.m2 * row.sztuk).toFixed(2)}</td>
               <td>{row.przekroj}</td>
@@ -67,7 +68,7 @@ const DataGrid: React.FC<DataGridProps> = ({ rows, selectedRowId, onSelectRow })
           ))}
           {filteredRows.length === 0 && (
             <tr>
-              <td colSpan={9} className="empty-row">Brak elementów. Kliknij "Dodaj" aby dodać kształtkę.</td>
+              <td colSpan={9} className="empty-row">{t('Brak elementów. Kliknij "Dodaj" aby dodać kształtkę.')}</td>
             </tr>
           )}
         </tbody>

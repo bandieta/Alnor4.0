@@ -25,6 +25,7 @@ import {
 } from './data';
 import { calculateArea, generateSymbol, generatePrzekroj, calculateKot } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
+import { LANGUAGE_OPTIONS, parseDictionary, translate, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
 
 const DEMO_SHAPE_LIMIT = 4;
@@ -224,6 +225,44 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
 }
 
 function App() {
+  const [language, setLanguage] = useState<AppLanguage>(() => {
+    try {
+      const saved = localStorage.getItem('alnor-cam-language');
+      if (saved === 'pl' || saved === 'en' || saved === 'de' || saved === 'hu') {
+        return saved;
+      }
+      return 'pl';
+    } catch {
+      return 'pl';
+    }
+  });
+  const [dictionary, setDictionary] = useState<DictionaryMap>({});
+
+  useEffect(() => {
+    const loadDictionary = async () => {
+      try {
+        const response = await fetch('/slownik.txt');
+        if (!response.ok) return;
+        const raw = await response.text();
+        setDictionary(parseDictionary(raw));
+      } catch {
+        setDictionary({});
+      }
+    };
+
+    loadDictionary();
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('alnor-cam-language', language);
+    } catch {
+      // ignore localStorage failures
+    }
+  }, [language]);
+
+  const t = useCallback((text: string) => translate(dictionary, language, text), [dictionary, language]);
+
   // System type
   const [systemType, setSystemType] = useState<SystemType>('prostokatne');
 
@@ -383,7 +422,7 @@ function App() {
     // Check required fields (non-'...' labels) are not empty
     labels.forEach((label, i) => {
       if (label !== '...' && (!dimensionValues[i] || dimensionValues[i].trim() === '')) {
-        errors.push({ index: i, message: 'Wymagane' });
+        errors.push({ index: i, message: t('Wymagane') });
       }
     });
 
@@ -415,7 +454,7 @@ function App() {
       }
     }
     return errors;
-  }, [selectedSymbol, dimensionValues, material, materialType, currentShape.labels]);
+  }, [selectedSymbol, dimensionValues, material, materialType, currentShape.labels, t]);
 
   // Property validation (frame size, etc.)
   const propertyErrors = useMemo((): Record<string, string> => {
@@ -462,16 +501,16 @@ function App() {
 
   // KOT tooltip — show what's missing
   const kotTooltip = useMemo(() => {
-    if (kotCompliant) return 'Zgodne z KOT';
+    if (kotCompliant) return t('Zgodne z KOT');
     const missing: string[] = [];
-    if (materialType !== 'blacha') missing.push('Typ: Blacha (B)');
-    if (material !== 'Ocynk') missing.push('Materiał: Ocynk');
-    if (wykonanie !== 'Średniociśnieniowe') missing.push('Wykonanie: Średniociśnieniowe');
-    if (klasaSzczelnosci !== 'B') missing.push('Kl.szczel.: B');
-    if (!['0,6', '0,7', '0,9'].includes(blacha)) missing.push('Grubość: 0,6 / 0,7 / 0,9');
-    if (missing.length > 0) return 'Niezgodne z KOT. Wymagane:\n' + missing.join('\n');
-    return 'Niezgodne z KOT (wymiary poza zakresem)';
-  }, [kotCompliant, materialType, material, wykonanie, klasaSzczelnosci, blacha]);
+    if (materialType !== 'blacha') missing.push(t('Typ') + ': ' + t('Blacha') + ' (B)');
+    if (material !== 'Ocynk') missing.push(t('Materiał') + ': ' + t('Ocynk'));
+    if (wykonanie !== 'Średniociśnieniowe') missing.push(t('Wykonanie') + ': ' + t('Średniociśnieniowe'));
+    if (klasaSzczelnosci !== 'B') missing.push(t('Kl.szczel.') + ': B');
+    if (!['0,6', '0,7', '0,9'].includes(blacha)) missing.push(t('Grubość izolacji') + ': 0,6 / 0,7 / 0,9');
+    if (missing.length > 0) return t('Niezgodne z KOT') + '. ' + t('Wymagane') + ':\n' + missing.join('\n');
+    return t('Niezgodne z KOT') + ' (' + t('wymiary poza zakresem') + ')';
+  }, [kotCompliant, materialType, material, wykonanie, klasaSzczelnosci, blacha, t]);
 
   // Generate full symbol
   const fullSymbol = useMemo(() => {
@@ -493,6 +532,22 @@ function App() {
     setDimensionValues(Array(17).fill(''));
   }, []);
 
+  const handleToggleOznaczenieEnabled = useCallback((enabled: boolean) => {
+    setOznaczenieEnabled(enabled);
+    if (enabled && !oznaczenie.trim()) {
+      setOznaczenie(String(nextOznaczenie));
+    }
+  }, [oznaczenie, nextOznaczenie]);
+
+  const advanceOznaczenie = useCallback(() => {
+    if (!oznaczenieEnabled) return;
+    setNextOznaczenie((prev) => {
+      const next = prev + 1;
+      setOznaczenie(String(next));
+      return next;
+    });
+  }, [oznaczenieEnabled]);
+
   // Handle dimension value change
   const handleDimensionChange = useCallback((index: number, value: string) => {
     setDimensionValues((prev) => {
@@ -505,6 +560,8 @@ function App() {
 
   // Add element to grid
   const handleAdd = useCallback(() => {
+    const rowOznaczenie = oznaczenieEnabled ? oznaczenie : '';
+
     // User element mode — simplified add
     if (isUserElement) {
       if (!userNazwa.trim() && !userSymbol.trim()) return;
@@ -512,7 +569,7 @@ function App() {
       const ksztaltka: Ksztaltka = {
         obcy: true,
         symbol: userSymbol,
-        oznaczenie: oznaczenie,
+        oznaczenie: rowOznaczenie,
         nazwa: userNazwa,
         sztuk: sztuk,
         uwagi: uwagi,
@@ -543,7 +600,7 @@ function App() {
       };
       const newRow: GridRow = {
         id: crypto.randomUUID(),
-        oznaczenie: oznaczenie,
+        oznaczenie: rowOznaczenie,
         nazwa: userNazwa,
         symbol: userSymbol,
         sztuk: qty,
@@ -562,8 +619,7 @@ function App() {
         setEditingRowId(null);
       } else {
         setGridRows((prev) => [...prev, newRow]);
-        setNextOznaczenie((prev) => prev + 1);
-        setOznaczenie(String(nextOznaczenie + 1));
+        advanceOznaczenie();
       }
       return;
     }
@@ -581,7 +637,7 @@ function App() {
     const ksztaltka: Ksztaltka = {
       obcy: false,
       symbol: selectedSymbol,
-      oznaczenie: oznaczenie,
+      oznaczenie: rowOznaczenie,
       nazwa: shapeName,
       sztuk: sztuk,
       uwagi: uwagi,
@@ -613,7 +669,7 @@ function App() {
 
     const newRow: GridRow = {
       id: crypto.randomUUID(),
-      oznaczenie: oznaczenie,
+      oznaczenie: rowOznaczenie,
       nazwa: shapeName,
       symbol: fullSymbol,
       sztuk: qty,
@@ -634,15 +690,15 @@ function App() {
       setEditingRowId(null);
     } else {
       setGridRows((prev) => [...prev, newRow]);
-      setNextOznaczenie((prev) => prev + 1);
-      setOznaczenie(String(nextOznaczenie + 1));
+      advanceOznaczenie();
     }
   }, [
-    validationErrors, propertyErrors, dimensionValues, selectedSymbol, oznaczenie, shapeName, sztuk, uwagi,
+    validationErrors, propertyErrors, dimensionValues, selectedSymbol, oznaczenie, oznaczenieEnabled, shapeName, sztuk, uwagi,
     material, materialType, blacha, wykonanie, klasaSzczelnosci, lwzmoc,
     ramkiWL, ramkiWYL, ramkiOd, systemType, fullSymbol, calculatedPrzekroj,
-    minM2, nextOznaczenie, editingRowId, isIzolowane, plaszcz, gruboscIzolacji,
+    minM2, editingRowId, isIzolowane, plaszcz, gruboscIzolacji,
     isUserElement, userNazwa, userSymbol,
+    advanceOznaczenie,
   ]);
 
   // Delete selected row
@@ -694,6 +750,8 @@ function App() {
 
   // Insert after selected
   const handleInsertAfter = useCallback(() => {
+    const rowOznaczenie = oznaczenieEnabled ? oznaczenie : '';
+
     if (!selectedRowId) {
       handleAdd();
       return;
@@ -706,7 +764,7 @@ function App() {
       const ksztaltka: Ksztaltka = {
         obcy: true,
         symbol: userSymbol,
-        oznaczenie: oznaczenie,
+        oznaczenie: rowOznaczenie,
         nazwa: userNazwa,
         sztuk: sztuk,
         uwagi: uwagi,
@@ -726,7 +784,7 @@ function App() {
       };
       const newRow: GridRow = {
         id: crypto.randomUUID(),
-        oznaczenie: oznaczenie,
+        oznaczenie: rowOznaczenie,
         nazwa: userNazwa,
         symbol: userSymbol,
         sztuk: qty,
@@ -744,8 +802,7 @@ function App() {
         next.splice(idx + 1, 0, newRow);
         return next;
       });
-      setNextOznaczenie((prev) => prev + 1);
-      setOznaczenie(String(nextOznaczenie + 1));
+      advanceOznaczenie();
       return;
     }
 
@@ -762,7 +819,7 @@ function App() {
     const ksztaltka: Ksztaltka = {
       obcy: false,
       symbol: selectedSymbol,
-      oznaczenie: oznaczenie,
+      oznaczenie: rowOznaczenie,
       nazwa: shapeName,
       sztuk: sztuk,
       uwagi: uwagi,
@@ -794,7 +851,7 @@ function App() {
 
     const newRow: GridRow = {
       id: crypto.randomUUID(),
-      oznaczenie: oznaczenie,
+      oznaczenie: rowOznaczenie,
       nazwa: shapeName,
       symbol: fullSymbol,
       sztuk: qty,
@@ -813,15 +870,15 @@ function App() {
       next.splice(idx + 1, 0, newRow);
       return next;
     });
-    setNextOznaczenie((prev) => prev + 1);
-    setOznaczenie(String(nextOznaczenie + 1));
+    advanceOznaczenie();
   }, [
     selectedRowId, validationErrors, propertyErrors, dimensionValues, selectedSymbol,
-    oznaczenie, shapeName, sztuk, uwagi, material, materialType, blacha, wykonanie,
+    oznaczenie, oznaczenieEnabled, shapeName, sztuk, uwagi, material, materialType, blacha, wykonanie,
     klasaSzczelnosci, lwzmoc, ramkiWL, ramkiWYL, ramkiOd, systemType,
-    fullSymbol, calculatedPrzekroj, minM2, nextOznaczenie, handleAdd, isChemo,
+    fullSymbol, calculatedPrzekroj, minM2, handleAdd, isChemo,
     isIzolowane, plaszcz, gruboscIzolacji,
     isUserElement, userNazwa, userSymbol,
+    advanceOznaczenie,
   ]);
 
   // New project
@@ -863,13 +920,13 @@ function App() {
             setOznaczenie(String(data.nextOznaczenie));
           }
         } catch {
-          alert('Błąd wczytywania pliku');
+          alert(t('Błąd wczytywania pliku'));
         }
       };
       reader.readAsText(file);
     };
     input.click();
-  }, []);
+  }, [t]);
 
   const sumaBlachyReport = useMemo(() => buildSumaBlachyReport(gridRows), [gridRows]);
 
@@ -899,6 +956,20 @@ function App() {
         <div className="left-panel">
           <div className="sidebar-header">
             <span className="logo">Alnor<span className="logo-accent">CAM</span></span>
+            <div className="lang-switcher" title={t('Język')}>
+              <select
+                className="lang-dropdown"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as AppLanguage)}
+                aria-label={t('Język')}
+              >
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.label)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <Toolbar
             systemType={systemType}
@@ -907,6 +978,7 @@ function App() {
             onSave={handleSave}
             onLoad={handleLoad}
             sumaBlachyReport={sumaBlachyReport}
+            t={t}
           />
           <ShapeList
             shapes={SHAPE_DEFINITIONS}
@@ -914,6 +986,7 @@ function App() {
             onSelect={handleSelectShape}
             disabled={isUserElement}
             demoLimit={DEMO_SHAPE_LIMIT}
+            t={t}
           />
         </div>
 
@@ -924,30 +997,30 @@ function App() {
             {isUserElement ? (
               /* User element mode — simplified input */
               <div className="user-element-panel">
-                <div className="user-element-header">Element użytkownika</div>
+                <div className="user-element-header">{t('Element użytkownika')}</div>
                 <div className="user-element-fields">
                   <div className="user-element-row">
-                    <label>Nazwa</label>
+                    <label>{t('Nazwa')}</label>
                     <input
                       type="text"
                       value={userNazwa}
                       onChange={(e) => setUserNazwa(e.target.value)}
-                      placeholder="Nazwa elementu..."
+                      placeholder={`${t('Nazwa')} ${t('Element').toLowerCase()}...`}
                       className="user-element-input"
                     />
                   </div>
                   <div className="user-element-row">
-                    <label>Symbol</label>
+                    <label>{t('Symbol')}</label>
                     <input
                       type="text"
                       value={userSymbol}
                       onChange={(e) => setUserSymbol(e.target.value)}
-                      placeholder="Symbol / pełna nazwa..."
+                      placeholder={t('Symbol / pełna nazwa...')}
                       className="user-element-input"
                     />
                   </div>
                   <div className="user-element-row">
-                    <label>Sztuk</label>
+                    <label>{t('Sztuk')}</label>
                     <input
                       type="number"
                       min="1"
@@ -961,7 +1034,7 @@ function App() {
                     />
                   </div>
                   <div className="user-element-row">
-                    <label>Uwagi</label>
+                    <label>{t('Uwagi')}</label>
                     <input
                       type="text"
                       value={uwagi}
@@ -970,12 +1043,12 @@ function App() {
                     />
                   </div>
                   <div className="oznaczenie-row" style={{ marginTop: 8 }}>
-                    <span className="label">Oznaczenie</span>
+                    <span className="label">{t('Oznaczenie')}</span>
                     <label className="checkbox-label">
                       <input
                         type="checkbox"
                         checked={oznaczenieEnabled}
-                        onChange={(e) => setOznaczenieEnabled(e.target.checked)}
+                        onChange={(e) => handleToggleOznaczenieEnabled(e.target.checked)}
                       />
                     </label>
                     <input
@@ -995,23 +1068,25 @@ function App() {
               <ShapeDiagram3D
                 symbol={selectedSymbol}
                 values={dimensionValues.map((v) => parseFloat(v) || 0)}
+                t={t}
               />
               <ShapeDiagram
                 symbol={selectedSymbol}
                 values={dimensionValues.map((v) => parseFloat(v) || 0)}
                 labels={currentShape.labels}
+                t={t}
               />
             </div>
 
             {/* Row 2: oznaczenie + shape name + symbol */}
             <div className="shape-info-row">
               <div className="oznaczenie-row">
-                <span className="label">Oznaczenie</span>
+                <span className="label">{t('Oznaczenie')}</span>
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
                     checked={oznaczenieEnabled}
-                    onChange={(e) => setOznaczenieEnabled(e.target.checked)}
+                    onChange={(e) => handleToggleOznaczenieEnabled(e.target.checked)}
                   />
                 </label>
                 <input
@@ -1022,7 +1097,7 @@ function App() {
                   disabled={!oznaczenieEnabled}
                 />
               </div>
-              <div className="shape-name-display">{shapeName}</div>
+              <div className="shape-name-display">{t(shapeName)}</div>
               <div className="full-symbol-display" title={fullSymbol}>{fullSymbol}</div>
             </div>
 
@@ -1037,7 +1112,7 @@ function App() {
               />
               <div className="summary-fields">
                 <div className="summary-row">
-                  <label>Sztuk</label>
+                  <label>{t('Sztuk')}</label>
                   <input
                     type="number"
                     min="1"
@@ -1051,19 +1126,19 @@ function App() {
                   />
                 </div>
                 <div className="summary-row">
-                  <label>Blacha</label>
+                  <label>{t('Blacha')}</label>
                   <span className="summary-input summary-input-readonly">
                     {calculatedArea.toFixed(2)}
                   </span>
                 </div>
                 <div className="summary-row">
-                  <label>Suma</label>
+                  <label>{t('Suma')}</label>
                   <span className="summary-input summary-input-readonly">
                     {displayArea.toFixed(2)}
                   </span>
                 </div>
                 <div className="summary-row">
-                  <label>Uwagi</label>
+                  <label>{t('Uwagi')}</label>
                   <input
                     type="text"
                     value={uwagi}
@@ -1075,6 +1150,7 @@ function App() {
               <PropertiesPanel
                 materialType={materialType}
                 onMaterialTypeChange={handleMaterialTypeChange}
+                t={t}
                 blacha={blacha}
                 onBlachaChange={setBlacha}
                 material={material}
@@ -1116,9 +1192,9 @@ function App() {
 
           {/* Action buttons — toolbar above the element list (koszyk) */}
           <div className="action-buttons">
-            <button className="btn" onClick={handleRefresh}>Odśwież</button>
+            <button className="btn" onClick={handleRefresh}>{t('Odśwież')}</button>
             <span className="min-m2-group">
-              <label>Min.m2</label>
+              <label>{t('Min.m2')}</label>
               <input
                 type="text"
                 value={minM2}
@@ -1126,13 +1202,13 @@ function App() {
                 className="min-m2-input"
               />
             </span>
-            <button className="btn btn-action" onClick={handleAdd}>{editingRowId ? 'Zapisz' : 'Dodaj'}</button>
-            <button className="btn btn-danger" onClick={handleDelete}>Usuń</button>
-            <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId || !selectedRowId}>Edytuj</button>
+            <button className="btn btn-action" onClick={handleAdd}>{editingRowId ? t('Zapisz') : t('Dodaj')}</button>
+            <button className="btn btn-danger" onClick={handleDelete}>{t('Usuń')}</button>
+            <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId || !selectedRowId}>{t('Edytuj')}</button>
             {editingRowId && (
-              <button className="btn" onClick={() => setEditingRowId(null)}>Anuluj</button>
+              <button className="btn" onClick={() => setEditingRowId(null)}>{t('Anuluj')}</button>
             )}
-            <button className="btn btn-action" onClick={handleInsertAfter}>Wstaw za ...</button>
+            <button className="btn btn-action" onClick={handleInsertAfter}>{t('Wstaw za')} ...</button>
             <span
               className={`btn btn-kot ${kotCompliant ? 'btn-kot-green' : ''}`}
               title={kotTooltip}
@@ -1144,12 +1220,13 @@ function App() {
             rows={gridRows}
             selectedRowId={selectedRowId}
             onSelectRow={setSelectedRowId}
+            t={t}
           />
 
           {/* Total */}
           {gridRows.length > 0 && (
             <div className="total-bar">
-              Suma m²: <strong>{totalM2.toFixed(2)}</strong> | Elementów: <strong>{gridRows.length}</strong>
+              {t('Suma')} m²: <strong>{totalM2.toFixed(2)}</strong> | {t('Elementy')}: <strong>{gridRows.length}</strong>
             </div>
           )}
         </div>

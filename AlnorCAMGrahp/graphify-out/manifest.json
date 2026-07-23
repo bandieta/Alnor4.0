@@ -1,0 +1,372 @@
+{
+  "Backup/projekto.sln": {
+    "mtime": 1774714747.1563869,
+    "ast_hash": "29907bef3b48618ca37308f6d99dea16",
+    "semantic_hash": "29907bef3b48618ca37308f6d99dea16"
+  },
+  "Backup/projekto/AboutBox1.Designer.cs": {
+    "mtime": 1774714747.1565878,
+    "ast_hash": "10173f92147471516f8e3c6f24193096",
+    "semantic_hash": "10173f92147471516f8e3c6f24193096"
+  },
+  "Backup/projekto/AboutBox1.cs": {
+    "mtime": 1774714747.1566942,
+    "ast_hash": "9e25000da00d5fe4b91ca6b5a71787d8",
+    "semantic_hash": "9e25000da00d5fe4b91ca6b5a71787d8"
+  },
+  "Backup/projekto/Blacha.cs": {
+    "mtime": 1774714747.1572113,
+    "ast_hash": "052bbf1b11c24257dec84874581c694f",
+    "semantic_hash": "052bbf1b11c24257dec84874581c694f"
+  },
+  "Backup/projekto/CurrentLanguage.cs": {
+    "mtime": 1774714747.1573966,
+    "ast_hash": "81c9d39fed43b0056a738be6baec3634",
+    "semantic_hash": "81c9d39fed43b0056a738be6baec3634"
+  },
+  "Backup/projekto/DictionariesManager.cs": {
+    "mtime": 1774714747.1575167,
+    "ast_hash": "da34680bf68a509f037ded72608c324e",
+    "semantic_hash": "da34680bf68a509f037ded72608c324e"
+  },
+  "Backup/projekto/Form1.Designer.cs": {
+    "mtime": 1774714747.1578677,
+    "ast_hash": "f999be9402a117576bd527ae8507d56c",
+    "semantic_hash": "f999be9402a117576bd527ae8507d56c"
+  },
+  "Backup/projekto/Form1.cs": {
+    "mtime": 1774714747.1615312,
+    "ast_hash": "ecdf42ebf8ccb177ffa01769182c4bb8",
+    "semantic_hash": "ecdf42ebf8ccb177ffa01769182c4bb8"
+  },
+  "Backup/projekto/Form2.Designer.cs": {
+    "mtime": 1774714747.1629858,
+    "ast_hash": "307c9f404270b1beba43a85cf9a4502c",
+    "semantic_hash": "307c9f404270b1beba43a85cf9a4502c"
+  },
+  "Backup/projekto/Form2.cs": {
+    "mtime": 1774714747.1631353,
+    "ast_hash": "5825cb330cac86ca7676f236472357a6",
+    "semantic_hash": "5825cb330cac86ca7676f236472357a6"
+  },
+  "Backup/projekto/Form3.Designer.cs": {
+    "mtime": 1774714747.1635242,
+    "ast_hash": "a002bac4ecca557d0cf79d22b6eed5e3",
+    "semantic_hash": "a002bac4ecca557d0cf79d22b6eed5e3"
+  },
+  "Backup/projekto/Form3.cs": {
+    "mtime": 1774714747.163625,
+    "ast_hash": "acb34892b03937d8ad4f8a17bac7df4c",
+    "semantic_hash": "acb34892b03937d8ad4f8a17bac7df4c"
+  },
+  "Backup/projekto/Form4.Designer.cs": {
+    "mtime": 1774714747.1661026,
+    "ast_hash": "55d7a07c6a4e74efe01ab414b2ef1983",
+    "semantic_hash": "55d7a07c6a4e74efe01ab414b2ef1983"
+  },
+  "Backup/projekto/Form4.cs": {
+    "mtime": 1774714747.166228,
+    "ast_hash": "bf576e8ecadda7f0231161bec1925e8e",
+    "semantic_hash": "bf576e8ecadda7f0231161bec1925e8e"
+  },
+  "Backup/projekto/Form6.Designer.cs": {
+    "mtime": 1774714747.1673496,
+    "ast_hash": "e9ee03eec2d64307d4dee2d21de0fcf5",
+    "semantic_hash": "e9ee03eec2d64307d4dee2d21de0fcf5"
+  },
+  "Backup/projekto/Form6.cs": {
+    "mtime": 1774714747.1675394,
+    "ast_hash": "944e188adb41b83493ac665df8a0645f",
+    "semantic_hash": "944e188adb41b83493ac665df8a0645f"
+  },
+  "Backup/projekto/Form7.Designer.cs": {
+    "mtime": 1774714747.168103,
+    "ast_hash": "34af8c017e96be7723ca9654d004b792",
+    "semantic_hash": "34af8c017e96be7723ca9654d004b792"
+  },
+  "Backup/projekto/Form7.cs": {
+    "mtime": 1774714747.1682417,
+    "ast_hash": "103d2bef67620df01b5ee5798faa7b49",
+    "semantic_hash": "103d2bef67620df01b5ee5798faa7b49"
+  },
+  "Backup/projekto/IMultiLang.cs": {
+    "mtime": 1774714747.1700346,
+    "ast_hash": "f8674432063b7c70dfd56eb6b1be85ac",
+    "semantic_hash": "f8674432063b7c70dfd56eb6b1be85ac"
+  },
+  "Backup/projekto/Info.Designer.cs": {
+    "mtime": 1774714747.1701863,
+    "ast_hash": "65571fecc2f44039ea707925451812d5",
+    "semantic_hash": "65571fecc2f44039ea707925451812d5"
+  },
+  "Backup/projekto/Info.cs": {
+    "mtime": 1774714747.1703103,
+    "ast_hash": "fa1d9e78331f3d8f1ba508f710efe1a1",
+    "semantic_hash": "fa1d9e78331f3d8f1ba508f710efe1a1"
+  },
+  "Backup/projekto/MyDataGridRow.cs": {
+    "mtime": 1774714747.1708884,
+    "ast_hash": "2337813525b015a17cff34730ff1d2df",
+    "semantic_hash": "2337813525b015a17cff34730ff1d2df"
+  },
+  "Backup/projekto/Program.cs": {
+    "mtime": 1774714747.1710012,
+    "ast_hash": "100d6d13383cdb6524e109eb7aee8709",
+    "semantic_hash": "100d6d13383cdb6524e109eb7aee8709"
+  },
+  "Backup/projekto/Properties/AssemblyInfo.cs": {
+    "mtime": 1774714747.17118,
+    "ast_hash": "b46e28adc0ff8d420fecd8183d6de3e0",
+    "semantic_hash": "b46e28adc0ff8d420fecd8183d6de3e0"
+  },
+  "Backup/projekto/Properties/Resources.Designer.cs": {
+    "mtime": 1774714747.1715875,
+    "ast_hash": "b5e0f1f77da60260047a937f7b23c5c9",
+    "semantic_hash": "b5e0f1f77da60260047a937f7b23c5c9"
+  },
+  "Backup/projekto/Properties/Settings.Designer.cs": {
+    "mtime": 1774714747.1814466,
+    "ast_hash": "594c0c9a0bfe40550f0088f8fe5e4915",
+    "semantic_hash": "594c0c9a0bfe40550f0088f8fe5e4915"
+  },
+  "Backup/projekto/S.csproj": {
+    "mtime": 1774714747.1907809,
+    "ast_hash": "44cbc5ee453a58b19525e8231baecd29",
+    "semantic_hash": "44cbc5ee453a58b19525e8231baecd29"
+  },
+  "Backup/projekto/csgl.Designer.cs": {
+    "mtime": 1774714747.1916006,
+    "ast_hash": "773af259464bee3d4417d02038b05948",
+    "semantic_hash": "773af259464bee3d4417d02038b05948"
+  },
+  "Backup/projekto/csgl.cs": {
+    "mtime": 1774714747.1916933,
+    "ast_hash": "c31e32949a3391c2278030bd56537a47",
+    "semantic_hash": "c31e32949a3391c2278030bd56537a47"
+  },
+  "Backup/projekto/datagridviewex.cs": {
+    "mtime": 1774714747.1920202,
+    "ast_hash": "9961ca183328d3386c732c37f9c24965",
+    "semantic_hash": "9961ca183328d3386c732c37f9c24965"
+  },
+  "Backup/projekto/gridclass.cs": {
+    "mtime": 1774714747.1921632,
+    "ast_hash": "a79ca151cf74ab3034ee34c4db061dcc",
+    "semantic_hash": "a79ca151cf74ab3034ee34c4db061dcc"
+  },
+  "Backup/projekto/ksztaltka.cs": {
+    "mtime": 1774714747.1924818,
+    "ast_hash": "d4fc70bc43b3a4caa5c39ac1451015ab",
+    "semantic_hash": "d4fc70bc43b3a4caa5c39ac1451015ab"
+  },
+  "Backup/projekto/loadingdialog.Designer.cs": {
+    "mtime": 1774714747.1926115,
+    "ast_hash": "6182b883cfad7d64d1be1ef10fbc2c9e",
+    "semantic_hash": "6182b883cfad7d64d1be1ef10fbc2c9e"
+  },
+  "Backup/projekto/loadingdialog.cs": {
+    "mtime": 1774714747.1927135,
+    "ast_hash": "77eb65a22c142e3d4eefda6ecd56f3e1",
+    "semantic_hash": "77eb65a22c142e3d4eefda6ecd56f3e1"
+  },
+  "langselected/Program.cs": {
+    "mtime": 1774714747.1946192,
+    "ast_hash": "c6f218f6059169d25d3a83d1cbca218f",
+    "semantic_hash": "c6f218f6059169d25d3a83d1cbca218f"
+  },
+  "langselected/langselected/Properties/AssemblyInfo.cs": {
+    "mtime": 1774714747.1948512,
+    "ast_hash": "229c420af543e4e76bb5cfd883281b6e",
+    "semantic_hash": "229c420af543e4e76bb5cfd883281b6e"
+  },
+  "langselected/langselected/langselected.csproj": {
+    "mtime": 1774714747.1949582,
+    "ast_hash": "a41f7924851cc3026b86961cef4ccf14",
+    "semantic_hash": "a41f7924851cc3026b86961cef4ccf14"
+  },
+  "langselected/langselected/langselected.sln": {
+    "mtime": 1774714747.1952312,
+    "ast_hash": "35cae03b51c79d70adb8976efc414078",
+    "semantic_hash": "35cae03b51c79d70adb8976efc414078"
+  },
+  "projekto.sln": {
+    "mtime": 1774714747.1969516,
+    "ast_hash": "ca94301dbe78ae0c172d5b74c7a6f0c7",
+    "semantic_hash": "ca94301dbe78ae0c172d5b74c7a6f0c7"
+  },
+  "projekto/AboutBox1.Designer.cs": {
+    "mtime": 1774714747.1974657,
+    "ast_hash": "7cd87f99a1a10974741f364d7b1909ac",
+    "semantic_hash": "7cd87f99a1a10974741f364d7b1909ac"
+  },
+  "projekto/AboutBox1.cs": {
+    "mtime": 1774714747.1975584,
+    "ast_hash": "9e25000da00d5fe4b91ca6b5a71787d8",
+    "semantic_hash": "9e25000da00d5fe4b91ca6b5a71787d8"
+  },
+  "projekto/Blacha.cs": {
+    "mtime": 1774714747.198013,
+    "ast_hash": "052bbf1b11c24257dec84874581c694f",
+    "semantic_hash": "052bbf1b11c24257dec84874581c694f"
+  },
+  "projekto/Class1.cs": {
+    "mtime": 1774714747.1981103,
+    "ast_hash": "11094f7abfaf8bf9ba3043d9cc123140",
+    "semantic_hash": "11094f7abfaf8bf9ba3043d9cc123140"
+  },
+  "projekto/CurrentLanguage.cs": {
+    "mtime": 1774714747.1982129,
+    "ast_hash": "81c9d39fed43b0056a738be6baec3634",
+    "semantic_hash": "81c9d39fed43b0056a738be6baec3634"
+  },
+  "projekto/DictionariesManager.cs": {
+    "mtime": 1774714747.1983137,
+    "ast_hash": "da34680bf68a509f037ded72608c324e",
+    "semantic_hash": "da34680bf68a509f037ded72608c324e"
+  },
+  "projekto/Form1.Designer.cs": {
+    "mtime": 1774714747.1985857,
+    "ast_hash": "ca9ca7124e0e7f5141f3fbddacb033ef",
+    "semantic_hash": "ca9ca7124e0e7f5141f3fbddacb033ef"
+  },
+  "projekto/Form1.cs": {
+    "mtime": 1774714747.2018883,
+    "ast_hash": "1cf21ba213f69f11575fa693b643b8f9",
+    "semantic_hash": "1cf21ba213f69f11575fa693b643b8f9"
+  },
+  "projekto/Form2.Designer.cs": {
+    "mtime": 1774714747.2055447,
+    "ast_hash": "307c9f404270b1beba43a85cf9a4502c",
+    "semantic_hash": "307c9f404270b1beba43a85cf9a4502c"
+  },
+  "projekto/Form2.cs": {
+    "mtime": 1774714747.2058408,
+    "ast_hash": "5d87d5ed3926ab262907001f76ed44de",
+    "semantic_hash": "5d87d5ed3926ab262907001f76ed44de"
+  },
+  "projekto/Form3.Designer.cs": {
+    "mtime": 1774714747.2064843,
+    "ast_hash": "a002bac4ecca557d0cf79d22b6eed5e3",
+    "semantic_hash": "a002bac4ecca557d0cf79d22b6eed5e3"
+  },
+  "projekto/Form3.cs": {
+    "mtime": 1774714747.2065904,
+    "ast_hash": "acb34892b03937d8ad4f8a17bac7df4c",
+    "semantic_hash": "acb34892b03937d8ad4f8a17bac7df4c"
+  },
+  "projekto/Form4.Designer.cs": {
+    "mtime": 1774714747.2071946,
+    "ast_hash": "55d7a07c6a4e74efe01ab414b2ef1983",
+    "semantic_hash": "55d7a07c6a4e74efe01ab414b2ef1983"
+  },
+  "projekto/Form4.cs": {
+    "mtime": 1774714747.2072952,
+    "ast_hash": "bf576e8ecadda7f0231161bec1925e8e",
+    "semantic_hash": "bf576e8ecadda7f0231161bec1925e8e"
+  },
+  "projekto/Form6.Designer.cs": {
+    "mtime": 1774714747.2079403,
+    "ast_hash": "e9ee03eec2d64307d4dee2d21de0fcf5",
+    "semantic_hash": "e9ee03eec2d64307d4dee2d21de0fcf5"
+  },
+  "projekto/Form6.cs": {
+    "mtime": 1774714747.2080572,
+    "ast_hash": "944e188adb41b83493ac665df8a0645f",
+    "semantic_hash": "944e188adb41b83493ac665df8a0645f"
+  },
+  "projekto/Form7.Designer.cs": {
+    "mtime": 1774714747.208392,
+    "ast_hash": "34af8c017e96be7723ca9654d004b792",
+    "semantic_hash": "34af8c017e96be7723ca9654d004b792"
+  },
+  "projekto/Form7.cs": {
+    "mtime": 1774714747.2084787,
+    "ast_hash": "103d2bef67620df01b5ee5798faa7b49",
+    "semantic_hash": "103d2bef67620df01b5ee5798faa7b49"
+  },
+  "projekto/IMultiLang.cs": {
+    "mtime": 1774714747.2091177,
+    "ast_hash": "f8674432063b7c70dfd56eb6b1be85ac",
+    "semantic_hash": "f8674432063b7c70dfd56eb6b1be85ac"
+  },
+  "projekto/Info.Designer.cs": {
+    "mtime": 1774714747.2092178,
+    "ast_hash": "65571fecc2f44039ea707925451812d5",
+    "semantic_hash": "65571fecc2f44039ea707925451812d5"
+  },
+  "projekto/Info.cs": {
+    "mtime": 1774714747.209319,
+    "ast_hash": "fa1d9e78331f3d8f1ba508f710efe1a1",
+    "semantic_hash": "fa1d9e78331f3d8f1ba508f710efe1a1"
+  },
+  "projekto/MyDataGridRow.cs": {
+    "mtime": 1774714747.2097306,
+    "ast_hash": "2337813525b015a17cff34730ff1d2df",
+    "semantic_hash": "2337813525b015a17cff34730ff1d2df"
+  },
+  "projekto/Program.cs": {
+    "mtime": 1774714747.209836,
+    "ast_hash": "100d6d13383cdb6524e109eb7aee8709",
+    "semantic_hash": "100d6d13383cdb6524e109eb7aee8709"
+  },
+  "projekto/Properties/AssemblyInfo.cs": {
+    "mtime": 1774714747.2101452,
+    "ast_hash": "b46e28adc0ff8d420fecd8183d6de3e0",
+    "semantic_hash": "b46e28adc0ff8d420fecd8183d6de3e0"
+  },
+  "projekto/Properties/Resources.Designer.cs": {
+    "mtime": 1774714747.2105126,
+    "ast_hash": "cabc4ffe976ec8c167b89f0a5f99037c",
+    "semantic_hash": "cabc4ffe976ec8c167b89f0a5f99037c"
+  },
+  "projekto/Properties/Settings.Designer.cs": {
+    "mtime": 1774714747.220605,
+    "ast_hash": "91986136b85bc1d358b251080103c61a",
+    "semantic_hash": "91986136b85bc1d358b251080103c61a"
+  },
+  "projekto/S.csproj": {
+    "mtime": 1774714747.2324018,
+    "ast_hash": "734b6e1a51f61a4680d4eb5cb24dc1d8",
+    "semantic_hash": "734b6e1a51f61a4680d4eb5cb24dc1d8"
+  },
+  "projekto/csgl.Designer.cs": {
+    "mtime": 1774714747.2576752,
+    "ast_hash": "773af259464bee3d4417d02038b05948",
+    "semantic_hash": "773af259464bee3d4417d02038b05948"
+  },
+  "projekto/csgl.cs": {
+    "mtime": 1774714747.2577965,
+    "ast_hash": "c31e32949a3391c2278030bd56537a47",
+    "semantic_hash": "c31e32949a3391c2278030bd56537a47"
+  },
+  "projekto/datagridviewex.cs": {
+    "mtime": 1774714747.2602031,
+    "ast_hash": "9961ca183328d3386c732c37f9c24965",
+    "semantic_hash": "9961ca183328d3386c732c37f9c24965"
+  },
+  "projekto/gridclass.cs": {
+    "mtime": 1774714747.260391,
+    "ast_hash": "a79ca151cf74ab3034ee34c4db061dcc",
+    "semantic_hash": "a79ca151cf74ab3034ee34c4db061dcc"
+  },
+  "projekto/ksztaltka.cs": {
+    "mtime": 1774714747.2605295,
+    "ast_hash": "dcb96aaa92ff307acf35484bece7b766",
+    "semantic_hash": "dcb96aaa92ff307acf35484bece7b766"
+  },
+  "projekto/loadingdialog.Designer.cs": {
+    "mtime": 1774714747.260659,
+    "ast_hash": "6182b883cfad7d64d1be1ef10fbc2c9e",
+    "semantic_hash": "6182b883cfad7d64d1be1ef10fbc2c9e"
+  },
+  "projekto/loadingdialog.cs": {
+    "mtime": 1774714747.2607617,
+    "ast_hash": "77eb65a22c142e3d4eefda6ecd56f3e1",
+    "semantic_hash": "77eb65a22c142e3d4eefda6ecd56f3e1"
+  },
+  "projekto/thicknessCalc.cs": {
+    "mtime": 1774714747.2898996,
+    "ast_hash": "30aacd2c913c6484a2b40030586c7486",
+    "semantic_hash": "30aacd2c913c6484a2b40030586c7486"
+  }
+}

@@ -47,6 +47,9 @@ body {
   padding: 16px 16px 12px;
   border-bottom: 1px solid #e5e5e5;
   background: #004290;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .logo {
@@ -59,6 +62,37 @@ body {
 .logo-accent {
   color: #ce0015;
   font-weight: 900;
+}
+
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.lang-dropdown {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  min-width: 108px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 6px;
+  text-align: center;
+  text-align-last: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.lang-dropdown:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.lang-dropdown option {
+  color: #1e1e1e;
 }
 
 /* ===== TOOLBAR ===== */

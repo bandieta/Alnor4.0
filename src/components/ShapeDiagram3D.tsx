@@ -37,6 +37,7 @@ const FreeControls: React.FC<{ rotateSpeed?: number; zoomSpeed?: number; minDist
 interface ShapeDiagram3DProps {
   symbol: string;
   values: number[];
+  t?: (text: string) => string;
 }
 
 /* Duct mesh — 4 side walls only (open inlet/outlet like original) */
@@ -4994,7 +4995,7 @@ const KeepAlive = () => {
 
 const SUPPORTED_3D = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'QPR2a', 'PR1a', 'PR7a', 'QBRa', 'QBR1a', 'QBFRa', 'QBFa', 'QESa', 'TR1a', 'TR2a', 'TRa', 'QPR3a', 'QPR4a', 'TR6a', 'CZ1a', 'CZ2a', 'TR3a', 'TR4a', 'TR5a', 'QD1a', 'QD2a', 'TR7a', 'TR8a', 'TR9a'];
 
-const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
+const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (text) => text }) => {
   const groupRef = useRef<THREE.Group>(null);
   const modalGroupRef = useRef<THREE.Group>(null);
   const [showDimensions, setShowDimensions] = useState(true);
@@ -5005,9 +5006,9 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
     return (
       <div className="shape-3d-container">
         <div className="shape-3d-header">
-          <span className="shape-3d-title">Widok 3D</span>
+          <span className="shape-3d-title">{t('Widok 3D')}</span>
         </div>
-        <div className="shape-3d-placeholder">Widok 3D niedostępny dla tego kształtu</div>
+        <div className="shape-3d-placeholder">{t('Widok 3D niedostępny dla tego kształtu')}</div>
       </div>
     );
   }
@@ -5489,9 +5490,9 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
     <>
     <div className="shape-3d-container">
       <div className="shape-3d-header">
-        <span className="shape-3d-title">Widok 3D</span>
-        <span className="shape-3d-hint">Obracaj · Scroll = zoom</span>
-        <button className="btn-3d-expand" onClick={() => setExpanded(true)} title="Powiększ">
+        <span className="shape-3d-title">{t('Widok 3D')}</span>
+        <span className="shape-3d-hint">{t('Obracaj · Scroll = zoom')}</span>
+        <button className="btn-3d-expand" onClick={() => setExpanded(true)} title={t('Powiększ')}>
           ⊕
         </button>
       </div>
@@ -5523,7 +5524,7 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
             onChange={(e) => setShowDimensions(e.target.checked)}
           />
           <span className="toggle-slider" />
-          <span className="toggle-label">Wymiary</span>
+          <span className="toggle-label">{t('Wymiary')}</span>
         </label>
         <label className="toggle-switch">
           <input
@@ -5532,7 +5533,7 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
             onChange={(e) => setAutoRotate(e.target.checked)}
           />
           <span className="toggle-slider" />
-          <span className="toggle-label">Ruch</span>
+          <span className="toggle-label">{t('Ruch')}</span>
         </label>
       </div>
     </div>
@@ -5542,8 +5543,8 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
       <div className="shape-3d-modal-overlay" onClick={() => setExpanded(false)}>
         <div className="shape-3d-modal" onClick={(e) => e.stopPropagation()}>
           <div className="shape-3d-modal-header">
-            <span className="shape-3d-title">Widok 3D</span>
-            <span className="shape-3d-hint">Obracaj · Scroll = zoom</span>
+            <span className="shape-3d-title">{t('Widok 3D')}</span>
+            <span className="shape-3d-hint">{t('Obracaj · Scroll = zoom')}</span>
             <div className="shape-3d-toggles" style={{ margin: 0 }}>
               <label className="toggle-switch">
                 <input
@@ -5552,7 +5553,7 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
                   onChange={(e) => setShowDimensions(e.target.checked)}
                 />
                 <span className="toggle-slider" />
-                <span className="toggle-label">Wymiary</span>
+                <span className="toggle-label">{t('Wymiary')}</span>
               </label>
               <label className="toggle-switch">
                 <input
@@ -5561,10 +5562,10 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values }) => {
                   onChange={(e) => setAutoRotate(e.target.checked)}
                 />
                 <span className="toggle-slider" />
-                <span className="toggle-label">Ruch</span>
+                <span className="toggle-label">{t('Ruch')}</span>
               </label>
             </div>
-            <button className="btn-3d-expand" onClick={() => setExpanded(false)} title="Zamknij">
+            <button className="btn-3d-expand" onClick={() => setExpanded(false)} title={t('Zamknij')}>
               ✕
             </button>
           </div>

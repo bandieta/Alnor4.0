@@ -7,9 +7,10 @@ interface ShapeDiagramProps {
   symbol: string;
   values: number[];
   labels: string[];
+  t?: (text: string) => string;
 }
 
-const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _labels }) => {
+const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _labels, t = (text) => text }) => {
   const width = 360;
   const height = 160;
 
@@ -184,70 +185,80 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const rawF = values[3] || 150;
     const rawR = values[4] || 200;
 
-    let a = Math.max(rawA, 1);
-    let b = Math.max(rawB, 1);
-    let e = Math.max(rawE, 1);
-    let f = Math.max(rawF, 1);
-    let r = rawR < 100 ? 0 : Math.max(rawR, 0);
+    const toInt = (v: number) => Math.trunc(v);
 
-      let pRaw = Math.max(rawA, rawB) > 2501 ? 40 : Math.max(rawA, rawB) > 1000 ? 30 : 25;
-      let maxNorm = Math.max(a, b) + r + e;
-      maxNorm = Math.max(maxNorm, pRaw, f, e, 1);
+    let a = Math.max(toInt(rawA), 1);
+    let b = Math.max(toInt(rawB), 1);
+    let e = Math.max(toInt(rawE), 1);
+    let f = Math.max(toInt(rawF), 1);
+    let r = rawR < 100 ? 0 : Math.max(toInt(rawR), 0);
 
-      const scale = 80 / maxNorm;
-      a *= scale;
-      b *= scale;
-      e *= scale;
-      f *= scale;
-      r *= scale;
-      const p = pRaw * scale;
+    let p = 25;
+    const maxAB = Math.max(a, b);
+    if (maxAB > 1000) p = 30;
+    if (maxAB > 2501) p = 40;
 
-      const l = 3;
-      let pushX = ((110 - a - l) % 110) / 2;
-      if (pushX < 0) pushX = -pushX;
-      const pushY = (90 - b) / 2 + 5;
+    let maxNorm = Math.max(a, b);
+    maxNorm += r + e;
+    if (p > maxNorm) maxNorm = p;
+    if (f > maxNorm) maxNorm = f;
+    if (e > maxNorm) maxNorm = e;
 
-      const small = {
-        x0: 190 + pushX,
-        y0: 20 + pushY,
-        x1: 190 + pushX + a,
-        y1: 20 + pushY + b,
-      };
+    const mnoznik = 80;
+    a = toInt((a / maxNorm) * mnoznik);
+    b = toInt((b / maxNorm) * mnoznik);
+    p = toInt((p / maxNorm) * mnoznik);
+    e = toInt((e / maxNorm) * mnoznik);
+    f = toInt((f / maxNorm) * mnoznik);
+    r = toInt((r / maxNorm) * mnoznik);
 
-      const big = {
-        x0: 190 + pushX - p,
-        y0: 20 + pushY - p,
-        x1: 190 + pushX + a + p,
-        y1: 20 + pushY + b + p,
-      };
+    const l = 3;
+    let pushX = toInt(((110 - a - l) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - b) / 2) + 5;
 
-      const left = {
-        x0: 20 + pushX,
-        y0: 20 + pushY,
-        x1: 20 + pushX + f,
-        y1: 20 + pushY + b,
-      };
+    const small = {
+      x0: 190 + pushX,
+      y0: 20 + pushY,
+      x1: 190 + a + pushX,
+      y1: 20 + pushY + b,
+    };
 
-      const underSmall = {
-        x0: small.x0,
-        y0: small.y1,
-        x1: small.x1,
-        y1: small.y1 + r,
-      };
+    const big = {
+      x0: 190 - p + pushX,
+      y0: 20 - p + pushY,
+      x1: 190 + p + a + pushX,
+      y1: 20 + p + b + pushY,
+    };
 
-      const underSmallE = {
-        x0: underSmall.x0,
-        y0: underSmall.y1,
-        x1: underSmall.x1,
-        y1: underSmall.y1 + e,
-      };
+    const left = {
+      x0: 20 + pushX,
+      y0: 20 + pushY,
+      x1: 20 + f + pushX,
+      y1: 20 + b + pushY,
+    };
 
-      const lower = {
-        x0: left.x1 + r,
-        y0: left.y1 + r,
-        x1: left.x1 + r + b,
-        y1: left.y1 + r + e,
-      };
+    // Right-side lower section present in legacy technical drawing.
+    const underSmall = {
+      x0: small.x0,
+      y0: small.y1,
+      x1: small.x1,
+      y1: small.y1 + r,
+    };
+
+    const underSmallE = {
+      x0: underSmall.x0,
+      y0: underSmall.y1,
+      x1: underSmall.x1,
+      y1: underSmall.y1 + e,
+    };
+
+    const lower = {
+      x0: left.x1 + r,
+      y0: left.y1 + r,
+      x1: left.x1 + r + b,
+      y1: left.y1 + r + e,
+    };
 
       const innerRect = r === 0
         ? { x: left.x1 - b, y: left.y0, w: 2 * b, h: 2 * b }
@@ -258,71 +269,67 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             h: 2 * (lower.y0 - left.y1),
           };
 
-      const outerRect = {
-        x: 2 * left.x1 - lower.x1,
-        y: left.y0,
-        w: 2 * (lower.x1 - left.x1),
-        h: 2 * (lower.y0 - left.y0),
-      };
+    const outerRect = {
+      x: 2 * left.x1 - lower.x1,
+      y: left.y0,
+      w: 2 * (lower.x1 - left.x1),
+      h: 2 * (lower.y0 - left.y0),
+    };
 
-      const quarterArcPath = (rect: { x: number; y: number; w: number; h: number }) => {
-        const rx = rect.w / 2;
-        const ry = rect.h / 2;
-        const cx = rect.x + rx;
-        const cy = rect.y + ry;
-        const startX = cx;
-        const startY = cy - ry;
-        const endX = cx + rx;
-        const endY = cy;
-        return `M ${startX} ${startY} A ${rx} ${ry} 0 0 1 ${endX} ${endY}`;
-      };
+    const quarterArcPath = (rect: { x: number; y: number; w: number; h: number }) => {
+      const rx = rect.w / 2;
+      const ry = rect.h / 2;
+      const cx = rect.x + rx;
+      const cy = rect.y + ry;
+      const startX = cx;
+      const startY = cy - ry;
+      const endX = cx + rx;
+      const endY = cy;
+      return `M ${startX} ${startY} A ${rx} ${ry} 0 0 1 ${endX} ${endY}`;
+    };
 
-      return (
-        <g>
-          <rect x={left.x0} y={left.y0} width={left.x1 - left.x0} height={left.y1 - left.y0}
-            fill="none" stroke="#004290" strokeWidth={1.6} />
-          <line x1={left.x1} y1={left.y0} x2={left.x1} y2={left.y1} stroke="#004290" strokeWidth={1.2} />
-          <line x1={left.x0 + p} y1={left.y0} x2={left.x0 + p} y2={left.y1} stroke="#004290" strokeWidth={1.1} />
+    return (
+      <g>
+        <rect x={left.x0} y={left.y0} width={left.x1 - left.x0} height={left.y1 - left.y0}
+          fill="none" stroke="#004290" strokeWidth={1.6} />
 
-          <rect x={lower.x0} y={lower.y0} width={lower.x1 - lower.x0} height={lower.y1 - lower.y0}
-            fill="none" stroke="#004290" strokeWidth={1.6} />
-          <line x1={lower.x0} y1={lower.y0} x2={lower.x1} y2={lower.y0} stroke="#004290" strokeWidth={1.2} />
-          <line x1={lower.x0} y1={lower.y1 - p} x2={lower.x1} y2={lower.y1 - p} stroke="#004290" strokeWidth={1.1} />
+        <rect x={underSmall.x0} y={underSmall.y0} width={underSmall.x1 - underSmall.x0} height={underSmall.y1 - underSmall.y0}
+          fill="none" stroke="#004290" strokeWidth={1.2} />
+        <rect x={underSmallE.x0} y={underSmallE.y0} width={underSmallE.x1 - underSmallE.x0} height={underSmallE.y1 - underSmallE.y0}
+          fill="none" stroke="#004290" strokeWidth={1.2} />
 
-          <rect x={underSmall.x0} y={underSmall.y0} width={underSmall.x1 - underSmall.x0} height={underSmall.y1 - underSmall.y0}
-            fill="none" stroke="#004290" strokeWidth={1.2} />
-          <rect x={underSmallE.x0} y={underSmallE.y0} width={underSmallE.x1 - underSmallE.x0} height={underSmallE.y1 - underSmallE.y0}
-            fill="none" stroke="#004290" strokeWidth={1.2} />
+        <rect x={lower.x0} y={lower.y0} width={lower.x1 - lower.x0} height={lower.y1 - lower.y0}
+          fill="none" stroke="#004290" strokeWidth={1.6} />
 
-          <path d={quarterArcPath(innerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />
-          {r > 0 && <path d={quarterArcPath(outerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />}
+        <path d={quarterArcPath(innerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />
+        {r !== 0 && <path d={quarterArcPath(outerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />}
 
-          <line x1={left.x1} y1={lower.y0} x2={left.x1 + r} y2={left.y1}
-            stroke="#9b9b9b" strokeWidth={0.9} />
-          <text x={left.x1 + r + 3} y={left.y1 - 8} fontSize={10} fill="#555555">r</text>
+        <line x1={left.x1} y1={lower.y0} x2={left.x1 + r} y2={left.y1}
+          stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={left.x1 + r + 3} y={left.y1 - 8} fontSize={10} fill="#555555">r</text>
 
-          <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
-            fill="none" stroke="#004290" strokeWidth={1.2} />
-          <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
-            fill="none" stroke="#004290" strokeWidth={1.6} />
+        <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
+          fill="none" stroke="#004290" strokeWidth={1.2} />
+        <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
+          fill="none" stroke="#004290" strokeWidth={1.6} />
 
-          <line x1={left.x0} y1={left.y0 - 15} x2={left.x1} y2={left.y0 - 15}
-            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-          <text x={(left.x0 + left.x1) / 2} y={left.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+        <line x1={left.x0} y1={left.y0 - 15} x2={left.x1} y2={left.y0 - 15}
+          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={(left.x0 + left.x1) / 2} y={left.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">f</text>
 
-          <line x1={left.x0 - 15} y1={left.y0} x2={left.x0 - 15} y2={left.y1}
-            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-          <text x={left.x0 - 24} y={(left.y0 + left.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        <line x1={left.x0 - 15} y1={left.y0} x2={left.x0 - 15} y2={left.y1}
+          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={left.x0 - 24} y={(left.y0 + left.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
 
-          <line x1={lower.x0 - 15} y1={lower.y0} x2={lower.x0 - 15} y2={lower.y1}
-            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-          <text x={lower.x0 - 7} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+        <line x1={lower.x0 - 15} y1={lower.y0} x2={lower.x0 - 15} y2={lower.y1}
+          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={lower.x0 - 7} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
 
-          <line x1={small.x0} y1={small.y0 - 15} x2={small.x1} y2={small.y0 - 15}
-            stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-          <text x={(small.x0 + small.x1) / 2} y={small.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-        </g>
-      );
+        <line x1={small.x0} y1={small.y0 - 15} x2={small.x1} y2={small.y0 - 15}
+          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        <text x={(small.x0 + small.x1) / 2} y={small.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+      </g>
+    );
   };
 
   const renderSymmetricBend = () => {
@@ -522,7 +529,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
 
         {/* Side view label */}
-        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
+        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
 
         {/* === CROSS-SECTION (right) === */}
         <rect x={crossX} y={crossY} width={ca} height={cb}
@@ -541,7 +548,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
 
         {/* Cross-section label */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
       </g>
     );
   };
@@ -585,8 +592,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     return (
       <g>
         {/* View labels */}
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
+        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* === Side view === */}
         {/* Front vertical + flange */}
@@ -715,8 +722,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     return (
       <g>
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
+        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* Front vertical + flange */}
         <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke="#004290" strokeWidth={2.2} />
@@ -842,8 +849,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     return (
       <g>
         {/* View labels */}
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
+        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* === Side view === */}
         {/* Front vertical + flange */}
@@ -972,8 +979,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     return (
       <g>
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
+        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* === Side view === */}
         <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke="#004290" strokeWidth={2.2} />
@@ -1174,7 +1181,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     return (
       <g>
-        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
+        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
 
         {/* Outer wall: f-leg → arc → e-leg */}
         <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
@@ -1272,7 +1279,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
 
         {/* Cross-section */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         {/* Solid: a×b (inlet) */}
         <rect x={crossX} y={crossY} width={ca} height={cb}
           fill="none" stroke="#004290" strokeWidth={1.8} />
@@ -1433,7 +1440,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     return (
       <g>
-        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
+        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
 
         {/* Outer wall */}
         <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
@@ -1531,7 +1538,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
 
         {/* Cross-section */}
-        <text x={crossX + Math.max(ca, cc) / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + Math.max(ca, cc) / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         {/* Solid: a×d (inlet) */}
         <rect x={crossX} y={crossY} width={ca} height={cd}
           fill="none" stroke="#004290" strokeWidth={1.8} />
@@ -1676,7 +1683,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         )}
 
         {/* === RIGHT PANEL: Cross-section a×d === */}
-        <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         <rect x={crossX} y={crossY} width={ca} height={cd}
           fill="none" stroke="#004290" strokeWidth={1.8} />
@@ -1766,7 +1773,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     return (
       <g>
-        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z przodu</text>
+        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z przodu')}</text>
 
         {/* Outer boundary: top→right→bottom-right→inner-bottom, then inner boundary back to start */}
         <polyline points={outerPts} fill="none" stroke="#004290" strokeWidth={1.8} />
@@ -1829,7 +1836,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         )}
 
         {/* Cross section (right panel) */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         <rect x={crossX} y={crossY} width={ca} height={cb}
           fill="none" stroke="#004290" strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
@@ -1877,7 +1884,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     return (
       <g>
-        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z boku</text>
+        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
 
         {/* Flange line on left (open/mating end) */}
         <line x1={sx} y1={sy - fp} x2={sx} y2={sy + sb + fp}
@@ -1910,7 +1917,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         )}
 
         {/* Cross-section */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         <rect x={crossX} y={crossY} width={ca} height={cb}
           fill="none" stroke="#004290" strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
@@ -1970,7 +1977,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     return (
       <g>
-        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">widok z przodu</text>
+        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z przodu')}</text>
 
         {/* Main duct rectangle */}
         <rect x={ox} y={oy} width={sL} height={sb}
@@ -2038,7 +2045,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         )}
 
         {/* Cross-section */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         <rect x={crossX} y={crossY} width={ca} height={cb}
           fill="none" stroke="#004290" strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
@@ -2154,7 +2161,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={(bCenterX + mRight) / 2} y={oy + sa * 0.6 + 12} textAnchor="middle" fontSize={9} fill="#555555">f</text>
 
         {/* === CROSS-SECTION === */}
-        <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* Main duct cross-section a×b */}
         <rect x={crossX} y={crossY} width={ca} height={cb}
@@ -2323,7 +2330,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={xQEnd - 4} y={yDuctTop - sq - 3} textAnchor="end" fontSize={9} fill="#555555">q</text>
 
         {/* === CROSS-SECTION === */}
-        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* Upper section (branch neck: b+p+r-d tall) */}
         <rect x={csX} y={csY} width={ca} height={csTotalH - cd}
@@ -2470,7 +2477,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={ox + sL - sh / 2} y={l2.y + 23} textAnchor="middle" fontSize={9} fill="#555555">h</text>
 
         {/* === CROSS-SECTION === */}
-        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* Full rectangle a × (b+e) */}
         <rect x={csX} y={csY} width={ca} height={cb + ce}
@@ -2620,7 +2627,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={ox + sL - sh / 2} y={outBot + 23} textAnchor="middle" fontSize={9} fill="#555555">h</text>
 
         {/* === CROSS-SECTION === */}
-        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">przekrój</text>
+        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* Inlet cross-section a × d (top) */}
         <rect x={csX} y={csY} width={ca} height={cbd}

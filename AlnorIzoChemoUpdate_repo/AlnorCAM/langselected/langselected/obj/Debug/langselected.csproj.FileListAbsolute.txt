@@ -1,0 +1,10 @@
+C:\Users\bandieta\AppData\Local\Temporary Projects\langselected\bin\Debug\langselected.exe
+C:\Users\bandieta\AppData\Local\Temporary Projects\langselected\bin\Debug\langselected.pdb
+C:\Users\bandieta\AppData\Local\Temporary Projects\langselected\obj\Debug\ResolveAssemblyReference.cache
+C:\Users\bandieta\AppData\Local\Temporary Projects\langselected\obj\Debug\langselected.exe
+C:\Users\bandieta\AppData\Local\Temporary Projects\langselected\obj\Debug\langselected.pdb
+C:\Users\bandieta\Desktop\tomik\-Source- - 2008\projekto\langselected\langselected\bin\Debug\langselected.exe
+C:\Users\bandieta\Desktop\tomik\-Source- - 2008\projekto\langselected\langselected\bin\Debug\langselected.pdb
+C:\Users\bandieta\Desktop\tomik\-Source- - 2008\projekto\langselected\langselected\obj\Debug\ResolveAssemblyReference.cache
+C:\Users\bandieta\Desktop\tomik\-Source- - 2008\projekto\langselected\langselected\obj\Debug\langselected.exe
+C:\Users\bandieta\Desktop\tomik\-Source- - 2008\projekto\langselected\langselected\obj\Debug\langselected.pdb

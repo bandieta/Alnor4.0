@@ -1,0 +1,65 @@
+W wersjê z opcja R=0, w kszta³tkach, gdzie promienie wystêpuj¹,
+brakuje wa¿nego komunikatu,
+powinno byæ tak, ¿e jeœli ktoœ poda promieñ mniejszy od 100 ale wiêkszy od 0
+to powinien dostawaæ komunikat:
+"Promieñ mo¿na podaæ równy 0 albo wiêkszy od 99mm"
+to wyjaœni u¿ytkownikowi ca³¹ dosyæ nietypow¹ sytuacjê z tym promieniem.
+POWY¯SZE DOTYCZY WSZYSTKICH KSZTA£TEK Z PROMIENIEM.
+czyli
+program nie powinien dopuszczaæ promieni od 1 do 99mm w³acznie, ale i sam komunikat jest wa¿ny
+dla u¿ytkownika informacyjnie.
+----------
+Ponadto opcja z zerowym promieniem dla kszta³tki QBRa,
+dla k¹ta kszta³tki innego ni¿ 90 st. Ÿle siê rysuje (patrz rysunek ekran009).
+----------
+To samo w QBR1a.
+----------
+
+
+
+
+Odnoœnie uwagi 2) dla QBRa jeœli wpisujê kolejno:
+ 	a 2501	
+	d 1500	
+	b 1000
+to przy wpisywaniu tej wartoœci b równej 1000 pojawiaæ sie zaczyna uci¹¿liwy bezpodstawny
+ju¿ teraz komunikat o nieprawid³owym "e".
+----------
+a czy minimalne e zmieni³o siê w zale¿noœci od P ?
+
+	"P20" ee < 25   ->
+  "Zbyt ma³a wartoœæ e[mm]!"
+	"P30" ee < 30   ->
+  "Zbyt ma³a wartoœæ e[mm]!"
+	"P40" ee < 40   ->
+  "Zbyt ma³a wartoœæ e[mm]!"
+
+
+
+
+
+W punkcie 6) natomiast uwagant siê pomyli³ i podes³a³ ci widoczek QBR1a
+a problem dotyczy QBFRa (tak wynika z jego opisu).
+W takim uk³adzie, rzeczywiœcie 
+przy zmianie "d" - ja zmieni³em na 4000 nie zmienia siê gruboœc blachy
+(patrz za³¹cznik ekran008). Na zmianê "d" grubosæ blachy powinna reagowaæ tak samo
+jak na zmianê "a" "b"
+
+----------
+----------
+Dodatkowo zg³aszam dziwne zachowanie programu u mnie, dla kszta³tek PR1a, PR7a, QPR2a,
+kiedy wpisujê kolejno parametry i dojdê do parametru L i chcê wpisaæ wartoœæ 1000
+to te 3 zera wprowadza sie szybko, bo to jest szybkie 3 krotne naciœniêcie klawisza "0".
+Otó¿ jeœli normalnie szybko naciskam 3 razy zero, to przy trzecim zerze KURSOR PRZESKAKUJE DO
+POLA "OZNACZENIE".
+Chyba wyst¹pi³o to te¿ w innych kszta³tkach, ¿e przy szybkim wpisywaniu przeskakuje do pola "Oznaczenie"  
+jednak trudno mi okreœliæ gdzie.
+
+Natomiast jeœli wolno naciskam 3 razy zero to jest wszystko w porz¹dku, ale musimy zak³adaæ, 
+¿e user bêdzie naciska³ szybko.
+-----------
+Podobne zjawisko wystêpuje w QBFRa
+tym razem przy wpisywaniu w kolejnoœci: "d" wartoœæ 1000 ale tylko przy pierwszym wpisywaniu dla tej kszta³tki.
+-----------
+Podobne zjawisko wystêpuje w QBFa
+tym razem przy wpisywaniu w kolejnoœci: "b" wartoœæ 1000 ale tylko przy pierwszym wpisywaniu dla tej kszta³tki.

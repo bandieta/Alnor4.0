@@ -4,6 +4,7 @@ import type { MaterialType } from '../types';
 interface PropertiesPanelProps {
   materialType: MaterialType;
   onMaterialTypeChange: (type: MaterialType) => void;
+  t: (text: string) => string;
   
   // Blacha properties
   blacha: string;
@@ -52,6 +53,7 @@ interface PropertiesPanelProps {
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   materialType,
   onMaterialTypeChange,
+  t,
   blacha,
   onBlachaChange,
   material,
@@ -95,7 +97,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       {/* B/C toggle — hidden in insulated mode (forced to Blacha) */}
       {isIzolowane ? (
       <div className="material-type-toggle">
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#004290' }}>Blacha</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#004290' }}>{t('Blacha')}</span>
         <select className="prop-select blacha-select" value={blacha} onChange={(e) => onBlachaChange(e.target.value)}>
           {blachaOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
@@ -127,9 +129,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       )}
 
       <div className={rowClass('material')} title={err('material') || ''}>
-        <label>Materiał</label>
+        <label>{t('Materiał')}</label>
         <select value={material} onChange={(e) => onMaterialChange(e.target.value)}>
-          {materialOptions.map(o => <option key={o} value={o}>{o}</option>)}
+          {materialOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
         </select>
       </div>
 
@@ -137,13 +139,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       {isIzolowane && (
         <>
           <div className="property-row">
-            <label>Płaszcz zew.</label>
+            <label>{t('Płaszcz zew.')}</label>
             <select value={plaszcz} onChange={(e) => onPlaszczChange(e.target.value)}>
-              {plaszczOptions.map(o => <option key={o} value={o}>{o}</option>)}
+              {plaszczOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
             </select>
           </div>
           <div className="property-row">
-            <label>Grubość izol.</label>
+            <label>{t('Grubość izolacji')}</label>
             <select value={gruboscIzolacji} onChange={(e) => onGruboscIzolacjiChange(e.target.value)}>
               {gruboscIzolacjiOptions.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
@@ -152,42 +154,42 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       )}
 
       <div className={rowClass('wykonanie')} title={err('wykonanie') || ''}>
-        <label>Wykonanie</label>
+        <label>{t('Wykonanie')}</label>
         <select value={wykonanie} onChange={(e) => onWykonanieChange(e.target.value)}>
-          {wykonanieOptions.map(o => <option key={o} value={o}>{o}</option>)}
+          {wykonanieOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
         </select>
       </div>
 
       <div className={rowClass('klasaSzczelnosci', isChemo)} title={err('klasaSzczelnosci') || ''}>
-        <label>Kl.szczel.</label>
+        <label>{t('Kl.szczel.')}</label>
         <select value={klasaSzczelnosci} onChange={(e) => onKlasaSzczelnosciChange(e.target.value)} disabled={isChemo}>
           {klasaOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
       <div className={rowClass('lwzmoc', isChemo)} title={err('lwzmoc') || ''}>
-        <label>L.wzmoc.</label>
+        <label>{t('L.wzmoc.')}</label>
         <select value={lwzmoc} onChange={(e) => onLwzmocChange(e.target.value)} disabled={isChemo}>
-          {wzmocOptions.map(o => <option key={o} value={o}>{o}</option>)}
+          {wzmocOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
         </select>
       </div>
 
       <div className={rowClass('ramkiWL', isChemo)} title={err('ramkiWL') || ''}>
-        <label>RamkiWL</label>
+        <label>{t('RamkiWL')}</label>
         <select value={ramkiWL} onChange={(e) => onRamkiWLChange(e.target.value)} disabled={isChemo}>
           {ramkiWLOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
       <div className={rowClass('ramkiWYL', isChemo)} title={err('ramkiWYL') || ''}>
-        <label>RamkiWYL</label>
+        <label>{t('RamkiWYL')}</label>
         <select value={ramkiWYL} onChange={(e) => onRamkiWYLChange(e.target.value)} disabled={isChemo}>
           {ramkiWYLOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
       <div className={rowClass('ramkiOd', isChemo)} title={err('ramkiOd') || ''}>
-        <label>RamkiOd</label>
+        <label>{t('RamkiOd')}</label>
         <select value={ramkiOd} onChange={(e) => onRamkiOdChange(e.target.value)} disabled={isChemo}>
           {ramkiOdOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
