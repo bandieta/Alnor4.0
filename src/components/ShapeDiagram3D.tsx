@@ -968,287 +968,114 @@ const ReductionElbowMesh: React.FC<{
   const sf = f * scale;
   const sr = r * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    flatShading: false,
-  }), []);
+  const material = useMemo(() => {
+    const elbowMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8',
+      roughness: 0.22,
+      metalness: 0.94,
+      reflectivity: 0.9,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.18,
+      side: THREE.DoubleSide,
+      envMapIntensity: 0.65,
+      flatShading: false,
+    });
+    elbowMaterial.userData.preserveMetalFinish = true;
+    return elbowMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
-    const hw = sa / 2; // half z-width
-    const segments = 12;
-    const verts: number[] = [];
-    const norms: number[] = [];
-    const uvArr: number[] = [];
-    const edgePts: number[] = [];
+    const totalW = se + sb;
+    const totalH = sd + sf;
+    const x0 = -totalW / 2;
+    const y0 = -totalH / 2;
+    const cornerR = Math.max(0.001, Math.min(sr, se * 0.98, sf * 0.98));
+    const arcSegments = 24;
 
-    const addQuad = (p0: number[], p1: number[], p2: number[], p3: number[], n: number[]) => {
-      verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
-      for (let i = 0; i < 6; i++) norms.push(...n);
-      uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
-    };
+    // 2D L-profile with an inner fillet, then extruded along Z.
+    const shape = new THREE.Shape();
+    shape.moveTo(x0, y0);
+    shape.lineTo(x0 + totalW, y0);
+    shape.lineTo(x0 + totalW, y0 + totalH);
+    shape.lineTo(x0 + se, y0 + totalH);
+    shape.lineTo(x0 + se, y0 + sd + cornerR);
 
-    // Geometry: L-shape in XY plane, z=±hw
-    // Vertical leg: from y=0 (bottom) to y=se+sb (top of vertical section)
-    //   inner wall at x=0, outer wall at x=sb
-    // Corner: 90° arc connecting vertical (inner x=0) to horizontal (inner y=se+sb)
-    //   inner arc center at (sr, se+sb-sr)? No...
-    //
-    // Following C# layout (translated):
-    // The vertical leg goes from bottom (y=0) up to y=se (where e-section ends)
-    // Then width b continues up to y=se+sb
-    // Horizontal leg: from x=0 going +x, from y=se+sb going up by sd
-    //
-    // Actually, let me use a clean coordinate system:
-    // Bottom-left corner style:
-    // Vertical: x from 0 to sb, y from 0 upward to se+sb
-    //   bottom flange at y=0
-    // Horizontal: x from 0 to sf+sr, y from se+sb to se+sb+sd
-    //   right flange at x=sf+sr
-    // Corner: quarter-circle connecting inner walls
-    //   Inner walls: vertical at x=0, horizontal at y=se+sb
-    //   Inner arc center: (sr, se+sb-sr)... that doesn't work either
-    //
-    // Let me think about this differently using the C# vertex data:
-    // In C#: dx = (e+b)/2, dy = (d+f)/2 — centering offsets
-    // After centering:
-    //   p0-3: top of vertical leg at (e-dx, d+f-dy, ±a/2) inner and (e+b-dx, d+f-dy, ±a/2) outer
-    //   p4-7: bottom flange at (-dx, -dy, ±a/2) inner and (e+b-dx, -dy, ±a/2) outer
-    //   p8-11: inner corner top at (e-dx, d+r-dy, ±a/2) and outer at (e+b-dx, d+r-dy, ±a/2)
-    //   p12-13: inner corner left at (e-r-dx, d-dy, ±a/2)
-    //   p14-15: outer corner left at (e-r-dx, -dy, ±a/2)
-    //   p16-17: bottom-left at (-dx, d-dy, ±a/2)
-    //
-    // So the L has:
-    //   - Vertical right section: x from e to e+b, y from 0 to d+f (outer right wall)
-    //   - Vertical inner wall: x=e, y from d+r to d+f (only above the arc)
-    //   - Horizontal section: x from 0 to e-r, y from 0 to d (bottom part)
-    //   - Corner arc: from (e, d+r) to (e-r, d), quarter circle radius r, inner wall
-    //   - Bottom: x from 0 to e+b, y=0
-
-    // Let me use C# coordinate system directly (centered):
-    const dx = (se + sb) / 2;
-    const dy = (sd + sf) / 2;
-
-    // Arc center for inner corner: (se-sr-dx, sd+sr-dy)
-    // arcCenter = (arcLeftInner[0] + sr, arcLeftInner[1] + sr) = (se-dx, sd-dy+sr) = (se-dx, sd+sr-dy)
-    // At angle 0 (right): center + (sr, 0) = (se-dx+sr, sd+sr-dy) — that's NOT a vertex
-    // At angle π (left): center + (-sr, 0) = (se-sr-dx, sd+sr-dy) — that's NOT p12 either
-    // p12 = (se-sr-dx, sd-dy) = center + (−sr, −sr) → angle = 5π/4? No, (−sr, −sr) is at angle 225°
-
-    // Actually, the arc center should be at (se-dx, sd-dy) with radius sr
-    // Then: going from (se-dx, sd-dy-sr) [below center, not useful] ... hmm
-
-    // Let me re-examine C# vertices:
-    // p12 = (e-r-dx, d-dy) = (e-r-dx, d-dy)
-    // p8 = (e-dx, d+r-dy) = (e-dx, d+r-dy)
-    //
-    // Arc points (25-29 for z=-a/2):
-    // p25: p12 + (cos(15°)*r, r - sin(15°)*r)
-    // p26: p12 + (cos(30°)*r, r - sin(30°)*r)
-    // ...
-    // p29: p12 + (cos(75°)*r, r - sin(75°)*r)
-    //
-    // So arc center = (p12[0], p12[1] + r) = (e-r-dx, d-dy+r) = (e-r-dx, d+r-dy)
-    // Hmm: at angle 0° (cos0=1,sin0=0): p12 + (r, r-0) = (e-dx, d+r-dy) = p8 ✓
-    // at angle 90° (cos90=0,sin90=1): p12 + (0, r-r) = (e-r-dx, d-dy) = p12 ✓✓ (identity)
-    // Wait that means at 90° we get p12 itself, which means the parametric goes FROM p8 (angle 0) TO p12 (angle 90)
-    //
-    // So: arc center = (e-r-dx, d+r-dy)
-    // At parametric angle θ (0 to 90°):
-    //   x = center_x + cos(θ)*r = (e-r-dx) + cos(θ)*r
-    //   y = center_y - sin(θ)*r = (d+r-dy) - sin(θ)*r
-    // At θ=0: x=e-dx, y=d+r-dy → p8 ✓
-    // At θ=90: x=e-r-dx, y=d-dy → p12 ✓
-
-    const innerArcCX = se - sr - dx;
-    const innerArcCY = sd + sr - dy;
-
-    // Generate inner arc points (front and back z)
-    const innerArcPtsF: [number, number][] = []; // front z=-hw
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * (Math.PI / 2);
-      const px = innerArcCX + Math.cos(angle) * sr;
-      const py = innerArcCY - Math.sin(angle) * sr;
-      innerArcPtsF.push([px, py]);
-    }
-    // innerArcPtsF[0] = near p8 (se-dx, sd+sr-dy) — top of arc
-    // innerArcPtsF[last] = near p12 (se-sr-dx, sd-dy) — left of arc
-
-    // Outer wall approximation: the outer corner uses interpolated pts (21,22 from bottom, 23,24 from right) + arc 25-29
-    // For the 3D mesh: the outer wall in the corner connects:
-    //   bottom side: from p15(e-r-dx, -dy) through p21,p22 to p5(e+b-dx, -dy)
-    //   right side: from p5(e+b-dx, -dy) through p23,p24 to p9(e+b-dx, d+r-dy)
-    //   arc: p24→p27→p26→p25→p29→p12 — but these are specific interpolation points
-    //
-    // For simplicity, I'll model the outer corner as quads connecting inner arc points to outer interpolated points.
-    // The outer boundary in the corner goes from (e+b-dx, -dy) [p5] up to (e+b-dx, d+r-dy) [p9]
-    // This is actually the outer wall of the vertical section continuing through the corner.
-
-    // Simplified approach for the 3D mesh:
-    // 1. Vertical leg: 4 walls from bottom flange to top flange
-    // 2. Horizontal leg: 4 walls from left end to right flange
-    // 3. Corner: connect vertical inner wall to horizontal inner wall via arc
-    //    The corner "fills" the space between the inner arc and an outer reference
-
-    // Even simpler: model as a continuous L with a rounded inner corner
-    // The shape has 3 sections:
-    //   Bottom section (horizontal part): from x=-dx..e-r-dx (width), y=-dy..sd-dy (height d)
-    //   Vertical section: from x=se-dx..se+sb-dx (width b), y=-dy..sd+sf-dy (height d+f)
-    //   Corner section: connects bottom inner top edge to vertical inner left edge via arc
-
-    // Let me build this more directly:
-
-    // SECTION 1: Bottom horizontal leg
-    // From x=-dx to x=se-sr-dx, y from -dy to sd-dy, z=±hw
-    const hx0 = -dx;
-    const hx1 = se - sr - dx;
-    const hy0 = -dy;
-    const hy1 = sd - dy;
-
-    // Bottom wall (y=hy0, facing -y)
-    addQuad([hx0, hy0, hw], [hx0, hy0, -hw], [hx1, hy0, -hw], [hx1, hy0, hw], [0, -1, 0]);
-    // Top wall (y=hy1, facing +y)
-    addQuad([hx0, hy1, hw], [hx0, hy1, -hw], [hx1, hy1, -hw], [hx1, hy1, hw], [0, 1, 0]);
-    // Front face (z=-hw)
-    addQuad([hx0, hy0, -hw], [hx0, hy1, -hw], [hx1, hy1, -hw], [hx1, hy0, -hw], [0, 0, -1]);
-    // Back face (z=+hw)
-    addQuad([hx0, hy0, hw], [hx1, hy0, hw], [hx1, hy1, hw], [hx0, hy1, hw], [0, 0, 1]);
-
-    // SECTION 2: Vertical right section
-    // From x=se-dx to x=se+sb-dx, y from -dy to sd+sf-dy
-    const vx0 = se - dx;
-    const vx1 = se + sb - dx;
-    const vy0 = -dy;
-    const vy1 = sd + sf - dy;
-
-    // Right wall (x=vx1, facing +x)
-    addQuad([vx1, vy0, hw], [vx1, vy0, -hw], [vx1, vy1, -hw], [vx1, vy1, hw], [1, 0, 0]);
-    // Bottom wall (y=vy0, facing -y) — from hx1 to vx0 already covered, from vx0 to vx1
-    addQuad([vx0, vy0, hw], [vx0, vy0, -hw], [vx1, vy0, -hw], [vx1, vy0, hw], [0, -1, 0]);
-    // Left wall (x=vx0, facing -x) — only from sd+sr-dy up to vy1
-    const vLeftStart = sd + sr - dy;
-    addQuad([vx0, vLeftStart, hw], [vx0, vLeftStart, -hw], [vx0, vy1, -hw], [vx0, vy1, hw], [-1, 0, 0]);
-    // Front face (z=-hw)
-    addQuad([vx0, vy0, -hw], [vx0, vy1, -hw], [vx1, vy1, -hw], [vx1, vy0, -hw], [0, 0, -1]);
-    // Back face (z=+hw)
-    addQuad([vx0, vy0, hw], [vx1, vy0, hw], [vx1, vy1, hw], [vx0, vy1, hw], [0, 0, 1]);
-
-    // SECTION 3: Corner — fill the bottom part connecting horizontal to vertical
-    // Inner arc: from (vx0, sd+sr-dy) [top, = p8] sweeping to (se-sr-dx, sd-dy) [left, = p12]
-    // This area is bounded by:
-    //   Inner: arc
-    //   Bottom: y=-dy
-    //   Right: vertical section left edge at x=vx0=se-dx (above arcTop), continuing along arc below
-    //   
-    // The corner region: x from hx1 to vx0, y from hy0 to vLeftStart
-    // with the inner arc cutting through
-
-    // Bottom strip of corner (below arc): x from hx1 to vx0, y from -dy to sd-dy
-    // This connects the bottom of horizontal leg to the bottom of vertical leg
-    addQuad([hx1, hy0, hw], [hx1, hy0, -hw], [vx0, hy0, -hw], [vx0, hy0, hw], [0, -1, 0]);
-    // Front face of bottom strip
-    addQuad([hx1, hy0, -hw], [hx1, hy1, -hw], [vx0, hy0, -hw], [vx0, hy0, -hw], [0, 0, -1]); // degenerate, skip
-    // Actually this region is complex. Let me use arc segments instead:
-
-    // Restore original arc/fillet mesh construction for QBFRa
-    // Inner arc wall: curved surface from arc top to arc left
-    for (let i = 0; i < segments; i++) {
-      const a0 = (i / segments) * (Math.PI / 2);
-      const a1 = ((i + 1) / segments) * (Math.PI / 2);
-      const [ix0, iy0] = innerArcPtsF[i];
-      const [ix1, iy1] = innerArcPtsF[i + 1];
-      // Normal points inward (toward center)
-      const midAngle = (a0 + a1) / 2;
-      const nx = -Math.cos(midAngle);
-      const ny = Math.sin(midAngle);
-
-      addQuad(
-        [ix0, iy0, hw], [ix0, iy0, -hw], [ix1, iy1, -hw], [ix1, iy1, hw],
-        [nx, ny, 0]
+    const arcCX = x0 + se - cornerR;
+    const arcCY = y0 + sd + cornerR;
+    for (let i = 1; i <= arcSegments; i++) {
+      const t = i / arcSegments;
+      const ang = t * (Math.PI / 2);
+      shape.lineTo(
+        arcCX + Math.cos(ang) * cornerR,
+        arcCY - Math.sin(ang) * cornerR,
       );
     }
 
-    // Front and back faces of corner region (triangle fan from arc)
-    // Front (z=-hw): fill the area bounded by arc and the straight edges
-    for (let i = 0; i < segments; i++) {
-      const [ix0, iy0] = innerArcPtsF[i];
-      const [ix1, iy1] = innerArcPtsF[i + 1];
-      // Triangle connecting arc segment to bottom-right corner of the corner region
-      verts.push(vx0, vy0, -hw, ix0, iy0, -hw, ix1, iy1, -hw);
-      for (let j = 0; j < 3; j++) norms.push(0, 0, -1);
-      uvArr.push(0,0, 1,0, 0,1);
-    }
-    // Additional triangles to fill horizontal part
-    verts.push(hx1, hy0, -hw, hx1, hy1, -hw, innerArcPtsF[segments][0], innerArcPtsF[segments][1], -hw);
-    for (let j = 0; j < 3; j++) norms.push(0, 0, -1);
-    uvArr.push(0,0, 1,0, 0,1);
-    verts.push(hx1, hy0, -hw, innerArcPtsF[segments][0], innerArcPtsF[segments][1], -hw, vx0, vy0, -hw);
-    for (let j = 0; j < 3; j++) norms.push(0, 0, -1);
-    uvArr.push(0,0, 1,0, 0,1);
+    shape.lineTo(x0, y0 + sd);
+    shape.lineTo(x0, y0);
 
-    // Back (z=+hw): mirror
-    for (let i = 0; i < segments; i++) {
-      const [ix0, iy0] = innerArcPtsF[i];
-      const [ix1, iy1] = innerArcPtsF[i + 1];
-      verts.push(ix0, iy0, hw, vx0, vy0, hw, ix1, iy1, hw);
-      for (let j = 0; j < 3; j++) norms.push(0, 0, 1);
-      uvArr.push(0,0, 1,0, 0,1);
-    }
-    verts.push(hx1, hy1, hw, hx1, hy0, hw, innerArcPtsF[segments][0], innerArcPtsF[segments][1], hw);
-    for (let j = 0; j < 3; j++) norms.push(0, 0, 1);
-    uvArr.push(0,0, 1,0, 0,1);
-    verts.push(innerArcPtsF[segments][0], innerArcPtsF[segments][1], hw, hx1, hy0, hw, vx0, vy0, hw);
-    for (let j = 0; j < 3; j++) norms.push(0, 0, 1);
-    uvArr.push(0,0, 1,0, 0,1);
-
-    // Edge lines
-    // Keep the same wall-edge node order as inner arc: front (-z) first, then back (+z)
-    const pushWallEdgePair = (x0: number, y0: number, x1: number, y1: number) => {
-      edgePts.push(x0, y0, -hw, x1, y1, -hw);
-      edgePts.push(x0, y0, hw, x1, y1, hw);
+    const contour = shape.extractPoints(arcSegments).shape;
+    const faceTriangles = THREE.ShapeUtils.triangulateShape(contour, []);
+    const halfDepth = sa / 2;
+    const verts: number[] = [];
+    const norms: number[] = [];
+    const uvArr: number[] = [];
+    const addTriangle = (p0: number[], p1: number[], p2: number[], normal: number[]) => {
+      verts.push(...p0, ...p1, ...p2);
+      for (let i = 0; i < 3; i++) norms.push(...normal);
+      uvArr.push(0, 0, 1, 0, 1, 1);
+    };
+    const addQuad = (p0: number[], p1: number[], p2: number[], p3: number[], normal: number[]) => {
+      addTriangle(p0, p1, p2, normal);
+      addTriangle(p0, p2, p3, normal);
     };
 
-    // Bottom flange
-    pushWallEdgePair(hx0, hy0, vx1, hy0);
-    edgePts.push(hx0, hy0, -hw, hx0, hy0, hw);
-    edgePts.push(vx1, hy0, -hw, vx1, hy0, hw);
-    // Top flange (vertical)
-    pushWallEdgePair(vx0, vy1, vx1, vy1);
-    edgePts.push(vx0, vy1, -hw, vx0, vy1, hw);
-    edgePts.push(vx1, vy1, -hw, vx1, vy1, hw);
-    // Left wall of horizontal
-    pushWallEdgePair(hx0, hy0, hx0, hy1);
-    edgePts.push(hx0, hy1, -hw, hx0, hy1, hw);
-    // Horizontal top wall
-    pushWallEdgePair(hx0, hy1, hx1, hy1);
-    // Right wall of vertical
-    pushWallEdgePair(vx1, hy0, vx1, vy1);
-    // Vertical left wall (above arc)
-    pushWallEdgePair(vx0, vLeftStart, vx0, vy1);
-    // Inner arc edges
-    for (let i = 0; i < segments; i++) {
-      const [ax0, ay0] = innerArcPtsF[i];
-      const [ax1, ay1] = innerArcPtsF[i + 1];
-      edgePts.push(ax0, ay0, -hw, ax1, ay1, -hw);
-      edgePts.push(ax0, ay0, hw, ax1, ay1, hw);
+    // Keep the broad front/back sheet faces, matching QBRa's construction.
+    for (const [i0, i1, i2] of faceTriangles) {
+      const p0 = contour[i0];
+      const p1 = contour[i1];
+      const p2 = contour[i2];
+      addTriangle([p2.x, p2.y, -halfDepth], [p1.x, p1.y, -halfDepth], [p0.x, p0.y, -halfDepth], [0, 0, -1]);
+      addTriangle([p0.x, p0.y, halfDepth], [p1.x, p1.y, halfDepth], [p2.x, p2.y, halfDepth], [0, 0, 1]);
+    }
+
+    // Add perimeter walls except at the left d×a and bottom b×a duct openings.
+    for (let i = 0; i < contour.length; i++) {
+      const p0 = contour[i];
+      const p1 = contour[(i + 1) % contour.length];
+      const isLeftOpening = Math.abs(p0.x - x0) < 1e-6 && Math.abs(p1.x - x0) < 1e-6;
+      const isBottomOpening = Math.abs(p0.y - (y0 + totalH)) < 1e-6
+        && Math.abs(p1.y - (y0 + totalH)) < 1e-6;
+      if (isLeftOpening || isBottomOpening) continue;
+
+      const dx = p1.x - p0.x;
+      const dy = p1.y - p0.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 1e-6) continue;
+      const normal = [dy / length, -dx / length, 0];
+      addQuad(
+        [p0.x, p0.y, -halfDepth],
+        [p1.x, p1.y, -halfDepth],
+        [p1.x, p1.y, halfDepth],
+        [p0.x, p0.y, halfDepth],
+        normal,
+      );
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
-    const eGeo = new THREE.BufferGeometry();
-    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-
+    const eGeo = new THREE.EdgesGeometry(geo);
     return { geometry: geo, edgeGeo: eGeo };
   }, [sa, sb, sd, se, sf, sr]);
 
   return (
     <group>
       <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
+      <lineSegments geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#7a7e85" />
       </lineSegments>
     </group>
