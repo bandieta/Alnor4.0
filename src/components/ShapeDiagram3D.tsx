@@ -970,15 +970,16 @@ const ReductionElbowMesh: React.FC<{
 
   const material = useMemo(() => {
     const elbowMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8',
-      roughness: 0.22,
-      metalness: 0.94,
-      reflectivity: 0.9,
-      clearcoat: 0.35,
-      clearcoatRoughness: 0.18,
+      color: '#cbd5df',
+      roughness: 0.14,
+      metalness: 0.72,
+      reflectivity: 1.0,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.04,
       side: THREE.DoubleSide,
-      envMapIntensity: 0.65,
-      flatShading: false,
+      envMapIntensity: 1.35,
+      emissive: '#56616d',
+      emissiveIntensity: 0.14,
     });
     elbowMaterial.userData.preserveMetalFinish = true;
     return elbowMaterial;
@@ -1095,11 +1096,16 @@ const TR1aMesh: React.FC<{
   const sw = w * scale, sl = L * scale;
   const se = e * scale, sf = f * scale, sl3 = l3 * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    flatShading: false,
-  }), []);
+  const material = useMemo(() => {
+    const teeMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.16, metalness: 0.88, reflectivity: 1.0,
+      clearcoat: 0.65, clearcoatRoughness: 0.06, side: THREE.DoubleSide, envMapIntensity: 1.1,
+      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
+      flatShading: false,
+    });
+    teeMaterial.userData.preserveMetalFinish = true;
+    return teeMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
@@ -1182,6 +1188,7 @@ const TR1aMesh: React.FC<{
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
     // ── Edge wireframe ────────────────────────────────────────────────────────
     const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
@@ -1304,10 +1311,16 @@ const TR2aMesh: React.FC<{
   const sl = L * scale, sl3 = l3 * scale;
   const se = e * scale, sf = f * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const teeMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
+      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
+      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
+      flatShading: false,
+    });
+    teeMaterial.userData.preserveMetalFinish = true;
+    return teeMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
@@ -1342,7 +1355,7 @@ const TR2aMesh: React.FC<{
 
     // Generate circle + rectangle perimeter using angular correspondence
     // This ensures the transition quads don't twist
-    const segs = 24;
+    const segs = 64;
     const topCircle: number[][] = [];
     const botCircle: number[][] = [];
     const rectPerim: number[][] = [];
@@ -1366,42 +1379,48 @@ const TR2aMesh: React.FC<{
     }
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
+    const addTri = (a: number[], b: number[], c: number[], na: number[], nb = na, nc = na) => {
       verts.push(...a, ...b, ...c);
+      norms.push(...na, ...nb, ...nc);
     };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[], normal: number[]) => {
+      addTri(q0, q1, q2, normal);
+      addTri(q0, q2, q3, normal);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
     // ── Main duct walls (3 walls, open at both x-ends) ──────────────────────
-    addQuad(p3, p0, p1, p2);       // Front face (z=-ha)
-    addQuad(p4, p7, p6, p5);       // Back face (z=ha)
-    addQuad(p3, p2, p6, p7);       // Bottom face (y=-hb)
+    addQuad(p3, p0, p1, p2, [0, 0, -1]);       // Front face (z=-ha)
+    addQuad(p4, p7, p6, p5, [0, 0, 1]);         // Back face (z=ha)
+    addQuad(p3, p2, p6, p7, [0, -1, 0]);        // Bottom face (y=-hb)
 
     // ── Top face with branch hole (4 strips from duct corners to rectangular collar) ─
-    addQuad(p0, p1, rcFR, rcFL);   // front strip
-    addQuad(p1, p5, rcBR, rcFR);   // right strip
-    addQuad(p5, p4, rcBL, rcBR);   // back strip
-    addQuad(p4, p0, rcFL, rcBL);   // left strip
+    addQuad(p0, p1, rcFR, rcFL, [0, 1, 0]);   // front strip
+    addQuad(p1, p5, rcBR, rcFR, [0, 1, 0]);   // right strip
+    addQuad(p5, p4, rcBL, rcBR, [0, 1, 0]);   // back strip
+    addQuad(p4, p0, rcFL, rcBL, [0, 1, 0]);   // left strip
 
     // ── Flat transition from rectangular collar to circle (at y=+hb) ────────
     for (let i = 0; i < segs; i++) {
-      addQuad(rectPerim[i], rectPerim[i + 1], topCircle[i + 1], topCircle[i]);
+      addQuad(rectPerim[i], rectPerim[i + 1], topCircle[i + 1], topCircle[i], [0, 1, 0]);
     }
 
     // ── Round branch tube ───────────────────────────────────────────────────
     for (let i = 0; i < segs; i++) {
-      addQuad(topCircle[i], topCircle[i + 1], botCircle[i + 1], botCircle[i]);
+      const normal0 = [(topCircle[i][0] - brX) / hr, 0, (topCircle[i][2] - brZ) / hr];
+      const normal1 = [(topCircle[i + 1][0] - brX) / hr, 0, (topCircle[i + 1][2] - brZ) / hr];
+      addTri(topCircle[i], topCircle[i + 1], botCircle[i + 1], normal0, normal1, normal1);
+      addTri(topCircle[i], botCircle[i + 1], botCircle[i], normal0, normal1, normal0);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // ── Edge wireframe ──────────────────────────────────────────────────────
     // Main duct edges
@@ -1503,10 +1522,16 @@ const TRaMesh: React.FC<{
   const sq = q * scale, sr = r * scale;
   const si = iVal * scale, sp = pVal * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const teeMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
+      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
+      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
+      flatShading: false,
+    });
+    teeMaterial.userData.preserveMetalFinish = true;
+    return teeMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = sa / 2;
@@ -1526,7 +1551,7 @@ const TRaMesh: React.FC<{
     // Upper curve (r): from p3 sweeping 90° CCW to p4 vertical
     const rCenterX = -dx + sl - si;
     const rCenterY = dy - sb - sr;
-    const arcStepsR = 6;
+    const arcStepsR = 32;
     for (let k = 1; k < arcStepsR; k++) {
       const ang = (k / arcStepsR) * (Math.PI / 2);
       profile.push([rCenterX - Math.sin(ang) * sr, rCenterY + Math.cos(ang) * sr]);
@@ -1564,14 +1589,16 @@ const TRaMesh: React.FC<{
     const backPts = profile.map(([x, y]) => [x, y, ha]);
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
+    const addTri = (a: number[], b: number[], c: number[], normal: number[]) => {
       verts.push(...a, ...b, ...c);
+      for (let vertex = 0; vertex < 3; vertex++) norms.push(...normal);
     };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[], normal: number[]) => {
+      addTri(q0, q1, q2, normal);
+      addTri(q0, q2, q3, normal);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
@@ -1580,23 +1607,29 @@ const TRaMesh: React.FC<{
     for (let k = 0; k < N; k++) {
       if (openSegments.has(k)) continue;
       const k1 = (k + 1) % N;
-      addQuad(frontPts[k], frontPts[k1], backPts[k1], backPts[k]);
+      const edgeX = profile[k1][0] - profile[k][0];
+      const edgeY = profile[k1][1] - profile[k][1];
+      const edgeLength = Math.hypot(edgeX, edgeY) || 1;
+      addQuad(
+        frontPts[k], frontPts[k1], backPts[k1], backPts[k],
+        [-edgeY / edgeLength, edgeX / edgeLength, 0],
+      );
     }
 
-    // ── Front face (z=-ha) — fan triangulation from centroid ────────────────
-    const cx = profile.reduce((s, p) => s + p[0], 0) / N;
-    const cy = profile.reduce((s, p) => s + p[1], 0) / N;
-    const centroidF = [cx, cy, -ha];
-    const centroidB = [cx, cy, ha];
-    for (let k = 0; k < N; k++) {
-      const k1 = (k + 1) % N;
-      addTri(centroidF, frontPts[k], frontPts[k1]);
-      addTri(centroidB, backPts[k1], backPts[k]);
+    // ── Front/back sheet faces — triangulate the concave profile without overlaps ──
+    const faceTriangles = THREE.ShapeUtils.triangulateShape(
+      profile.map(([x, y]) => new THREE.Vector2(x, y)),
+      [],
+    );
+    for (const [i0, i1, i2] of faceTriangles) {
+      addTri(frontPts[i2], frontPts[i1], frontPts[i0], [0, 0, -1]);
+      addTri(backPts[i0], backPts[i1], backPts[i2], [0, 0, 1]);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // ── Edge wireframe ──────────────────────────────────────────────────────
     for (let k = 0; k < N; k++) {
@@ -2093,10 +2126,16 @@ const CZ1aMesh: React.FC<{
   const se = e * sc, se1 = e1 * sc, sf1 = f1 * sc;
   const sf = f * sc, sl3 = l3 * sc, sl4 = l4 * sc;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const crossMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
+      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
+      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
+      flatShading: false,
+    });
+    crossMaterial.userData.preserveMetalFinish = true;
+    return crossMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -2105,12 +2144,12 @@ const CZ1aMesh: React.FC<{
     const swEff = Math.min(sw, sL);
     const sw1Eff = Math.min(sw1, sL);
 
-    const topCzTarget = -sL / 2 + se;
-    const topRange = Math.max(0, sL / 2 - swEff / 2);
+    const topCzTarget = -sL / 2 + se1;
+    const topRange = Math.max(0, sL / 2 - sw1Eff / 2);
     const topCz = clamp(topCzTarget, -topRange, topRange);
 
-    const botCzTarget = -sL / 2 + se1;
-    const botRange = Math.max(0, sL / 2 - sw1Eff / 2);
+    const botCzTarget = -sL / 2 + se;
+    const botRange = Math.max(0, sL / 2 - swEff / 2);
     const botCz = clamp(botCzTarget, -botRange, botRange);
 
     // Main duct box (pts 0-7)
@@ -2125,71 +2164,76 @@ const CZ1aMesh: React.FC<{
       [ sa / 2, -sb / 2, -sL / 2],  // 7
     ];
 
-    // Top branch offset (pts 8-15): d wide, l3 tall, w deep
-    const tdx = -sa / 2 + sf;
-    const tdy = sb / 2 + sl3 / 2;
+    // .NET points 8-15: top branch uses d1, w1, e1, f1 and l4.
+    const tdx = -sa / 2 + sf1;
+    const tdy = sb / 2 + sl4 / 2;
     P.push(
-      [-sd / 2 + tdx,  sl3 / 2 + tdy, -swEff / 2 + topCz],  // 8
-      [-sd / 2 + tdx,  sl3 / 2 + tdy,  swEff / 2 + topCz],  // 9
-      [-sd / 2 + tdx, -sl3 / 2 + tdy,  swEff / 2 + topCz],  // 10
-      [-sd / 2 + tdx, -sl3 / 2 + tdy, -swEff / 2 + topCz],  // 11
-      [ sd / 2 + tdx,  sl3 / 2 + tdy, -swEff / 2 + topCz],  // 12
-      [ sd / 2 + tdx,  sl3 / 2 + tdy,  swEff / 2 + topCz],  // 13
-      [ sd / 2 + tdx, -sl3 / 2 + tdy,  swEff / 2 + topCz],  // 14
-      [ sd / 2 + tdx, -sl3 / 2 + tdy, -swEff / 2 + topCz],  // 15
+      [-sd1 / 2 + tdx,  sl4 / 2 + tdy, -sw1Eff / 2 + topCz],  // 8
+      [-sd1 / 2 + tdx,  sl4 / 2 + tdy,  sw1Eff / 2 + topCz],  // 9
+      [-sd1 / 2 + tdx, -sl4 / 2 + tdy,  sw1Eff / 2 + topCz],  // 10
+      [-sd1 / 2 + tdx, -sl4 / 2 + tdy, -sw1Eff / 2 + topCz],  // 11
+      [ sd1 / 2 + tdx,  sl4 / 2 + tdy, -sw1Eff / 2 + topCz],  // 12
+      [ sd1 / 2 + tdx,  sl4 / 2 + tdy,  sw1Eff / 2 + topCz],  // 13
+      [ sd1 / 2 + tdx, -sl4 / 2 + tdy,  sw1Eff / 2 + topCz],  // 14
+      [ sd1 / 2 + tdx, -sl4 / 2 + tdy, -sw1Eff / 2 + topCz],  // 15
     );
 
-    // Bottom branch offset (pts 16-23): d1 wide, l4 tall, w1 deep
-    const bdx = -sa / 2 + sf1;
-    const bdy = -sb / 2 - sl4 / 2;
+    // .NET points 16-23: bottom branch uses d, w, e, f and l3.
+    const bdx = -sa / 2 + sf;
+    const bdy = -sb / 2 - sl3 / 2;
     P.push(
-      [-sd1 / 2 + bdx,  sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 16
-      [-sd1 / 2 + bdx,  sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 17
-      [-sd1 / 2 + bdx, -sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 18
-      [-sd1 / 2 + bdx, -sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 19
-      [ sd1 / 2 + bdx,  sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 20
-      [ sd1 / 2 + bdx,  sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 21
-      [ sd1 / 2 + bdx, -sl4 / 2 + bdy,  sw1Eff / 2 + botCz],  // 22
-      [ sd1 / 2 + bdx, -sl4 / 2 + bdy, -sw1Eff / 2 + botCz],  // 23
+      [-sd / 2 + bdx,  sl3 / 2 + bdy, -swEff / 2 + botCz],  // 16
+      [-sd / 2 + bdx,  sl3 / 2 + bdy,  swEff / 2 + botCz],  // 17
+      [-sd / 2 + bdx, -sl3 / 2 + bdy,  swEff / 2 + botCz],  // 18
+      [-sd / 2 + bdx, -sl3 / 2 + bdy, -swEff / 2 + botCz],  // 19
+      [ sd / 2 + bdx,  sl3 / 2 + bdy, -swEff / 2 + botCz],  // 20
+      [ sd / 2 + bdx,  sl3 / 2 + bdy,  swEff / 2 + botCz],  // 21
+      [ sd / 2 + bdx, -sl3 / 2 + bdy,  swEff / 2 + botCz],  // 22
+      [ sd / 2 + bdx, -sl3 / 2 + bdy, -swEff / 2 + botCz],  // 23
     );
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
-    const addTri = (a: number[], b: number[], c: number[]) => verts.push(...a, ...b, ...c);
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2); addTri(q0, q2, q3);
+    const addTri = (a: number[], b: number[], c: number[], normal: number[]) => {
+      verts.push(...a, ...b, ...c);
+      for (let vertex = 0; vertex < 3; vertex++) norms.push(...normal);
+    };
+    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[], normal: number[]) => {
+      addTri(q0, q1, q2, normal); addTri(q0, q2, q3, normal);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
     // Left wall of main duct
-    addQuad(P[0], P[1], P[2], P[3]);
+    addQuad(P[0], P[1], P[2], P[3], [-1, 0, 0]);
     // Top face around top‑branch hole
-    addQuad(P[0], P[11], P[15], P[4]);
-    addQuad(P[1], P[10], P[11], P[0]);
-    addQuad(P[5], P[14], P[10], P[1]);
-    addQuad(P[4], P[15], P[14], P[5]);
+    addQuad(P[0], P[11], P[15], P[4], [0, 1, 0]);
+    addQuad(P[1], P[10], P[11], P[0], [0, 1, 0]);
+    addQuad(P[5], P[14], P[10], P[1], [0, 1, 0]);
+    addQuad(P[4], P[15], P[14], P[5], [0, 1, 0]);
     // Right wall of main duct
-    addQuad(P[4], P[5], P[6], P[7]);
+    addQuad(P[4], P[5], P[6], P[7], [1, 0, 0]);
     // Bottom face around bottom‑branch hole
-    addQuad(P[3], P[16], P[20], P[7]);
-    addQuad(P[2], P[17], P[16], P[3]);
-    addQuad(P[6], P[21], P[17], P[2]);
-    addQuad(P[7], P[20], P[21], P[6]);
+    addQuad(P[3], P[16], P[20], P[7], [0, -1, 0]);
+    addQuad(P[2], P[17], P[16], P[3], [0, -1, 0]);
+    addQuad(P[6], P[21], P[17], P[2], [0, -1, 0]);
+    addQuad(P[7], P[20], P[21], P[6], [0, -1, 0]);
     // Bottom branch walls (4 sides)
-    addQuad(P[16], P[17], P[18], P[19]);
-    addQuad(P[17], P[21], P[22], P[18]);
-    addQuad(P[21], P[20], P[23], P[22]);
-    addQuad(P[20], P[16], P[19], P[23]);
+    addQuad(P[16], P[17], P[18], P[19], [-1, 0, 0]);
+    addQuad(P[17], P[21], P[22], P[18], [0, 0, 1]);
+    addQuad(P[21], P[20], P[23], P[22], [1, 0, 0]);
+    addQuad(P[20], P[16], P[19], P[23], [0, 0, -1]);
     // Top branch walls (4 sides)
-    addQuad(P[8], P[9], P[10], P[11]);
-    addQuad(P[9], P[13], P[14], P[10]);
-    addQuad(P[13], P[12], P[15], P[14]);
-    addQuad(P[12], P[8], P[11], P[15]);
+    addQuad(P[8], P[9], P[10], P[11], [-1, 0, 0]);
+    addQuad(P[9], P[13], P[14], P[10], [0, 0, 1]);
+    addQuad(P[13], P[12], P[15], P[14], [1, 0, 0]);
+    addQuad(P[12], P[8], P[11], P[15], [0, 0, -1]);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     // Main duct
@@ -2256,34 +2300,49 @@ const CZ2aMesh: React.FC<{
   const sa = a * sc, sb = b * sc, sd = d * sc, sd1 = d1 * sc;
   const sL = L * sc, sl3 = l3 * sc, sl4 = l4 * sc;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const crossMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
+      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
+      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
+      flatShading: false,
+    });
+    crossMaterial.userData.preserveMetalFinish = true;
+    return crossMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
-    const N = 25; // 24 segments, 25 points (closed loop)
-    const DEG = Math.PI / 180;
+    const segments = 64;
+    const N = segments + 1;
 
-    // Circle helpers matching C# ox/oy
-    const cX = (diam: number, i: number) => Math.cos((330 - i * 15) * DEG) * diam / 2;
-    const cY = (diam: number, i: number) => Math.sin((330 - i * 15) * DEG) * diam / 2;
+    const circleAngle = (i: number) => (330 * Math.PI / 180) - (i / segments) * Math.PI * 2;
+    const cX = (diam: number, i: number) => Math.cos(circleAngle(i)) * diam / 2;
+    const cY = (diam: number, i: number) => Math.sin(circleAngle(i)) * diam / 2;
 
-    // Rectangular outline (25 pts matching C# pts 30-54)
-    const makeRect = (): [number, number][] => [
-      [sL / 2, 0], [sL / 2, -sa / 6], [sL / 2, -sa * 2 / 6], [sL / 2, -sa / 2],
-      [sL * 2 / 6, -sa / 2], [sL / 6, -sa / 2], [0, -sa / 2], [-sL / 6, -sa / 2], [-sL * 2 / 6, -sa / 2], [-sL / 2, -sa / 2],
-      [-sL / 2, -sa * 2 / 6], [-sL / 2, -sa / 6], [-sL / 2, 0], [-sL / 2, sa / 6], [-sL / 2, sa * 2 / 6], [-sL / 2, sa / 2],
-      [-sL * 2 / 6, sa / 2], [-sL / 6, sa / 2], [0, sa / 2], [sL / 6, sa / 2], [sL * 2 / 6, sa / 2], [sL / 2, sa / 2],
-      [sL / 2, sa * 2 / 6], [sL / 2, sa / 6], [sL / 2, 0],
-    ];
+    const makeRect = (): [number, number][] => {
+      const points: [number, number][] = [];
+      const halfWidth = sL / 2;
+      const halfHeight = sa / 2;
+      for (let i = 0; i <= segments; i++) {
+        if (i <= 8) points.push([halfWidth, -(i / 8) * halfHeight]);
+        else if (i <= 24) points.push([halfWidth - ((i - 8) / 16) * sL, -halfHeight]);
+        else if (i <= 40) points.push([-halfWidth, -halfHeight + ((i - 24) / 16) * sa]);
+        else if (i <= 56) points.push([-halfWidth + ((i - 40) / 16) * sL, halfHeight]);
+        else points.push([halfWidth, halfHeight - ((i - 56) / 8) * halfHeight]);
+      }
+      return points;
+    };
     const rect = makeRect();
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
-    const addTri = (a: number[], b: number[], c: number[]) => verts.push(...a, ...b, ...c);
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2); addTri(q0, q2, q3);
+    const addTri = (a: number[], b: number[], c: number[], na: number[], nb = na, nc = na) => {
+      verts.push(...a, ...b, ...c);
+      norms.push(...na, ...nb, ...nc);
+    };
+    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[], normal: number[]) => {
+      addTri(q0, q1, q2, normal); addTri(q0, q2, q3, normal);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
@@ -2297,7 +2356,7 @@ const CZ2aMesh: React.FC<{
       const c1: number[] = [cX(sd, i + 1), cY(sd, i + 1), zFront];
       const r0: number[] = [rect[i][0], rect[i][1], zFront];
       const r1: number[] = [rect[i + 1][0], rect[i + 1][1], zFront];
-      addQuad(c0, r0, r1, c1);
+      addQuad(c0, r0, r1, c1, [0, 0, -1]);
     }
 
     // --- Front tube (extending from z=zFront to z=zFront-sl3) ---
@@ -2306,7 +2365,10 @@ const CZ2aMesh: React.FC<{
       const c0e: number[] = [cX(sd, i), cY(sd, i), zFront - sl3];
       const c1: number[] = [cX(sd, i + 1), cY(sd, i + 1), zFront];
       const c1e: number[] = [cX(sd, i + 1), cY(sd, i + 1), zFront - sl3];
-      addQuad(c0, c0e, c1e, c1);
+      const n0 = [cX(sd, i) / (sd / 2), cY(sd, i) / (sd / 2), 0];
+      const n1 = [cX(sd, i + 1) / (sd / 2), cY(sd, i + 1) / (sd / 2), 0];
+      addTri(c0, c0e, c1e, n0, n0, n1);
+      addTri(c0, c1e, c1, n0, n1, n1);
     }
 
     // --- Back face (z = zBack): circle d1 → rect transition ---
@@ -2315,7 +2377,7 @@ const CZ2aMesh: React.FC<{
       const c1: number[] = [cX(sd1, i + 1), cY(sd1, i + 1), zBack];
       const r0: number[] = [rect[i][0], rect[i][1], zBack];
       const r1: number[] = [rect[i + 1][0], rect[i + 1][1], zBack];
-      addQuad(c0, c1, r1, r0);
+      addQuad(c0, c1, r1, r0, [0, 0, 1]);
     }
 
     // --- Back tube (extending from z=zBack to z=zBack+sl4) ---
@@ -2324,30 +2386,34 @@ const CZ2aMesh: React.FC<{
       const c0e: number[] = [cX(sd1, i), cY(sd1, i), zBack + sl4];
       const c1: number[] = [cX(sd1, i + 1), cY(sd1, i + 1), zBack];
       const c1e: number[] = [cX(sd1, i + 1), cY(sd1, i + 1), zBack + sl4];
-      addQuad(c0, c1, c1e, c0e);
+      const n0 = [cX(sd1, i) / (sd1 / 2), cY(sd1, i) / (sd1 / 2), 0];
+      const n1 = [cX(sd1, i + 1) / (sd1 / 2), cY(sd1, i + 1) / (sd1 / 2), 0];
+      addTri(c0, c1, c1e, n0, n1, n1);
+      addTri(c0, c1e, c0e, n0, n1, n0);
     }
 
-    // --- Bottom wall: rect pts 3→9 (front) to same (back) ---
-    // pt index 3 = (l/2, -a/2), pt index 9 = (-l/2, -a/2)
+    // --- Bottom wall between the two open main-duct ends ---
     addQuad(
-      [rect[9][0], rect[9][1], zFront],
-      [rect[3][0], rect[3][1], zFront],
-      [rect[3][0], rect[3][1], zBack],
-      [rect[9][0], rect[9][1], zBack],
+      [rect[24][0], rect[24][1], zFront],
+      [rect[8][0], rect[8][1], zFront],
+      [rect[8][0], rect[8][1], zBack],
+      [rect[24][0], rect[24][1], zBack],
+      [0, -1, 0],
     );
 
-    // --- Top wall: rect pts 15→21 ---
-    // pt index 15 = (-l/2, a/2), pt index 21 = (l/2, a/2)
+    // --- Top wall between the two open main-duct ends ---
     addQuad(
-      [rect[15][0], rect[15][1], zFront],
-      [rect[21][0], rect[21][1], zFront],
-      [rect[21][0], rect[21][1], zBack],
-      [rect[15][0], rect[15][1], zBack],
+      [rect[40][0], rect[40][1], zFront],
+      [rect[56][0], rect[56][1], zFront],
+      [rect[56][0], rect[56][1], zBack],
+      [rect[40][0], rect[40][1], zBack],
+      [0, 1, 0],
     );
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     // Front circle
@@ -2369,10 +2435,10 @@ const CZ2aMesh: React.FC<{
     for (let i = 0; i < N - 1; i++)
       seg([rect[i][0], rect[i][1], zBack], [rect[i + 1][0], rect[i + 1][1], zBack]);
     // Top/bottom wall edges (connecting front↔back)
-    seg([rect[3][0], rect[3][1], zFront], [rect[3][0], rect[3][1], zBack]);
-    seg([rect[9][0], rect[9][1], zFront], [rect[9][0], rect[9][1], zBack]);
-    seg([rect[15][0], rect[15][1], zFront], [rect[15][0], rect[15][1], zBack]);
-    seg([rect[21][0], rect[21][1], zFront], [rect[21][0], rect[21][1], zBack]);
+    seg([rect[8][0], rect[8][1], zFront], [rect[8][0], rect[8][1], zBack]);
+    seg([rect[24][0], rect[24][1], zFront], [rect[24][0], rect[24][1], zBack]);
+    seg([rect[40][0], rect[40][1], zFront], [rect[40][0], rect[40][1], zBack]);
+    seg([rect[56][0], rect[56][1], zFront], [rect[56][0], rect[56][1], zBack]);
 
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
@@ -3137,158 +3203,83 @@ const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: n
   const sa = a * scale, sb = b * scale, sd = sb; // d = b symmetric
   const se = e * scale, sf = f * scale, sr = r * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => {
+    const elbowMaterial = new THREE.MeshPhysicalMaterial({
+      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
+      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
+      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
+    });
+    elbowMaterial.userData.preserveMetalFinish = true;
+    return elbowMaterial;
+  }, []);
 
   const { geometry, edgeGeo } = useMemo(() => {
-    const hw = sa / 2;
-    const dx = (se + sb) / 2;
-    const dy = (sd + sf) / 2;
+    const totalW = se + sb;
+    const totalH = sd + sf;
+    const x0 = -totalW / 2;
+    const y0 = -totalH / 2;
+    const cornerR = Math.max(0.001, Math.min(sr, se * 0.98, sf * 0.98));
+    const arcSegments = 64;
+    const halfDepth = sa / 2;
     const verts: number[] = [];
     const norms: number[] = [];
     const uvArr: number[] = [];
-    const edgePts: number[] = [];
-
-    // addQuad: auto-compute normal from cross(v1-v0, v2-v0); flip winding if needed
-    const addQuad = (v0: number[], v1: number[], v2: number[], v3: number[], outDir: number[]) => {
-      const e1x=v1[0]-v0[0], e1y=v1[1]-v0[1], e1z=v1[2]-v0[2];
-      const e2x=v2[0]-v0[0], e2y=v2[1]-v0[1], e2z=v2[2]-v0[2];
-      let nx=e1y*e2z-e1z*e2y, ny=e1z*e2x-e1x*e2z, nz=e1x*e2y-e1y*e2x;
-      const dot = nx*outDir[0]+ny*outDir[1]+nz*outDir[2];
-      let a0=v0,a1=v1,a2=v2,a3=v3;
-      if (dot < 0) { a1=v3; a2=v2; a3=v1; nx=-nx; ny=-ny; nz=-nz; }
-      const len = Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
-      nx/=len; ny/=len; nz/=len;
-      verts.push(...a0,...a1,...a2,...a0,...a2,...a3);
-      for (let i=0;i<6;i++) norms.push(nx,ny,nz);
-      uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
+    const addTriangle = (p0: number[], p1: number[], p2: number[], normal: number[]) => {
+      verts.push(...p0, ...p1, ...p2);
+      for (let i = 0; i < 3; i++) norms.push(...normal);
+      uvArr.push(0, 0, 1, 0, 1, 1);
+    };
+    const addQuad = (p0: number[], p1: number[], p2: number[], p3: number[], normal: number[]) => {
+      addTriangle(p0, p1, p2, normal);
+      addTriangle(p0, p2, p3, normal);
     };
 
-    // ═══ Vertices matching C# punkty[] exactly (d = b) ═══
-    const p0=[se-dx, sd+sf-dy, -hw], p1=[se+sb-dx, sd+sf-dy, -hw];
-    const p2=[se+sb-dx, sd+sf-dy, hw], p3=[se-dx, sd+sf-dy, hw];
-    const p4=[-dx, -dy, -hw], p5=[se+sb-dx, -dy, -hw];
-    const p6=[se+sb-dx, -dy, hw], p7=[-dx, -dy, hw];
-    const p8=[se-dx, sd+sr-dy, -hw], p9=[se+sb-dx, sd+sr-dy, -hw];
-    const p10=[se+sb-dx, sd+sr-dy, hw], p11=[se-dx, sd+sr-dy, hw];
-    const p12=[se-sr-dx, sd-dy, -hw], p13=[se-sr-dx, sd-dy, hw];
-    const p14=[se-sr-dx, -dy, hw], p15=[se-sr-dx, -dy, -hw];
-    const p16=[-dx, sd-dy, -hw], p17=[-dx, sd-dy, hw];
+    const shape = new THREE.Shape();
+    shape.moveTo(x0, y0);
+    shape.lineTo(x0 + totalW, y0);
+    shape.lineTo(x0 + totalW, y0 + totalH);
+    shape.lineTo(x0 + se, y0 + totalH);
+    shape.lineTo(x0 + se, y0 + sd + cornerR);
+    const arcCX = x0 + se - cornerR;
+    const arcCY = y0 + sd + cornerR;
+    for (let i = 1; i <= arcSegments; i++) {
+      const angle = (i / arcSegments) * (Math.PI / 2);
+      shape.lineTo(arcCX + Math.cos(angle) * cornerR, arcCY - Math.sin(angle) * cornerR);
+    }
+    shape.lineTo(x0, y0 + sd);
+    shape.closePath();
 
-    // Outer corner interpolation (front)
-    const p21=[p15[0]+(sb+sr)/3, p15[1], -hw];
-    const p22=[p15[0]+2*(sb+sr)/3, p15[1], -hw];
-    const p23=[p5[0], p5[1]+(sd+sr)/3, -hw];
-    const p24=[p5[0], p5[1]+2*(sd+sr)/3, -hw];
-    // Back mirrors
-    const p31=[p21[0],p21[1],hw], p32=[p22[0],p22[1],hw];
-    const p33=[p23[0],p23[1],hw], p34=[p24[0],p24[1],hw];
-
-    // Inner arc: center = (se-sr-dx, sd+sr-dy)
-    // θ from 0° (connects to p8) to 90° (connects to p12)
-    const arcCX=se-sr-dx, arcCY=sd+sr-dy;
-    const arcPt = (deg: number, z: number) => [
-      arcCX+Math.cos(deg*Math.PI/180)*sr, arcCY-Math.sin(deg*Math.PI/180)*sr, z
-    ];
-    // C# front: p25=15°, p26=30°, p27=45°, p28=60°, p29=75°
-    const p25F=arcPt(15,-hw), p26F=arcPt(30,-hw), p27F=arcPt(45,-hw), p28F=arcPt(60,-hw), p29F=arcPt(75,-hw);
-    // C# back: p35=15°, p36=30°, p37=45°, p38=60°, p39=75°
-    const p35B=arcPt(15,hw), p36B=arcPt(30,hw), p37B=arcPt(45,hw), p38B=arcPt(60,hw), p39B=arcPt(75,hw);
-
-    // ═══ 4 wall surfaces (z-spanning, matching C# exactly) ═══
-    addQuad(p4, p7, p6, p5, [0,-1,0]);              // bottom (y=-dy)
-    addQuad(p5, p6, p2, p1, [1,0,0]);               // right outer (x=e+b-dx)
-    addQuad(p12, p13, p17, p16, [0,1,0]);            // horizontal leg top (y=d-dy)
-    addQuad(p8, p11, p3, p0, [-1,0,0]);              // vertical leg inner (x=e-dx)
-
-    // ═══ Front face (z=-hw) — 8 quads ═══
-    addQuad(p4, p15, p12, p16, [0,0,-1]);            // horizontal section
-    addQuad(p8, p9, p1, p0, [0,0,-1]);               // vertical section top
-    addQuad(p15, p21, p29F, p12, [0,0,-1]);           // outer corner 1
-    addQuad(p21, p22, p28F, p29F, [0,0,-1]);          // outer corner 2
-    addQuad(p22, p5, p27F, p28F, [0,0,-1]);           // outer corner 3
-    addQuad(p5, p23, p26F, p27F, [0,0,-1]);           // outer corner 4
-    addQuad(p23, p24, p25F, p26F, [0,0,-1]);          // outer corner 5
-    addQuad(p24, p9, p8, p25F, [0,0,-1]);             // outer corner 6
-
-    // ═══ Back face (z=+hw) — 8 quads ═══
-    addQuad(p7, p14, p13, p17, [0,0,1]);             // horizontal section
-    addQuad(p11, p10, p2, p3, [0,0,1]);              // vertical section top
-    addQuad(p14, p31, p39B, p13, [0,0,1]);            // outer corner 1
-    addQuad(p31, p32, p38B, p39B, [0,0,1]);           // outer corner 2
-    addQuad(p32, p6, p37B, p38B, [0,0,1]);            // outer corner 3
-    addQuad(p6, p33, p36B, p37B, [0,0,1]);            // outer corner 4
-    addQuad(p33, p34, p35B, p36B, [0,0,1]);           // outer corner 5
-    addQuad(p34, p10, p11, p35B, [0,0,1]);            // outer corner 6
-
-    // ═══ Inner arc wall (z-spanning, 6 segments) ═══
-    // C# quads: (12,29,39,13), (29,28,38,39), ..., (25,8,11,35)
-    // Normal points away from arc center (into duct channel)
-    const iaF=[p12,p29F,p28F,p27F,p26F,p25F,p8];
-    const iaB=[p13,p39B,p38B,p37B,p36B,p35B,p11];
-    for (let i=0; i<6; i++) {
-      const f0=iaF[i], f1=iaF[i+1], b0=iaB[i], b1=iaB[i+1];
-      const mx=(f0[0]+f1[0])/2, my=(f0[1]+f1[1])/2;
-      addQuad(f0, f1, b1, b0, [mx-arcCX, my-arcCY, 0]);
+    const contour = shape.extractPoints(arcSegments).shape;
+    const faceTriangles = THREE.ShapeUtils.triangulateShape(contour, []);
+    for (const [i0, i1, i2] of faceTriangles) {
+      const p0 = contour[i0], p1 = contour[i1], p2 = contour[i2];
+      addTriangle([p2.x, p2.y, -halfDepth], [p1.x, p1.y, -halfDepth], [p0.x, p0.y, -halfDepth], [0, 0, -1]);
+      addTriangle([p0.x, p0.y, halfDepth], [p1.x, p1.y, halfDepth], [p2.x, p2.y, halfDepth], [0, 0, 1]);
     }
 
-    // ═══ Edge wireframe ═══
-    const seg = (x0:number,y0:number,z0:number,x1:number,y1:number,z1:number) =>
-      edgePts.push(x0,y0,z0, x1,y1,z1);
-
-    // Front face outline (z=-hw)
-    seg(p4[0],p4[1],-hw, p15[0],p15[1],-hw);
-    seg(p15[0],p15[1],-hw, p5[0],p5[1],-hw);
-    seg(p5[0],p5[1],-hw, p9[0],p9[1],-hw);
-    seg(p9[0],p9[1],-hw, p1[0],p1[1],-hw);
-    seg(p1[0],p1[1],-hw, p0[0],p0[1],-hw);
-    seg(p0[0],p0[1],-hw, p8[0],p8[1],-hw);
-    seg(p12[0],p12[1],-hw, p16[0],p16[1],-hw);
-    seg(p16[0],p16[1],-hw, p4[0],p4[1],-hw);
-    // Front inner arc
-    const arcDegs=[0,15,30,45,60,75,90];
-    for (let i=0;i<arcDegs.length-1;i++) {
-      const a0=arcDegs[i]*Math.PI/180, a1=arcDegs[i+1]*Math.PI/180;
-      seg(arcCX+Math.cos(a0)*sr,arcCY-Math.sin(a0)*sr,-hw,
-          arcCX+Math.cos(a1)*sr,arcCY-Math.sin(a1)*sr,-hw);
+    for (let i = 0; i < contour.length; i++) {
+      const p0 = contour[i], p1 = contour[(i + 1) % contour.length];
+      const isLeftOpening = Math.abs(p0.x - x0) < 1e-6 && Math.abs(p1.x - x0) < 1e-6;
+      const isBottomOpening = Math.abs(p0.y - (y0 + totalH)) < 1e-6
+        && Math.abs(p1.y - (y0 + totalH)) < 1e-6;
+      if (isLeftOpening || isBottomOpening) continue;
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 1e-6) continue;
+      addQuad(
+        [p0.x, p0.y, -halfDepth], [p1.x, p1.y, -halfDepth],
+        [p1.x, p1.y, halfDepth], [p0.x, p0.y, halfDepth],
+        [dy / length, -dx / length, 0],
+      );
     }
-
-    // Back face outline (z=+hw)
-    seg(p7[0],p7[1],hw, p14[0],p14[1],hw);
-    seg(p14[0],p14[1],hw, p6[0],p6[1],hw);
-    seg(p6[0],p6[1],hw, p10[0],p10[1],hw);
-    seg(p10[0],p10[1],hw, p2[0],p2[1],hw);
-    seg(p2[0],p2[1],hw, p3[0],p3[1],hw);
-    seg(p3[0],p3[1],hw, p11[0],p11[1],hw);
-    seg(p13[0],p13[1],hw, p17[0],p17[1],hw);
-    seg(p17[0],p17[1],hw, p7[0],p7[1],hw);
-    // Back inner arc
-    for (let i=0;i<arcDegs.length-1;i++) {
-      const a0=arcDegs[i]*Math.PI/180, a1=arcDegs[i+1]*Math.PI/180;
-      seg(arcCX+Math.cos(a0)*sr,arcCY-Math.sin(a0)*sr,hw,
-          arcCX+Math.cos(a1)*sr,arcCY-Math.sin(a1)*sr,hw);
-    }
-
-    // Z-spanning edges (connecting front to back at key vertices)
-    seg(p4[0],p4[1],-hw, p7[0],p7[1],hw);
-    seg(p5[0],p5[1],-hw, p6[0],p6[1],hw);
-    seg(p1[0],p1[1],-hw, p2[0],p2[1],hw);
-    seg(p0[0],p0[1],-hw, p3[0],p3[1],hw);
-    seg(p9[0],p9[1],-hw, p10[0],p10[1],hw);
-    seg(p8[0],p8[1],-hw, p11[0],p11[1],hw);
-    seg(p12[0],p12[1],-hw, p13[0],p13[1],hw);
-    seg(p15[0],p15[1],-hw, p14[0],p14[1],hw);
-    seg(p16[0],p16[1],-hw, p17[0],p17[1],hw);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
-    const eGeo = new THREE.BufferGeometry();
-    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
+    const eGeo = new THREE.EdgesGeometry(geo, 30);
 
     return { geometry: geo, edgeGeo: eGeo };
   }, [sa, sb, se, sf, sr]);
@@ -3296,7 +3287,7 @@ const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: n
   return (
     <group>
       <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
+      <lineSegments geometry={edgeGeo} visible={false}>
         <lineBasicMaterial color="#7a7e85" />
       </lineSegments>
     </group>
