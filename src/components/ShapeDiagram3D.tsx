@@ -1,8 +1,8 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { Text, Environment, Billboard } from '@react-three/drei';
-import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
 import * as THREE from 'three';
 
 extend({ TrackballControls });
@@ -41,68 +41,60 @@ interface ShapeDiagram3DProps {
   t?: (text: string) => string;
 }
 
-const CONSISTENT_MESH_COLOR = new THREE.Color('#8a9bae');
-const CONSISTENT_EDGE_COLOR = new THREE.Color('#7a7e85');
 const HIDE_POLYGON_CONNECTION_LINES = true;
 
+/* The single sheet-metal finish shared by every 3D fitting. This is the look the
+   reducers (QPR6a/QPR2a) and bends (QBa/QBNa) use and that we standardise on, so
+   every shape renders identically. `preserveMetalFinish` keeps normalizeGroupAppearance
+   from ever flattening it to matte grey. */
+const makeStandardMetalMaterial = () => {
+  const m = new THREE.MeshPhysicalMaterial({
+    color: '#8a9bae',
+    roughness: 0.18,
+    metalness: 0.92,
+    reflectivity: 1.0,
+    clearcoat: 0.5,
+    clearcoatRoughness: 0.08,
+    side: THREE.DoubleSide,
+    envMapIntensity: 1.0,
+    // Neutral floor so faces angled away from the key light / HDRI never read as
+    // near-black on the more enclosed fittings (elbows, crosses, tees).
+    emissive: new THREE.Color('#5b6472'),
+    emissiveIntensity: 0.22,
+  });
+  m.userData.preserveMetalFinish = true;
+  return m;
+};
+
+/* Post-mount pass over a shape group. Every fitting now builds its own
+   standardised material (makeStandardMetalMaterial), so this NEVER rewrites
+   materials any more — that is what used to flatten shapes to matte grey on
+   (re)selection. It still (a) hides the debug polygon-connection lines and
+   (b) rebuilds vertex normals for meshes that did not hand-author reliable
+   ones (flagged with geo.userData.preserveNormals), so their winding-derived
+   normals face outward and they light correctly. */
 const normalizeGroupAppearance = (root: THREE.Object3D | null) => {
   if (!root) return;
-
   root.traverse((obj) => {
+    if (obj instanceof THREE.LineSegments) {
+      if (HIDE_POLYGON_CONNECTION_LINES) obj.visible = false;
+      return;
+    }
     if (obj instanceof THREE.Mesh) {
       let geo = obj.geometry as THREE.BufferGeometry | undefined;
-      if (geo && !geo.userData.preserveNormals) {
-        // Weld duplicated vertices before normal rebuild so contiguous plates shade as one surface.
-        if (!geo.index) {
-          const welded = mergeVertices(geo, 1e-6);
-          if (welded !== geo) {
-            geo = welded;
-            obj.geometry = geo;
-          }
-        }
-        geo.deleteAttribute('normal');
-        geo.computeVertexNormals();
-        geo.normalizeNormals();
-      }
-
-      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (const mat of materials) {
-        if (mat.userData.preserveMetalFinish) continue;
-        if (
-          mat instanceof THREE.MeshPhysicalMaterial ||
-          mat instanceof THREE.MeshStandardMaterial ||
-          mat instanceof THREE.MeshPhongMaterial ||
-          mat instanceof THREE.MeshLambertMaterial
-        ) {
-          mat.color.copy(CONSISTENT_MESH_COLOR);
-          if ('roughness' in mat) mat.roughness = 0.92;
-          if ('metalness' in mat) mat.metalness = 0.08;
-          if ('reflectivity' in mat) mat.reflectivity = 0.08;
-          if ('clearcoat' in mat) mat.clearcoat = 0.0;
-          if ('clearcoatRoughness' in mat) mat.clearcoatRoughness = 1.0;
-          if ('flatShading' in mat) mat.flatShading = false;
-          if ('vertexColors' in mat) mat.vertexColors = false;
-          if ('emissive' in mat) mat.emissive = new THREE.Color('#000000');
-          if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0;
-          if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
-          mat.side = THREE.DoubleSide;
-          mat.needsUpdate = true;
+      if (!geo || geo.userData.preserveNormals) return;
+      // Weld duplicated vertices so contiguous plates shade as one surface,
+      // then derive normals from the triangle winding (outward-facing).
+      if (!geo.index) {
+        const welded = mergeVertices(geo, 1e-6);
+        if (welded !== geo) {
+          geo = welded;
+          obj.geometry = geo;
         }
       }
-    }
-
-    if (obj instanceof THREE.LineSegments) {
-      if (HIDE_POLYGON_CONNECTION_LINES) {
-        obj.visible = false;
-        return;
-      }
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (const mat of mats) {
-        if (mat instanceof THREE.LineBasicMaterial) {
-          mat.color.copy(CONSISTENT_EDGE_COLOR);
-          mat.needsUpdate = true;
-        }
-      }
+      geo.deleteAttribute('normal');
+      geo.computeVertexNormals();
+      geo.normalizeNormals();
     }
   });
 };
@@ -115,19 +107,7 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
   const nb = (b / maxDim) * 2;
   const nl = (l / maxDim) * 2;
 
-  // Shiny sheet metal material
-  const material = useMemo(() => {
-    return new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae',
-      roughness: 0.18,
-      metalness: 0.92,
-      reflectivity: 1.0,
-      clearcoat: 0.5,
-      clearcoatRoughness: 0.08,
-      side: THREE.DoubleSide,
-      envMapIntensity: 1.0,
-    });
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   // Build geometry with only the 4 side walls (no front/back caps)
   const geometry = useMemo(() => {
@@ -146,15 +126,18 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
        hw, -hh, hd,   hw, hh, hd,   hw, hh, -hd,
        hw, -hh, hd,   hw, hh, -hd,  hw, -hh, -hd,
     ]);
+    // Normals authored to match the triangle winding above (CCW from inside the
+    // tube); with side:DoubleSide the exterior back-faces are flipped and lit
+    // correctly by the key lights instead of shading as a dark interior surface.
     const normals = new Float32Array([
       // Top
-      0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0,
-      // Bottom
       0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
+      // Bottom
+      0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0,
       // Left
-      -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0,
-      // Right
       1,0,0, 1,0,0, 1,0,0, 1,0,0, 1,0,0, 1,0,0,
+      // Right
+      -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0,
     ]);
     const uvs = new Float32Array([
       0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
@@ -166,6 +149,7 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
     geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.userData.preserveNormals = true;
     return geo;
   }, [na, nb, nl]);
 
@@ -257,15 +241,7 @@ const BendMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number
   const sr = r * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => {
-    const bendMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-      flatShading: false,
-    });
-    bendMaterial.userData.preserveMetalFinish = true;
-    return bendMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = sa / 2; // half-width (a dimension, z-axis)
@@ -493,15 +469,7 @@ const ReductionBendMesh: React.FC<{
   const sr = r * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => {
-    const bendMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
-      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
-      flatShading: false,
-    });
-    bendMaterial.userData.preserveMetalFinish = true;
-    return bendMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = sa / 2;
@@ -573,8 +541,6 @@ const ReductionBendMesh: React.FC<{
       const [ix1, iy1] = innerPts[i + 1];
       const [ox0, oy0] = outerPts[i];
       const [ox1, oy1] = outerPts[i + 1];
-      const t = (i + 0.5) / segments;
-      const outerR = sr + sb + (sd - sb) * t;
 
       // Front face (z = -hw)
       verts.push(ix0, iy0, -hw, ox0, oy0, -hw, ox1, oy1, -hw);
@@ -588,20 +554,22 @@ const ReductionBendMesh: React.FC<{
       for (let j = 0; j < 6; j++) norms.push(0, 0, 1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Inner wall (constant radius sr)
-      const nix = -(ix0 + ix1) / 2 / sr;
-      const niy = -(iy0 + iy1) / 2 / sr;
+      // Inner wall — per-vertex radial normals so the mirror finish doesn't band
+      const in0: [number, number, number] = [-ix0 / sr, -iy0 / sr, 0];
+      const in1: [number, number, number] = [-ix1 / sr, -iy1 / sr, 0];
       verts.push(ix0, iy0, hw, ix0, iy0, -hw, ix1, iy1, -hw);
       verts.push(ix0, iy0, hw, ix1, iy1, -hw, ix1, iy1, hw);
-      for (let j = 0; j < 6; j++) norms.push(nix, niy, 0);
+      norms.push(...in0, ...in0, ...in1, ...in0, ...in1, ...in1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Outer wall (interpolated radius)
-      const nox = (ox0 + ox1) / 2 / outerR;
-      const noy = (oy0 + oy1) / 2 / outerR;
+      // Outer wall — per-vertex radial normals
+      const om0 = Math.hypot(ox0, oy0) || 1;
+      const om1 = Math.hypot(ox1, oy1) || 1;
+      const out0: [number, number, number] = [ox0 / om0, oy0 / om0, 0];
+      const out1: [number, number, number] = [ox1 / om1, oy1 / om1, 0];
       verts.push(ox0, oy0, -hw, ox0, oy0, hw, ox1, oy1, hw);
       verts.push(ox0, oy0, -hw, ox1, oy1, hw, ox1, oy1, -hw);
-      for (let j = 0; j < 6; j++) norms.push(nox, noy, 0);
+      norms.push(...out0, ...out0, ...out1, ...out0, ...out1, ...out1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
     }
 
@@ -724,14 +692,11 @@ const DiffuserBendMesh: React.FC<{
   const sg = g * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    flatShading: false,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
-    const segments = 16;
+    // High angular resolution so the formed bend reads as a smooth curve, not facets.
+    const segments = Math.max(48, Math.ceil((Math.abs(alfaRad) / (Math.PI / 2)) * 96));
     const verts: number[] = [];
     const norms: number[] = [];
     const uvArr: number[] = [];
@@ -820,8 +785,6 @@ const DiffuserBendMesh: React.FC<{
       const [ox1, oy1] = outerPts[i + 1];
       const zL0 = zLeftArr[i], zL1 = zLeftArr[i + 1];
       const zR0 = zRightArr[i], zR1 = zRightArr[i + 1];
-      const t = (i + 0.5) / segments;
-      const outerR = sr + sd + (sb - sd) * t;
 
       // Front face (z = zLeft)
       verts.push(ix0, iy0, zL0, ox0, oy0, zL0, ox1, oy1, zL1);
@@ -835,20 +798,22 @@ const DiffuserBendMesh: React.FC<{
       for (let j = 0; j < 6; j++) norms.push(0, 0, 1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Inner wall
-      const nix = -(ix0 + ix1) / 2 / sr;
-      const niy = -(iy0 + iy1) / 2 / sr;
+      // Inner wall — per-vertex radial normals toward the arc centre → smooth curve
+      const in0: [number, number, number] = [-ix0 / sr, -iy0 / sr, 0];
+      const in1: [number, number, number] = [-ix1 / sr, -iy1 / sr, 0];
       verts.push(ix0, iy0, zR0, ix0, iy0, zL0, ix1, iy1, zL1);
       verts.push(ix0, iy0, zR0, ix1, iy1, zL1, ix1, iy1, zR1);
-      for (let j = 0; j < 6; j++) norms.push(nix, niy, 0);
+      norms.push(...in0, ...in0, ...in1, ...in0, ...in1, ...in1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Outer wall
-      const nox = (ox0 + ox1) / 2 / outerR;
-      const noy = (oy0 + oy1) / 2 / outerR;
+      // Outer wall — per-vertex radial normals away from the arc centre
+      const om0 = Math.hypot(ox0, oy0) || 1;
+      const om1 = Math.hypot(ox1, oy1) || 1;
+      const out0: [number, number, number] = [ox0 / om0, oy0 / om0, 0];
+      const out1: [number, number, number] = [ox1 / om1, oy1 / om1, 0];
       verts.push(ox0, oy0, zL0, ox0, oy0, zR0, ox1, oy1, zR1);
       verts.push(ox0, oy0, zL0, ox1, oy1, zR1, ox1, oy1, zL1);
-      for (let j = 0; j < 6; j++) norms.push(nox, noy, 0);
+      norms.push(...out0, ...out0, ...out1, ...out0, ...out1, ...out1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
     }
 
@@ -894,6 +859,7 @@ const DiffuserBendMesh: React.FC<{
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
@@ -968,22 +934,7 @@ const ReductionElbowMesh: React.FC<{
   const sf = f * scale;
   const sr = r * scale;
 
-  const material = useMemo(() => {
-    const elbowMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#cbd5df',
-      roughness: 0.14,
-      metalness: 0.72,
-      reflectivity: 1.0,
-      clearcoat: 0.85,
-      clearcoatRoughness: 0.04,
-      side: THREE.DoubleSide,
-      envMapIntensity: 1.35,
-      emissive: '#56616d',
-      emissiveIntensity: 0.14,
-    });
-    elbowMaterial.userData.preserveMetalFinish = true;
-    return elbowMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const totalW = se + sb;
@@ -1096,16 +1047,7 @@ const TR1aMesh: React.FC<{
   const sw = w * scale, sl = L * scale;
   const se = e * scale, sf = f * scale, sl3 = l3 * scale;
 
-  const material = useMemo(() => {
-    const teeMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.16, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.65, clearcoatRoughness: 0.06, side: THREE.DoubleSide, envMapIntensity: 1.1,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    teeMaterial.userData.preserveMetalFinish = true;
-    return teeMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
@@ -1311,16 +1253,7 @@ const TR2aMesh: React.FC<{
   const sl = L * scale, sl3 = l3 * scale;
   const se = e * scale, sf = f * scale;
 
-  const material = useMemo(() => {
-    const teeMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    teeMaterial.userData.preserveMetalFinish = true;
-    return teeMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
@@ -1522,16 +1455,7 @@ const TRaMesh: React.FC<{
   const sq = q * scale, sr = r * scale;
   const si = iVal * scale, sp = pVal * scale;
 
-  const material = useMemo(() => {
-    const teeMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    teeMaterial.userData.preserveMetalFinish = true;
-    return teeMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = sa / 2;
@@ -1700,10 +1624,7 @@ const QPR3aMesh: React.FC<{
   const sa = a * scale, sb = b * scale, se = e * scale;
   const sl = L * scale, sm = m * scale, sh = h * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = sa / 2;
@@ -1843,10 +1764,7 @@ const QPR4aMesh: React.FC<{
   const sa = a * scale, sb = b * scale, sd = d * scale, se = e * scale;
   const sl = L * scale, sm = m * scale, sh = h * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = sa / 2;
@@ -1981,10 +1899,7 @@ const TR6aMesh: React.FC<{
   const sg = Math.max(0.02, sgRaw);
   const sr = sa / 2; // pipe radius
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const he = se / 2;
@@ -2126,16 +2041,7 @@ const CZ1aMesh: React.FC<{
   const se = e * sc, se1 = e1 * sc, sf1 = f1 * sc;
   const sf = f * sc, sl3 = l3 * sc, sl4 = l4 * sc;
 
-  const material = useMemo(() => {
-    const crossMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    crossMaterial.userData.preserveMetalFinish = true;
-    return crossMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -2300,16 +2206,7 @@ const CZ2aMesh: React.FC<{
   const sa = a * sc, sb = b * sc, sd = d * sc, sd1 = d1 * sc;
   const sL = L * sc, sl3 = l3 * sc, sl4 = l4 * sc;
 
-  const material = useMemo(() => {
-    const crossMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    crossMaterial.userData.preserveMetalFinish = true;
-    return crossMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const segments = 64;
@@ -2584,13 +2481,9 @@ const TR4aMesh: React.FC<{
     return geometry;
   }, [aR, bR, cR, dR, lR, gR, iR, jR]);
 
-  return (
-    <mesh geometry={geo}>
-      <meshPhysicalMaterial color="#8a9bae" roughness={0.18} metalness={0.92}
-        reflectivity={1.0} clearcoat={0.5} clearcoatRoughness={0.08}
-        side={THREE.DoubleSide} envMapIntensity={1.0} />
-    </mesh>
-  );
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
+
+  return <mesh geometry={geo} material={material} />;
 };
 
 /* TR4a dimension labels */
@@ -2729,13 +2622,9 @@ const TR5aMesh: React.FC<{
     return geometry;
   }, [aR, bR, cR, dR, eR, lR, hR, gR, iR, jR, kR]);
 
-  return (
-    <mesh geometry={geo}>
-      <meshPhysicalMaterial color="#8a9bae" roughness={0.18} metalness={0.92}
-        reflectivity={1.0} clearcoat={0.5} clearcoatRoughness={0.08}
-        side={THREE.DoubleSide} envMapIntensity={1.0} />
-    </mesh>
-  );
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
+
+  return <mesh geometry={geo} material={material} />;
 };
 
 /* TR5a dimension labels */
@@ -2771,10 +2660,7 @@ const TR3aMesh: React.FC<{
   const maxDim = Math.max(a, b, c, d, m, k, iVal, j, g, f, m + g + b + f + iVal, 1);
   const sc = 2 / maxDim;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const sa = a * sc, sb = b * sc, scc = c * sc, sd = d * sc;
@@ -3096,10 +2982,7 @@ const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) =>
   const nb = (b / maxDim) * 2;
   const ne = (e / maxDim) * 2;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hb = nb / 2, he = ne / 2;
@@ -3203,15 +3086,7 @@ const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: n
   const sa = a * scale, sb = b * scale, sd = sb; // d = b symmetric
   const se = e * scale, sf = f * scale, sr = r * scale;
 
-  const material = useMemo(() => {
-    const elbowMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-    });
-    elbowMaterial.userData.preserveMetalFinish = true;
-    return elbowMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const totalW = se + sb;
@@ -3377,14 +3252,7 @@ const ReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l: num
   const s = 2 / maxDim;
   const na = a * s, nb = b * s, nc = c * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
 
-  const material = useMemo(() => {
-    const reducerMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    });
-    reducerMaterial.userData.preserveMetalFinish = true;
-    return reducerMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     // 16 vertices defining 4 cross-section planes along z-axis
@@ -3533,10 +3401,7 @@ const AsymReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l:
   const na = a * s, nb = b * s, nc = c * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
   const ne = e * s, nf = f * s;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = na / 2, hb = nb / 2;
@@ -3603,6 +3468,7 @@ const AsymReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l:
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
     const edgePts: number[] = [];
     const planes = [
@@ -3669,14 +3535,7 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
   const na = a * s, nb = b * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
   const nr = nd / 2;
 
-  const material = useMemo(() => {
-    const transitionMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
-      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
-    });
-    transitionMaterial.userData.preserveMetalFinish = true;
-    return transitionMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hh = nb / 2;
@@ -3846,14 +3705,7 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
   const ccx = -na / 2 + nf + nr;
   const ccy = nb / 2 - ne - nr;
 
-  const material = useMemo(() => {
-    const transitionMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
-      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
-    });
-    transitionMaterial.userData.preserveMetalFinish = true;
-    return transitionMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hh = nb / 2;
@@ -4016,10 +3868,7 @@ const AutoRotate: React.FC<{ groupRef: React.RefObject<THREE.Group | null>; enab
 const QD1aMesh: React.FC<{
   a: number; b: number; L: number; alfa: number; e: number; f: number;
 }> = ({ a: aR, b: bR, L: lR, alfa: alfaDeg, e: eR, f: fR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const max = Math.max(aR, bR, eR, fR, lR, 1);
@@ -4183,10 +4032,7 @@ const QD1aLabels: React.FC<{
 const QD2aMesh: React.FC<{
   a: number; b: number; L: number; e: number; f: number;
 }> = ({ a: aR, b: bR, L: lR, e: eR, f: fR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const max = Math.max(aR, bR, eR, fR, lR, 1);
@@ -4275,10 +4121,7 @@ const TR7aMesh: React.FC<{
   a: number; b: number; d: number; h: number; e: number;
   r: number; q: number; i: number; j: number; p: number;
 }> = ({ a: aR, b: bR, d: dR, h: hR, e: eR, r: rR, q: qR, i: iR, j: jR, p: pR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const max = Math.max(aR, bR, dR, hR, eR, rR, qR, iR, jR, pR, 1);
@@ -4533,10 +4376,7 @@ const TR9aMesh: React.FC<{
   a: number; b: number; c: number; d: number; d1: number;
   l: number; l3: number; m: number; n: number; e: number; f: number; i: number; j: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, d1: d1R, l: lR, l3: l3R, m: mR, n: nR, e: eR, f: fR, i: iR, j: jR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     // ── C# normalization (Form1.cs lines 5083-5100) ──
@@ -4818,10 +4658,7 @@ const TR8aMesh: React.FC<{
   a: number; b: number; c: number; d: number; w: number; g: number;
   l: number; l3: number; m: number; n: number; e: number; f: number; i: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, w: wR, g: gR, l: lR, l3: l3R, m: mR, n: nR, e: eR, f: fR, i: iR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     // C# max: max(a,b,l,c,d+l3)
@@ -4980,6 +4817,17 @@ const KeepAlive = () => {
   return null;
 };
 
+/* DEV-only: expose the live scene for automated visual inspection (Playwright).
+   Compiled out of production builds. */
+const SceneDebug = () => {
+  const { scene } = useThree();
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __r3fScene?: unknown }).__r3fScene = scene;
+  }, [scene]);
+  return null;
+};
+
 const SUPPORTED_3D = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'QPR2a', 'PR1a', 'PR7a', 'QBRa', 'QBR1a', 'QBFRa', 'QBFa', 'QESa', 'TR1a', 'TR2a', 'TRa', 'QPR3a', 'QPR4a', 'TR6a', 'CZ1a', 'CZ2a', 'TR3a', 'TR4a', 'TR5a', 'QD1a', 'QD2a', 'TR7a', 'TR8a', 'TR9a'];
 
 const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (text) => text }) => {
@@ -4990,8 +4838,25 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    normalizeGroupAppearance(groupRef.current);
-    normalizeGroupAppearance(modalGroupRef.current);
+    // Child meshes/geometries are (re)built in their own useMemo hooks and can
+    // commit a frame after this effect on the first render for a symbol. Running
+    // the appearance pass again on the next few frames makes the very first
+    // render match what you'd otherwise only get on a second click.
+    const run = () => {
+      normalizeGroupAppearance(groupRef.current);
+      normalizeGroupAppearance(modalGroupRef.current);
+    };
+    let raf = 0;
+    const start = performance.now();
+    const tick = () => {
+      run();
+      // react-three-fiber may attach the freshly-built child meshes/lines a few
+      // frames after this effect fires. Keep re-applying for a short window so
+      // the first render lands on the same result as a re-selection.
+      if (performance.now() - start < 900) raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(raf);
   }, [symbol, values, showDimensions, expanded]);
 
   if (!SUPPORTED_3D.includes(symbol)) {
@@ -5511,16 +5376,18 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
           style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: 8 }}
         >
           <KeepAlive />
-          <ambientLight intensity={0.35} />
-          <hemisphereLight args={['#c0c8d8', '#606878', 0.4]} />
-          <directionalLight position={[4, 5, 4]} intensity={0.6} />
-          <directionalLight position={[-3, 2, -4]} intensity={0.25} />
+          <SceneDebug />
+          <ambientLight intensity={0.5} />
+          <hemisphereLight args={['#dfe6f0', '#8a909c', 0.75]} />
+          <directionalLight position={[4, 5, 4]} intensity={0.65} />
+          <directionalLight position={[-3, 2, -4]} intensity={0.35} />
+          <directionalLight position={[0, 1, 6]} intensity={0.25} />
           <FreeControls rotateSpeed={1.5} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} />
           <group ref={groupRef}>
             {renderShapeMesh()}
           </group>
           <AutoRotate groupRef={groupRef} enabled={autoRotate} />
-          <Environment preset="city" />
+          <Environment preset="warehouse" />
         </Canvas>
       </div>
       <div className="shape-3d-toggles">
@@ -5584,16 +5451,17 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
               style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: '0 0 8px 8px' }}
             >
               <KeepAlive />
-              <ambientLight intensity={0.35} />
-              <hemisphereLight args={['#c0c8d8', '#606878', 0.4]} />
-              <directionalLight position={[4, 5, 4]} intensity={0.6} />
-              <directionalLight position={[-3, 2, -4]} intensity={0.25} />
+              <ambientLight intensity={0.5} />
+              <hemisphereLight args={['#dfe6f0', '#8a909c', 0.75]} />
+              <directionalLight position={[4, 5, 4]} intensity={0.65} />
+              <directionalLight position={[-3, 2, -4]} intensity={0.35} />
+              <directionalLight position={[0, 1, 6]} intensity={0.25} />
               <FreeControls rotateSpeed={1.5} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} />
               <group ref={modalGroupRef}>
                 {renderShapeMesh()}
               </group>
               <AutoRotate groupRef={modalGroupRef} enabled={autoRotate} />
-              <Environment preset="city" />
+              <Environment preset="warehouse" />
             </Canvas>
           </div>
         </div>
