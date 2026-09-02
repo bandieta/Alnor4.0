@@ -1010,17 +1010,35 @@ function App() {
                   </div>
                   <div className="user-element-row">
                     <label>{t('Sztuk')}</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={sztuk}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value);
-                        if (!isNaN(v) && v < 1) return;
-                        setSztuk(e.target.value);
-                      }}
-                      className="user-element-input user-element-input-short"
-                    />
+                    <div className="number-stepper">
+                      <input
+                        type="number"
+                        min="1"
+                        value={sztuk}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value);
+                          if (!isNaN(v) && v < 1) return;
+                          setSztuk(e.target.value);
+                        }}
+                        className="user-element-input user-element-input-short"
+                      />
+                      <span className="number-stepper-buttons">
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          className="number-stepper-btn number-stepper-btn-up"
+                          onClick={() => setSztuk(String((parseInt(sztuk) || 1) + 1))}
+                          aria-label="increment"
+                        />
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          className="number-stepper-btn number-stepper-btn-down"
+                          onClick={() => setSztuk(String(Math.max(1, (parseInt(sztuk) || 1) - 1)))}
+                          aria-label="decrement"
+                        />
+                      </span>
+                    </div>
                   </div>
                   <div className="user-element-row">
                     <label>{t('Uwagi')}</label>
@@ -1102,17 +1120,35 @@ function App() {
               <div className="summary-fields">
                 <div className="summary-row">
                   <label>{t('Sztuk')}</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={sztuk}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value);
-                      if (!isNaN(v) && v < 1) return;
-                      setSztuk(e.target.value);
-                    }}
-                    className="summary-input"
-                  />
+                  <div className="number-stepper">
+                    <input
+                      type="number"
+                      min="1"
+                      value={sztuk}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value);
+                        if (!isNaN(v) && v < 1) return;
+                        setSztuk(e.target.value);
+                      }}
+                      className="summary-input"
+                    />
+                    <span className="number-stepper-buttons">
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        className="number-stepper-btn number-stepper-btn-up"
+                        onClick={() => setSztuk(String((parseInt(sztuk) || 1) + 1))}
+                        aria-label="increment"
+                      />
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        className="number-stepper-btn number-stepper-btn-down"
+                        onClick={() => setSztuk(String(Math.max(1, (parseInt(sztuk) || 1) - 1)))}
+                        aria-label="decrement"
+                      />
+                    </span>
+                  </div>
                 </div>
                 <div className="summary-row">
                   <label>{t('Blacha')}</label>

@@ -37,6 +37,12 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
     onChange(index, value);
   }, [onChange]);
 
+  const step = useCallback((index: number, direction: 1 | -1) => {
+    const current = parseFloat(values[index]) || 0;
+    const next = Math.max(0, current + direction * SCROLL_STEP);
+    onChange(index, String(next));
+  }, [values, onChange]);
+
   const renderInput = (label: string, index: number) => {
     const error = getError(index);
     const hasVisibleError = error && showErrors;
@@ -45,14 +51,32 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
         <label className="dimension-label">{label}</label>
         {label !== '...' ? (
           <div className="dimension-input-wrapper">
-            <input
-              type="number"
-              min={0}
-              className={`dimension-value${hasVisibleError ? ' dimension-error' : ''}`}
-              value={values[index] || ''}
-              onChange={(e) => handleChange(index, e.target.value)}
-              onWheel={(e) => handleWheel(e, index)}
-            />
+            <div className="number-stepper">
+              <input
+                type="number"
+                min={0}
+                className={`dimension-value${hasVisibleError ? ' dimension-error' : ''}`}
+                value={values[index] || ''}
+                onChange={(e) => handleChange(index, e.target.value)}
+                onWheel={(e) => handleWheel(e, index)}
+              />
+              <span className="number-stepper-buttons">
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="number-stepper-btn number-stepper-btn-up"
+                  onClick={() => step(index, 1)}
+                  aria-label="increment"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="number-stepper-btn number-stepper-btn-down"
+                  onClick={() => step(index, -1)}
+                  aria-label="decrement"
+                />
+              </span>
+            </div>
             {hasVisibleError && <span className="dimension-error-msg">{error}</span>}
           </div>
         ) : (

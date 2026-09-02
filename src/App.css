@@ -10,7 +10,7 @@
 body {
   font-family: 'Lato', sans-serif;
   font-size: 14px;
-  background: #f1f2f2;
+  background: #ffffff;
   color: #2a2a2a;
   -webkit-font-smoothing: antialiased;
 }
@@ -113,7 +113,7 @@ body {
   border-radius: 6px;
   padding: 10px 12px;
   margin-top: 8px;
-  background: #f8f8f8;
+  background: #ffffff;
 }
 
 .system-fieldset legend {
@@ -337,7 +337,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f1f2f2;
+  background: #ffffff;
 }
 
 /* ===== SINGLE EDITOR PANEL ===== */
@@ -434,7 +434,7 @@ body {
   border: 1px solid #e5e5e5;
   border-radius: 4px;
   font-size: 13px;
-  background: #f8f8f8;
+  background: #ffffff;
   color: #2a2a2a;
   transition: border-color 0.15s;
 }
@@ -462,7 +462,7 @@ body {
   font-family: 'Lato', monospace;
   font-size: 11px;
   color: #555555;
-  background: #f1f2f2;
+  background: #ffffff;
   padding: 3px 8px;
   border-radius: 4px;
   overflow: hidden;
@@ -519,7 +519,7 @@ body {
   border: 1px solid #e5e5e5;
   border-radius: 4px;
   font-size: 12px;
-  background: #f8f8f8;
+  background: #ffffff;
   color: #2a2a2a;
   max-width: 160px;
   transition: border-color 0.15s;
@@ -587,7 +587,7 @@ body {
   border-radius: 4px;
   font-size: 13px;
   text-align: right;
-  background: #f8f8f8;
+  background: #ffffff;
   color: #2a2a2a;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -630,7 +630,7 @@ body {
   border-radius: 4px;
   font-size: 13px;
   text-align: right;
-  background: #f8f8f8;
+  background: #ffffff;
   color: #2a2a2a;
   transition: border-color 0.15s;
 }
@@ -692,7 +692,7 @@ body {
   border-radius: 4px;
   font-size: 12px;
   text-align: right;
-  background: #f8f8f8;
+  background: #ffffff;
   color: #2a2a2a;
 }
 
@@ -701,7 +701,7 @@ body {
   padding: 6px 14px;
   border: 1px solid #e5e5e5;
   border-radius: 4px;
-  background: #f1f2f2;
+  background: #ffffff;
   color: #004290;
   font-size: 12px;
   font-weight: 700;
@@ -718,27 +718,37 @@ body {
   border-color: #004290;
 }
 
+.btn:disabled,
+.btn:disabled:hover {
+  background: #ffffff;
+  color: #b0b0b0;
+  border-color: #e5e5e5;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .btn:active {
   background: #003570;
   transform: scale(0.98);
 }
 
 .btn-primary {
-  background: #004290;
-  color: #ffffff;
+  background: #ffffff;
+  color: #004290;
   border-color: #004290;
   font-weight: 700;
 }
 
 .btn-primary:hover {
-  background: #003570;
+  background: #004290;
+  color: #ffffff;
   border-color: #003570;
 }
 
 .btn-secondary {
   width: 100%;
   margin-bottom: 6px;
-  background: #f1f2f2;
+  background: #ffffff;
   border-color: #e5e5e5;
 }
 
@@ -761,7 +771,7 @@ body {
 .suma-blachy-panel {
   border: 1px solid #dfe5ea;
   border-radius: 6px;
-  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  background: #ffffff;
   padding: 8px;
   margin: 0 0 8px;
   max-height: 220px;
@@ -868,8 +878,8 @@ body {
 }
 
 .btn-action {
-  background: #004290;
-  color: #ffffff;
+  background: #ffffff;
+  color: #004290;
   border-color: #004290;
 }
 
@@ -880,7 +890,7 @@ body {
 }
 
 .btn-danger {
-  background: #f1f2f2;
+  background: #ffffff;
   color: #ce0015;
   border-color: #e5e5e5;
 }
@@ -918,7 +928,7 @@ body {
 .data-grid-filter {
   padding: 6px 8px;
   border-bottom: 1px solid #e5e5e5;
-  background: #fafafa;
+  background: #ffffff;
 }
 
 .data-grid-filter-input {
@@ -948,7 +958,7 @@ body {
 }
 
 .data-grid th {
-  background: #f1f2f2;
+  background: #ffffff;
   padding: 8px 10px;
   text-align: left;
   border-bottom: 1px solid #e5e5e5;
@@ -1048,6 +1058,78 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #b0b0b0;
+}
+
+/* ===== NUMBER INPUT SPINNERS ===== */
+/* Native up/down steppers ignore author background colors and can
+   render with system/dark styling — hide them so the field stays flat white. */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Custom white/blue up-down stepper, replacing the hidden native one */
+.number-stepper {
+  position: relative;
+  display: inline-flex;
+}
+
+.number-stepper input[type="number"] {
+  padding-right: 20px;
+}
+
+.number-stepper-buttons {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  width: 16px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #e5e5e5;
+  border-radius: 0 3px 3px 0;
+  overflow: hidden;
+}
+
+.number-stepper-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #004290;
+  border: none;
+  border-bottom: 1px solid #e5e5e5;
+  cursor: pointer;
+  padding: 0;
+}
+
+.number-stepper-btn:last-child {
+  border-bottom: none;
+}
+
+.number-stepper-btn:hover {
+  background: #004290;
+  color: #ffffff;
+}
+
+.number-stepper-btn::after {
+  content: '';
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+}
+
+.number-stepper-btn-up::after {
+  border-bottom: 4px solid currentColor;
+}
+
+.number-stepper-btn-down::after {
+  border-top: 4px solid currentColor;
 }
 
 /* ===== FOCUS STATES ===== */
@@ -1196,7 +1278,7 @@ select:focus {
   gap: 10px;
   padding: 10px 16px;
   border-bottom: 1px solid #e5e5e5;
-  background: #f8f8f8;
+  background: #ffffff;
 }
 
 .shape-3d-modal-header .shape-3d-hint {
@@ -1226,7 +1308,7 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8f8f8;
+  background: #ffffff;
   border: 1px solid #e5e5e5;
   border-radius: 8px;
   color: #9b9b9b;
