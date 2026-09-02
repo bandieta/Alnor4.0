@@ -4499,37 +4499,99 @@ const TR9aMesh: React.FC<{
     }
 
     // ── Build geometry ──
+    // Explicit per-face normals for the flat sheet-metal panels (so each panel
+    // shades as one surface with no visible triangulation seam) and smooth
+    // radial normals around the round branch sleeve — the same approach QBa uses.
     const verts: number[] = [];
-    const addQ = (v0: [number,number,number], v1: [number,number,number], v2: [number,number,number], v3: [number,number,number]) => {
+    const norms: number[] = [];
+    type V3 = [number, number, number];
+    const sub = (u: V3, v: V3): V3 => [u[0] - v[0], u[1] - v[1], u[2] - v[2]];
+    const cross = (u: V3, v: V3): V3 => [
+      u[1] * v[2] - u[2] * v[1],
+      u[2] * v[0] - u[0] * v[2],
+      u[0] * v[1] - u[1] * v[0],
+    ];
+    const norm = (v: V3): V3 => {
+      const L = Math.hypot(v[0], v[1], v[2]) || 1;
+      return [v[0] / L, v[1] / L, v[2] / L];
+    };
+    // Newell's method — robust for the slightly non-planar skew-tee panels.
+    const quadNormal = (v0: V3, v1: V3, v2: V3, v3: V3): V3 => {
+      const vs = [v0, v1, v2, v3];
+      let nx = 0, ny = 0, nz = 0;
+      for (let k = 0; k < 4; k++) {
+        const c = vs[k], n = vs[(k + 1) % 4];
+        nx += (c[1] - n[1]) * (c[2] + n[2]);
+        ny += (c[2] - n[2]) * (c[0] + n[0]);
+        nz += (c[0] - n[0]) * (c[1] + n[1]);
+      }
+      return norm([nx, ny, nz]);
+    };
+    const addFlat = (v0: V3, v1: V3, v2: V3, v3: V3) => {
+      const n = quadNormal(v0, v1, v2, v3);
       verts.push(...v0, ...v1, ...v2, ...v0, ...v2, ...v3);
+      for (let k = 0; k < 6; k++) norms.push(...n);
+    };
+    const addSmooth = (v0: V3, v1: V3, v2: V3, v3: V3, n0: V3, n1: V3, n2: V3, n3: V3) => {
+      verts.push(...v0, ...v1, ...v2, ...v0, ...v2, ...v3);
+      norms.push(...n0, ...n1, ...n2, ...n0, ...n2, ...n3);
+    };
+    const lerp3 = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    // A large skew-tee panel is a warped (non-planar) quad. Subdivide it into a
+    // bilinear patch with exact analytic normals so it shades as one smooth sheet
+    // with no visible triangulation crease.
+    const addPanel = (v0: V3, v1: V3, v2: V3, v3: V3, res = 8) => {
+      const P = (s: number, t: number): V3 => lerp3(lerp3(v0, v1, s), lerp3(v3, v2, s), t);
+      const N = (s: number, t: number): V3 => {
+        const ds: V3 = [
+          (1 - t) * (v1[0] - v0[0]) + t * (v2[0] - v3[0]),
+          (1 - t) * (v1[1] - v0[1]) + t * (v2[1] - v3[1]),
+          (1 - t) * (v1[2] - v0[2]) + t * (v2[2] - v3[2]),
+        ];
+        const dt: V3 = [
+          (1 - s) * (v3[0] - v0[0]) + s * (v2[0] - v1[0]),
+          (1 - s) * (v3[1] - v0[1]) + s * (v2[1] - v1[1]),
+          (1 - s) * (v3[2] - v0[2]) + s * (v2[2] - v1[2]),
+        ];
+        return norm(cross(ds, dt));
+      };
+      for (let si = 0; si < res; si++) {
+        for (let ti = 0; ti < res; ti++) {
+          const s0 = si / res, s1 = (si + 1) / res, t0 = ti / res, t1 = (ti + 1) / res;
+          addSmooth(
+            P(s0, t0), P(s1, t0), P(s1, t1), P(s0, t1),
+            N(s0, t0), N(s1, t0), N(s1, t1), N(s0, t1),
+          );
+        }
+      }
     };
 
     // Main duct walls (C# GL quads lines 489-544)
-    addQ(p[0], p[4], p[5], p[1]);   // top wall
-    addQ(p[1], p[5], p[6], p[2]);   // right wall
-    addQ(p[2], p[6], p[7], p[3]);   // bottom wall
+    addPanel(p[0], p[4], p[5], p[1]);   // top wall
+    addPanel(p[1], p[5], p[6], p[2]);   // right wall
+    addPanel(p[2], p[6], p[7], p[3]);   // bottom wall
     // End cap walls with branch opening (lines 531-544)
-    addQ(p[3], p[0], p[9], p[10]);  // front-to-branch top
-    addQ(p[7], p[3], p[10], p[14]); // bottom-to-branch
-    addQ(p[4], p[7], p[14], p[13]); // back-to-branch
-    addQ(p[0], p[4], p[13], p[9]);  // left-to-branch
+    addPanel(p[3], p[0], p[9], p[10]);  // front-to-branch top
+    addPanel(p[7], p[3], p[10], p[14]); // bottom-to-branch
+    addPanel(p[4], p[7], p[14], p[13]); // back-to-branch
+    addPanel(p[0], p[4], p[13], p[9]);  // left-to-branch
 
     // Front flanges 0-3 → 16-19 (lines 547-566)
-    addQ(p[0], p[1], p[17], p[16]);
-    addQ(p[1], p[2], p[18], p[17]);
-    addQ(p[2], p[3], p[19], p[18]);
-    addQ(p[3], p[0], p[16], p[19]);
+    addFlat(p[0], p[1], p[17], p[16]);
+    addFlat(p[1], p[2], p[18], p[17]);
+    addFlat(p[2], p[3], p[19], p[18]);
+    addFlat(p[3], p[0], p[16], p[19]);
 
     // Back flanges 4-7 → 20-23 (lines 568-596)
-    addQ(p[5], p[4], p[20], p[21]);
-    addQ(p[4], p[7], p[23], p[20]);
-    addQ(p[7], p[6], p[22], p[23]);
-    addQ(p[6], p[5], p[21], p[22]);
+    addFlat(p[5], p[4], p[20], p[21]);
+    addFlat(p[4], p[7], p[23], p[20]);
+    addFlat(p[7], p[6], p[22], p[23]);
+    addFlat(p[6], p[5], p[21], p[22]);
 
     // Smooth the legacy 24-sided branch profile into a 96-sided sleeve while
     // retaining its exact square-to-round transition at the connection ring.
     const BRANCH_SEGMENTS = 96;
-    const interpolateRing = (ring: [number, number, number][], position: number): [number, number, number] => {
+    const interpolateRing = (ring: V3[], position: number): V3 => {
       const base = Math.floor(position);
       const t = position - base;
       const sample = (offset: number) => ring[(base + offset + 24) % 24];
@@ -4551,15 +4613,33 @@ const TR9aMesh: React.FC<{
         spline(previous[2], current[2], next[2], afterNext[2]),
       ];
     };
+    // Ring centre, for orienting the sleeve normals outward.
+    const ringCentre: V3 = [0, 0, 0];
+    for (let ii = 0; ii < 24; ii++) { ringCentre[0] += circ[ii][0]; ringCentre[1] += circ[ii][1]; ringCentre[2] += circ[ii][2]; }
+    ringCentre[0] /= 24; ringCentre[1] /= 24; ringCentre[2] /= 24;
+    const sleeveNormal = (pos: number): V3 => {
+      const a = interpolateRing(circ, pos);
+      const ahead = interpolateRing(circ, pos + 0.05);
+      const behind = interpolateRing(circ, pos - 0.05);
+      const axis = sub(interpolateRing(circ2, pos), a);
+      let n = norm(cross(sub(ahead, behind), axis));
+      if ((n[0] * (a[0] - ringCentre[0]) + n[1] * (a[1] - ringCentre[1]) + n[2] * (a[2] - ringCentre[2])) < 0) {
+        n = [-n[0], -n[1], -n[2]];
+      }
+      return n;
+    };
 
     for (let ii = 0; ii < BRANCH_SEGMENTS; ii++) {
-      const current = ii * 24 / BRANCH_SEGMENTS;
-      const next = (ii + 1) * 24 / BRANCH_SEGMENTS;
-      addQ(
-        interpolateRing(circ, current),
-        interpolateRing(circ, next),
-        interpolateRing(circ2, next),
-        interpolateRing(circ2, current),
+      const cur = ii * 24 / BRANCH_SEGMENTS;
+      const nxt = (ii + 1) * 24 / BRANCH_SEGMENTS;
+      const nCur = sleeveNormal(cur);
+      const nNxt = sleeveNormal(nxt);
+      addSmooth(
+        interpolateRing(circ, cur),
+        interpolateRing(circ, nxt),
+        interpolateRing(circ2, nxt),
+        interpolateRing(circ2, cur),
+        nCur, nNxt, nNxt, nCur,
       );
     }
 
@@ -4568,12 +4648,13 @@ const TR9aMesh: React.FC<{
     for (let ii = 0; ii < 24; ii++) {
       const ac = at[ii] + 1;
       const ad = at[ii];
-      addQ(circ[ii], circ[ii + 1], bridge[ac], bridge[ad]);
+      addFlat(circ[ii], circ[ii + 1], bridge[ac], bridge[ad]);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // ── Edge lines ──
     const edgePts: number[] = [];
@@ -4609,9 +4690,11 @@ const TR9aMesh: React.FC<{
   return (
     <group>
       <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
-        <lineBasicMaterial color="#222222" linewidth={1} />
-      </lineSegments>
+      {!HIDE_POLYGON_CONNECTION_LINES && (
+        <lineSegments geometry={edgeGeo}>
+          <lineBasicMaterial color="#7a7e85" linewidth={1} />
+        </lineSegments>
+      )}
     </group>
   );
 };
