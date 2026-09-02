@@ -396,6 +396,17 @@ body {
   height: auto;
 }
 
+/* ISO 129 puts the dimension value in a break in the dimension line. Painting a
+   white halo under every label reproduces that break, so extension and dimension
+   lines never run through the glyphs. */
+.shape-diagram svg text {
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 2.6px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
 /* ===== INFO ROW (oznaczenie + name + symbol) ===== */
 .shape-info-row {
   display: flex;
