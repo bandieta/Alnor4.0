@@ -2,14 +2,64 @@
 :root {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 12px;
-  color-scheme: light;
+  color-scheme: light only;
+  background: #ffffff;
+}
+
+html {
+  background: #ffffff;
 }
 
 body {
   margin: 0;
+  background: #ffffff;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+  background: #ffffff;
+}
+
+/* Safety net: force light rendering on any element that doesn't
+   already set its own colors, so nothing falls back to the OS/browser
+   dark theme. More specific rules in App.css still win over this. */
+div,
+section,
+header,
+footer,
+nav,
+aside,
+main,
+form,
+fieldset {
+  background-color: #ffffff;
+  color-scheme: light only;
+}
+
+input,
+textarea,
+select,
+button {
+  background-color: #ffffff;
+  color: #1a1a1a;
+  color-scheme: light only;
+  border-color: #d0d0d0;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #999999;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled,
+button:disabled {
+  background-color: #f1f2f2;
+  color: #999999;
+}
+
+a {
+  color: #004290;
 }
