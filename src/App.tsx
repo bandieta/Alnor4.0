@@ -25,7 +25,7 @@ import {
 } from './data';
 import { calculateArea, generateSymbol, generatePrzekroj, calculateKot } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
-import { LANGUAGE_OPTIONS, parseDictionary, translate, type AppLanguage, type DictionaryMap } from './i18n';
+import { LANGUAGE_OPTIONS, parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
 
 function buildSumaBlachyReport(gridRows: GridRow[]): string {
@@ -226,7 +226,7 @@ function App() {
   const [language, setLanguage] = useState<AppLanguage>(() => {
     try {
       const saved = localStorage.getItem('alnor-cam-language');
-      if (saved === 'pl' || saved === 'en' || saved === 'de' || saved === 'hu') {
+      if (isAppLanguage(saved)) {
         return saved;
       }
       return 'pl';
