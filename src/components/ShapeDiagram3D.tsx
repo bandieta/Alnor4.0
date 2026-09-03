@@ -1,8 +1,8 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { Text, Environment, Billboard } from '@react-three/drei';
-import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
 import * as THREE from 'three';
 
 extend({ TrackballControls });
@@ -41,71 +41,216 @@ interface ShapeDiagram3DProps {
   t?: (text: string) => string;
 }
 
-const CONSISTENT_MESH_COLOR = new THREE.Color('#8a9bae');
-const CONSISTENT_EDGE_COLOR = new THREE.Color('#7a7e85');
 const HIDE_POLYGON_CONNECTION_LINES = true;
 
+/* The single sheet-metal finish shared by every 3D fitting. This is the look the
+   reducers (QPR6a/QPR2a) and bends (QBa/QBNa) use and that we standardise on, so
+   every shape renders identically. `preserveMetalFinish` keeps normalizeGroupAppearance
+   from ever flattening it to matte grey. */
+const makeStandardMetalMaterial = () => {
+  const m = new THREE.MeshPhysicalMaterial({
+    color: '#8a9bae',
+    roughness: 0.18,
+    metalness: 0.92,
+    reflectivity: 1.0,
+    clearcoat: 0.5,
+    clearcoatRoughness: 0.08,
+    side: THREE.DoubleSide,
+    envMapIntensity: 1.0,
+    // Neutral floor so faces angled away from the key light / HDRI never read as
+    // near-black on the more enclosed fittings (elbows, crosses, tees).
+    emissive: new THREE.Color('#5b6472'),
+    emissiveIntensity: 0.22,
+  });
+  m.userData.preserveMetalFinish = true;
+  return m;
+};
+
+/* Post-mount pass over a shape group. Every fitting now builds its own
+   standardised material (makeStandardMetalMaterial), so this NEVER rewrites
+   materials any more — that is what used to flatten shapes to matte grey on
+   (re)selection. It still (a) hides the debug polygon-connection lines and
+   (b) rebuilds vertex normals for meshes that did not hand-author reliable
+   ones (flagged with geo.userData.preserveNormals), so their winding-derived
+   normals face outward and they light correctly. */
 const normalizeGroupAppearance = (root: THREE.Object3D | null) => {
   if (!root) return;
-
   root.traverse((obj) => {
+    if (obj instanceof THREE.LineSegments) {
+      if (HIDE_POLYGON_CONNECTION_LINES) obj.visible = false;
+      return;
+    }
     if (obj instanceof THREE.Mesh) {
       let geo = obj.geometry as THREE.BufferGeometry | undefined;
-      if (geo && !geo.userData.preserveNormals) {
-        // Weld duplicated vertices before normal rebuild so contiguous plates shade as one surface.
-        if (!geo.index) {
-          const welded = mergeVertices(geo, 1e-6);
-          if (welded !== geo) {
-            geo = welded;
-            obj.geometry = geo;
-          }
-        }
-        geo.deleteAttribute('normal');
-        geo.computeVertexNormals();
-        geo.normalizeNormals();
-      }
-
-      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (const mat of materials) {
-        if (mat.userData.preserveMetalFinish) continue;
-        if (
-          mat instanceof THREE.MeshPhysicalMaterial ||
-          mat instanceof THREE.MeshStandardMaterial ||
-          mat instanceof THREE.MeshPhongMaterial ||
-          mat instanceof THREE.MeshLambertMaterial
-        ) {
-          mat.color.copy(CONSISTENT_MESH_COLOR);
-          if ('roughness' in mat) mat.roughness = 0.92;
-          if ('metalness' in mat) mat.metalness = 0.08;
-          if ('reflectivity' in mat) mat.reflectivity = 0.08;
-          if ('clearcoat' in mat) mat.clearcoat = 0.0;
-          if ('clearcoatRoughness' in mat) mat.clearcoatRoughness = 1.0;
-          if ('flatShading' in mat) mat.flatShading = false;
-          if ('vertexColors' in mat) mat.vertexColors = false;
-          if ('emissive' in mat) mat.emissive = new THREE.Color('#000000');
-          if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0;
-          if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
-          mat.side = THREE.DoubleSide;
-          mat.needsUpdate = true;
+      if (!geo || geo.userData.preserveNormals) return;
+      // Weld duplicated vertices so contiguous plates shade as one surface,
+      // then derive normals from the triangle winding (outward-facing).
+      if (!geo.index) {
+        const welded = mergeVertices(geo, 1e-6);
+        if (welded !== geo) {
+          geo = welded;
+          obj.geometry = geo;
         }
       }
-    }
-
-    if (obj instanceof THREE.LineSegments) {
-      if (HIDE_POLYGON_CONNECTION_LINES) {
-        obj.visible = false;
-        return;
-      }
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (const mat of mats) {
-        if (mat instanceof THREE.LineBasicMaterial) {
-          mat.color.copy(CONSISTENT_EDGE_COLOR);
-          mat.needsUpdate = true;
-        }
-      }
+      geo.deleteAttribute('normal');
+      geo.computeVertexNormals();
+      geo.normalizeNormals();
     }
   });
 };
+
+/* Weld a hand-built shell, derive smooth vertex normals from it, then flip them into
+   the convention BendMesh (QBa) authors: normals that oppose their own triangle's
+   winding.
+
+   Under side:DoubleSide three.js negates the shading normal on back-facing fragments,
+   so the normal the shader actually uses is decided purely by whether the authored
+   normal agrees with the winding — the authored direction itself cancels out.
+   computeVertexNormals() always produces agreeing normals, which makes a fitting
+   sample the environment from the wrong hemisphere: flat, cold-blue, no reflection.
+   Flipping puts it in QBa's family — warm sheet metal with real HDRI reflection.
+
+   preserveNormals then stops normalizeGroupAppearance recomputing (and so undoing)
+   this, which also means the weld has to happen here rather than there. */
+const applyStandardShading = (geo: THREE.BufferGeometry) => {
+  let g = geo;
+  if (!g.index) {
+    const welded = mergeVertices(g, 1e-6);
+    if (welded !== g) g = welded;
+  }
+  g.deleteAttribute('normal');
+  g.computeVertexNormals();
+  g.normalizeNormals();
+  const normal = g.getAttribute('normal') as THREE.BufferAttribute;
+  const arr = normal.array as Float32Array;
+  for (let i = 0; i < arr.length; i++) arr[i] = -arr[i];
+  normal.needsUpdate = true;
+  g.userData.preserveNormals = true;
+  return g;
+};
+
+type Vec3 = [number, number, number];
+
+/* Shared builder for every 3D fitting's sheet-metal shell, so they all shade the
+   same way.
+
+   - `panel()` takes a warped (non-planar) quad and subdivides it into a bilinear
+     patch with exact analytic normals — a single flat normal on such a quad shows
+     a hard diagonal crease and folds against its neighbours along a visible line.
+   - `flat()` takes a planar face (box wall, flange lip) and gives it one face
+     normal, kept crisp.
+   - Every normal is authored in QBa's convention: it opposes its own triangle
+     winding. Under side:DoubleSide that is what puts a fitting in QBa's warm
+     reflective family instead of the flat cold hemisphere.
+   - `blend()` averages the normals of every coincident vertex added so far, so a
+     run of panels resolves to ONE continuous formed surface with no seam lines.
+     Call it once after the body, then add flange lips with `flat()` so their
+     folds stay sharp.
+   - `build()` returns a geometry with preserveNormals set, so
+     normalizeGroupAppearance never recomputes (and undoes) this. */
+class SheetShell {
+  verts: number[] = [];
+  norms: number[] = [];
+
+  private static nrm(v: Vec3): Vec3 { const L = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / L, v[1] / L, v[2] / L]; }
+  private static crs(u: Vec3, v: Vec3): Vec3 {
+    return [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  }
+
+  panel(v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, res = 6): void {
+    const P = (s: number, t: number): Vec3 => [
+      (1 - t) * ((1 - s) * v0[0] + s * v1[0]) + t * ((1 - s) * v3[0] + s * v2[0]),
+      (1 - t) * ((1 - s) * v0[1] + s * v1[1]) + t * ((1 - s) * v3[1] + s * v2[1]),
+      (1 - t) * ((1 - s) * v0[2] + s * v1[2]) + t * ((1 - s) * v3[2] + s * v2[2]),
+    ];
+    const N = (s: number, t: number): Vec3 => {
+      const ds: Vec3 = [
+        (1 - t) * (v1[0] - v0[0]) + t * (v2[0] - v3[0]),
+        (1 - t) * (v1[1] - v0[1]) + t * (v2[1] - v3[1]),
+        (1 - t) * (v1[2] - v0[2]) + t * (v2[2] - v3[2]),
+      ];
+      const dt: Vec3 = [
+        (1 - s) * (v3[0] - v0[0]) + s * (v2[0] - v1[0]),
+        (1 - s) * (v3[1] - v0[1]) + s * (v2[1] - v1[1]),
+        (1 - s) * (v3[2] - v0[2]) + s * (v2[2] - v1[2]),
+      ];
+      const n = SheetShell.nrm(SheetShell.crs(ds, dt));
+      return [-n[0], -n[1], -n[2]];
+    };
+    for (let si = 0; si < res; si++) for (let ti = 0; ti < res; ti++) {
+      const s0 = si / res, s1 = (si + 1) / res, t0 = ti / res, t1 = (ti + 1) / res;
+      this.verts.push(...P(s0, t0), ...P(s1, t0), ...P(s1, t1), ...P(s0, t0), ...P(s1, t1), ...P(s0, t1));
+      this.norms.push(...N(s0, t0), ...N(s1, t0), ...N(s1, t1), ...N(s0, t0), ...N(s1, t1), ...N(s0, t1));
+    }
+  }
+
+  /* Planar face: quad or n-gon, fan-triangulated, one negated face normal. */
+  flat(...vs: Vec3[]): void {
+    const a = vs[0];
+    for (let n = 1; n < vs.length - 1; n++) {
+      const b = vs[n], c = vs[n + 1];
+      const fn = SheetShell.nrm(SheetShell.crs(
+        [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+        [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
+      ));
+      const nn: Vec3 = [-fn[0], -fn[1], -fn[2]];
+      this.verts.push(...a, ...b, ...c);
+      this.norms.push(...nn, ...nn, ...nn);
+    }
+  }
+
+  /* Add pre-computed smooth normals (e.g. radial normals on a curved wall). */
+  smoothQuad(v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, n0: Vec3, n1: Vec3, n2: Vec3, n3: Vec3): void {
+    this.verts.push(...v0, ...v1, ...v2, ...v0, ...v2, ...v3);
+    this.norms.push(...n0, ...n1, ...n2, ...n0, ...n2, ...n3);
+  }
+
+  /* Crease-aware blend. At each coincident-vertex position the incoming normals
+     are clustered: two normals merge only if the angle between them is under
+     `creaseDeg`, so a run of panels across a gentle warp resolves to one
+     continuous surface with no seam lines, while a genuine fold (box corner,
+     flange lip, wall-to-wall edge) is left as two separate normals and stays a
+     crisp edge. Default 35° — anything sharper than that reads as an edge. */
+  blend(creaseDeg = 35): void {
+    const cosC = Math.cos(creaseDeg * Math.PI / 180);
+    const key = (x: number, y: number, z: number) =>
+      `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
+    const groups = new Map<string, number[]>();
+    for (let i = 0; i < this.verts.length; i += 3) {
+      const k = key(this.verts[i], this.verts[i + 1], this.verts[i + 2]);
+      const g = groups.get(k);
+      if (g) g.push(i); else groups.set(k, [i]);
+    }
+    for (const idxs of groups.values()) {
+      if (idxs.length < 2) continue;
+      const clusters: { sum: Vec3; members: number[] }[] = [];
+      for (const i of idxs) {
+        const nx = this.norms[i], ny = this.norms[i + 1], nz = this.norms[i + 2];
+        let placed = false;
+        for (const c of clusters) {
+          const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+          if ((nx * c.sum[0] + ny * c.sum[1] + nz * c.sum[2]) / L > cosC) {
+            c.sum[0] += nx; c.sum[1] += ny; c.sum[2] += nz; c.members.push(i); placed = true; break;
+          }
+        }
+        if (!placed) clusters.push({ sum: [nx, ny, nz], members: [i] });
+      }
+      for (const c of clusters) {
+        const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+        const nx = c.sum[0] / L, ny = c.sum[1] / L, nz = c.sum[2] / L;
+        for (const i of c.members) { this.norms[i] = nx; this.norms[i + 1] = ny; this.norms[i + 2] = nz; }
+      }
+    }
+  }
+
+  build(): THREE.BufferGeometry {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.verts, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.norms, 3));
+    g.userData.preserveNormals = true;
+    return g;
+  }
+}
 
 /* Duct mesh — 4 side walls only (open inlet/outlet like original) */
 const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) => {
@@ -115,19 +260,7 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
   const nb = (b / maxDim) * 2;
   const nl = (l / maxDim) * 2;
 
-  // Shiny sheet metal material
-  const material = useMemo(() => {
-    return new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae',
-      roughness: 0.18,
-      metalness: 0.92,
-      reflectivity: 1.0,
-      clearcoat: 0.5,
-      clearcoatRoughness: 0.08,
-      side: THREE.DoubleSide,
-      envMapIntensity: 1.0,
-    });
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   // Build geometry with only the 4 side walls (no front/back caps)
   const geometry = useMemo(() => {
@@ -146,6 +279,14 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
        hw, -hh, hd,   hw, hh, hd,   hw, hh, -hd,
        hw, -hh, hd,   hw, hh, -hd,  hw, -hh, -hd,
     ]);
+    // Outward-facing normals, i.e. the same convention BendMesh (QBa) authors: the
+    // normal points out of the sheet and therefore opposes the winding-derived normal
+    // of its own triangle. Under side:DoubleSide three.js negates the shading normal
+    // on back-facing fragments, so what the shader ends up using is decided purely by
+    // whether the authored normal agrees with the winding — not by its own direction.
+    // Matching QBa's disagreeing convention is what gives the duct the same warm
+    // sheet-metal reflection instead of the flat cold-blue cast it had when the
+    // normals agreed with the winding.
     const normals = new Float32Array([
       // Top
       0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0,
@@ -166,6 +307,7 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
     geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.userData.preserveNormals = true;
     return geo;
   }, [na, nb, nl]);
 
@@ -257,15 +399,7 @@ const BendMesh: React.FC<{ a: number; b: number; e: number; f: number; r: number
   const sr = r * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => {
-    const bendMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-      flatShading: false,
-    });
-    bendMaterial.userData.preserveMetalFinish = true;
-    return bendMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = sa / 2; // half-width (a dimension, z-axis)
@@ -493,15 +627,7 @@ const ReductionBendMesh: React.FC<{
   const sr = r * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => {
-    const bendMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
-      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
-      flatShading: false,
-    });
-    bendMaterial.userData.preserveMetalFinish = true;
-    return bendMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = sa / 2;
@@ -573,8 +699,6 @@ const ReductionBendMesh: React.FC<{
       const [ix1, iy1] = innerPts[i + 1];
       const [ox0, oy0] = outerPts[i];
       const [ox1, oy1] = outerPts[i + 1];
-      const t = (i + 0.5) / segments;
-      const outerR = sr + sb + (sd - sb) * t;
 
       // Front face (z = -hw)
       verts.push(ix0, iy0, -hw, ox0, oy0, -hw, ox1, oy1, -hw);
@@ -588,20 +712,22 @@ const ReductionBendMesh: React.FC<{
       for (let j = 0; j < 6; j++) norms.push(0, 0, 1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Inner wall (constant radius sr)
-      const nix = -(ix0 + ix1) / 2 / sr;
-      const niy = -(iy0 + iy1) / 2 / sr;
+      // Inner wall — per-vertex radial normals so the mirror finish doesn't band
+      const in0: [number, number, number] = [-ix0 / sr, -iy0 / sr, 0];
+      const in1: [number, number, number] = [-ix1 / sr, -iy1 / sr, 0];
       verts.push(ix0, iy0, hw, ix0, iy0, -hw, ix1, iy1, -hw);
       verts.push(ix0, iy0, hw, ix1, iy1, -hw, ix1, iy1, hw);
-      for (let j = 0; j < 6; j++) norms.push(nix, niy, 0);
+      norms.push(...in0, ...in0, ...in1, ...in0, ...in1, ...in1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Outer wall (interpolated radius)
-      const nox = (ox0 + ox1) / 2 / outerR;
-      const noy = (oy0 + oy1) / 2 / outerR;
+      // Outer wall — per-vertex radial normals
+      const om0 = Math.hypot(ox0, oy0) || 1;
+      const om1 = Math.hypot(ox1, oy1) || 1;
+      const out0: [number, number, number] = [ox0 / om0, oy0 / om0, 0];
+      const out1: [number, number, number] = [ox1 / om1, oy1 / om1, 0];
       verts.push(ox0, oy0, -hw, ox0, oy0, hw, ox1, oy1, hw);
       verts.push(ox0, oy0, -hw, ox1, oy1, hw, ox1, oy1, -hw);
-      for (let j = 0; j < 6; j++) norms.push(nox, noy, 0);
+      norms.push(...out0, ...out0, ...out1, ...out0, ...out1, ...out1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
     }
 
@@ -645,6 +771,13 @@ const ReductionBendMesh: React.FC<{
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    // These normals are authored exactly as BendMesh (QBa) authors its own:
+    // per-face on the flat walls, per-vertex radial on the curve, all in the
+    // convention that opposes the triangle winding. Without preserveNormals the
+    // normalize pass would run computeVertexNormals() over them and collapse
+    // everything to the winding-agreeing direction, which under side:DoubleSide
+    // is what made QBRa read colder and flatter than QBa.
+    geo.userData.preserveNormals = true;
 
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
@@ -724,14 +857,11 @@ const DiffuserBendMesh: React.FC<{
   const sg = g * scale;
   const alfaRad = (alfa * Math.PI) / 180;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    flatShading: false,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
-    const segments = 16;
+    // High angular resolution so the formed bend reads as a smooth curve, not facets.
+    const segments = Math.max(48, Math.ceil((Math.abs(alfaRad) / (Math.PI / 2)) * 96));
     const verts: number[] = [];
     const norms: number[] = [];
     const uvArr: number[] = [];
@@ -820,8 +950,6 @@ const DiffuserBendMesh: React.FC<{
       const [ox1, oy1] = outerPts[i + 1];
       const zL0 = zLeftArr[i], zL1 = zLeftArr[i + 1];
       const zR0 = zRightArr[i], zR1 = zRightArr[i + 1];
-      const t = (i + 0.5) / segments;
-      const outerR = sr + sd + (sb - sd) * t;
 
       // Front face (z = zLeft)
       verts.push(ix0, iy0, zL0, ox0, oy0, zL0, ox1, oy1, zL1);
@@ -835,20 +963,22 @@ const DiffuserBendMesh: React.FC<{
       for (let j = 0; j < 6; j++) norms.push(0, 0, 1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Inner wall
-      const nix = -(ix0 + ix1) / 2 / sr;
-      const niy = -(iy0 + iy1) / 2 / sr;
+      // Inner wall — per-vertex radial normals toward the arc centre → smooth curve
+      const in0: [number, number, number] = [-ix0 / sr, -iy0 / sr, 0];
+      const in1: [number, number, number] = [-ix1 / sr, -iy1 / sr, 0];
       verts.push(ix0, iy0, zR0, ix0, iy0, zL0, ix1, iy1, zL1);
       verts.push(ix0, iy0, zR0, ix1, iy1, zL1, ix1, iy1, zR1);
-      for (let j = 0; j < 6; j++) norms.push(nix, niy, 0);
+      norms.push(...in0, ...in0, ...in1, ...in0, ...in1, ...in1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
 
-      // Outer wall
-      const nox = (ox0 + ox1) / 2 / outerR;
-      const noy = (oy0 + oy1) / 2 / outerR;
+      // Outer wall — per-vertex radial normals away from the arc centre
+      const om0 = Math.hypot(ox0, oy0) || 1;
+      const om1 = Math.hypot(ox1, oy1) || 1;
+      const out0: [number, number, number] = [ox0 / om0, oy0 / om0, 0];
+      const out1: [number, number, number] = [ox1 / om1, oy1 / om1, 0];
       verts.push(ox0, oy0, zL0, ox0, oy0, zR0, ox1, oy1, zR1);
       verts.push(ox0, oy0, zL0, ox1, oy1, zR1, ox1, oy1, zL1);
-      for (let j = 0; j < 6; j++) norms.push(nox, noy, 0);
+      norms.push(...out0, ...out0, ...out1, ...out0, ...out1, ...out1);
       uvArr.push(0,0, 1,0, 1,1, 0,0, 1,1, 0,1);
     }
 
@@ -894,6 +1024,7 @@ const DiffuserBendMesh: React.FC<{
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
@@ -968,22 +1099,7 @@ const ReductionElbowMesh: React.FC<{
   const sf = f * scale;
   const sr = r * scale;
 
-  const material = useMemo(() => {
-    const elbowMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#cbd5df',
-      roughness: 0.14,
-      metalness: 0.72,
-      reflectivity: 1.0,
-      clearcoat: 0.85,
-      clearcoatRoughness: 0.04,
-      side: THREE.DoubleSide,
-      envMapIntensity: 1.35,
-      emissive: '#56616d',
-      emissiveIntensity: 0.14,
-    });
-    elbowMaterial.userData.preserveMetalFinish = true;
-    return elbowMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const totalW = se + sb;
@@ -991,7 +1107,10 @@ const ReductionElbowMesh: React.FC<{
     const x0 = -totalW / 2;
     const y0 = -totalH / 2;
     const cornerR = Math.max(0.001, Math.min(sr, se * 0.98, sf * 0.98));
-    const arcSegments = 24;
+    // Match the angular resolution the other rounded fittings use on their
+    // curves (QBa/QBRa run 48–128 over 90°), so the inner fillet reads as a
+    // formed radius rather than a low-poly chamfer.
+    const arcSegments = 96;
 
     // 2D L-profile with an inner fillet, then extruded along Z.
     const shape = new THREE.Shape();
@@ -1040,6 +1159,19 @@ const ReductionElbowMesh: React.FC<{
       addTriangle([p0.x, p0.y, halfDepth], [p1.x, p1.y, halfDepth], [p2.x, p2.y, halfDepth], [0, 0, 1]);
     }
 
+    // A contour vertex sits on the inner fillet if it is cornerR from the arc centre.
+    const onArc = (p: THREE.Vector2) =>
+      Math.abs(Math.hypot(p.x - arcCX, p.y - arcCY) - cornerR) < cornerR * 0.02 + 1e-6;
+    // Radial normal at an arc vertex, authored in the SAME pre-negate sense as
+    // the flat wall normals ([dy,-dx] = tangent rotated -90°, which on this arc
+    // works out to point toward the centre). The global negate below then flips
+    // the whole shell — flats and fillet alike — into QBa's convention.
+    const radial = (p: THREE.Vector2): [number, number, number] => {
+      const rx = arcCX - p.x, ry = arcCY - p.y;
+      const rl = Math.hypot(rx, ry) || 1;
+      return [rx / rl, ry / rl, 0];
+    };
+
     // Add perimeter walls except at the left d×a and bottom b×a duct openings.
     for (let i = 0; i < contour.length; i++) {
       const p0 = contour[i];
@@ -1053,15 +1185,32 @@ const ReductionElbowMesh: React.FC<{
       const dy = p1.y - p0.y;
       const length = Math.hypot(dx, dy);
       if (length < 1e-6) continue;
-      const normal = [dy / length, -dx / length, 0];
-      addQuad(
-        [p0.x, p0.y, -halfDepth],
-        [p1.x, p1.y, -halfDepth],
-        [p1.x, p1.y, halfDepth],
-        [p0.x, p0.y, halfDepth],
-        normal,
-      );
+
+      const q0 = [p0.x, p0.y, -halfDepth];
+      const q1 = [p1.x, p1.y, -halfDepth];
+      const q2 = [p1.x, p1.y, halfDepth];
+      const q3 = [p0.x, p0.y, halfDepth];
+
+      if (onArc(p0) && onArc(p1)) {
+        // Per-vertex radial normals so the fillet shades as one smooth surface
+        // instead of a fan of flats (the same trick QBa/QBRa use on their curves).
+        const n0 = radial(p0);
+        const n1 = radial(p1);
+        verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+        norms.push(...n0, ...n1, ...n1, ...n0, ...n1, ...n0);
+        uvArr.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+      } else {
+        addQuad(q0, q1, q2, q3, [dy / length, -dx / length, 0]);
+      }
     }
+
+    // These per-face normals were authored pointing out of the sheet, which means
+    // they AGREE with their triangle's winding. QBa's BendMesh authors the opposite
+    // convention, and under side:DoubleSide it is that winding-agreement (not the
+    // normal's own direction) that picks the shading normal — so an agreeing shell
+    // samples the environment from the wrong hemisphere and reads flat and cold.
+    // Negate to land in QBa's family: warm sheet metal with real HDRI reflection.
+    for (let i = 0; i < norms.length; i++) norms[i] = -norms[i];
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -1069,7 +1218,9 @@ const ReductionElbowMesh: React.FC<{
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
     geo.userData.preserveNormals = true;
 
-    const eGeo = new THREE.EdgesGeometry(geo);
+    // 30° threshold so the wireframe marks the real folds only, not every
+    // fillet facet (matches QBFa).
+    const eGeo = new THREE.EdgesGeometry(geo, 30);
     return { geometry: geo, edgeGeo: eGeo };
   }, [sa, sb, sd, se, sf, sr]);
 
@@ -1096,16 +1247,7 @@ const TR1aMesh: React.FC<{
   const sw = w * scale, sl = L * scale;
   const se = e * scale, sf = f * scale, sl3 = l3 * scale;
 
-  const material = useMemo(() => {
-    const teeMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.16, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.65, clearcoatRoughness: 0.06, side: THREE.DoubleSide, envMapIntensity: 1.1,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    teeMaterial.userData.preserveMetalFinish = true;
-    return teeMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
@@ -1184,11 +1326,17 @@ const TR1aMesh: React.FC<{
     // Branch left (x=brLftX, facing -x)
     addQuad(p15, p12, p8,  p11, [-1, 0, 0]);
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    rawGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    // The hand-authored per-face normals here were an inconsistent mix — some
+    // agreeing with their triangle winding, some opposing — so the tee lit
+    // unevenly and, on the agreeing faces, flat and cold. Re-derive from the
+    // winding and flip into QBa's uniform opposing convention. The weld only
+    // fuses genuine duplicates (same position AND normal AND uv), so the box
+    // and branch edges stay crisp.
+    const geo = applyStandardShading(rawGeo);
 
     // ── Edge wireframe ────────────────────────────────────────────────────────
     const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
@@ -1311,16 +1459,7 @@ const TR2aMesh: React.FC<{
   const sl = L * scale, sl3 = l3 * scale;
   const se = e * scale, sf = f * scale;
 
-  const material = useMemo(() => {
-    const teeMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    teeMaterial.userData.preserveMetalFinish = true;
-    return teeMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hL = sl / 2, hb = sb / 2, ha = sa / 2;
@@ -1417,10 +1556,17 @@ const TR2aMesh: React.FC<{
       addTri(topCircle[i], botCircle[i + 1], botCircle[i], normal0, normal1, normal0);
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // The three main-duct walls were authored pointing physically outward, which
+    // makes them AGREE with their triangle winding, while the top strips, the
+    // collar transition and the branch tube all OPPOSE theirs. That split lit the
+    // tee unevenly and, on the agreeing walls, flat and cold. Re-derive from the
+    // winding and flip into QBa's uniform opposing convention. The weld fuses the
+    // branch tube's shared radial-normal verts (keeping it smooth) but not the
+    // box corners (keeping them crisp).
+    const geo = applyStandardShading(rawGeo);
 
     // ── Edge wireframe ──────────────────────────────────────────────────────
     // Main duct edges
@@ -1522,16 +1668,7 @@ const TRaMesh: React.FC<{
   const sq = q * scale, sr = r * scale;
   const si = iVal * scale, sp = pVal * scale;
 
-  const material = useMemo(() => {
-    const teeMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    teeMaterial.userData.preserveMetalFinish = true;
-    return teeMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = sa / 2;
@@ -1700,10 +1837,7 @@ const QPR3aMesh: React.FC<{
   const sa = a * scale, sb = b * scale, se = e * scale;
   const sl = L * scale, sm = m * scale, sh = h * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = sa / 2;
@@ -1772,9 +1906,13 @@ const QPR3aMesh: React.FC<{
 
     // NO end caps (open inlet and outlet)
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    // computeVertexNormals() alone yields normals that agree with the triangle
+    // winding, which under side:DoubleSide reads flat and cold — QBa's BendMesh
+    // authors the opposing convention. applyStandardShading welds, recomputes,
+    // and flips into that convention so the offset shades as warm sheet metal.
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     // Left face outline
@@ -1843,10 +1981,7 @@ const QPR4aMesh: React.FC<{
   const sa = a * scale, sb = b * scale, sd = d * scale, se = e * scale;
   const sl = L * scale, sm = m * scale, sh = h * scale;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = sa / 2;
@@ -1910,9 +2045,13 @@ const QPR4aMesh: React.FC<{
     addQuad(p[6], p[5], p[13], p[14]);
     addQuad(p[5], p[4], p[12], p[13]);
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    // computeVertexNormals() alone agrees with the triangle winding, which under
+    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
+    // convention. applyStandardShading welds, recomputes, and flips into it so
+    // the offset shades as warm sheet metal (same fix as QPR3a).
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     seg(p[0], p[1]); seg(p[1], p[2]); seg(p[2], p[3]);
@@ -1981,10 +2120,7 @@ const TR6aMesh: React.FC<{
   const sg = Math.max(0.02, sgRaw);
   const sr = sa / 2; // pipe radius
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const he = se / 2;
@@ -2051,9 +2187,13 @@ const TR6aMesh: React.FC<{
     // Intentionally keep top and bottom open: this matches legacy TR6a,
     // which is modeled as a saddle shell (side walls + two end caps).
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    // computeVertexNormals() alone agrees with the triangle winding, which under
+    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
+    // convention. applyStandardShading welds (keeping the saddle curve smooth),
+    // recomputes, and flips into it so the shell shades as warm sheet metal.
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     // Left face outline (top curve + bottom + verticals)
@@ -2126,16 +2266,7 @@ const CZ1aMesh: React.FC<{
   const se = e * sc, se1 = e1 * sc, sf1 = f1 * sc;
   const sf = f * sc, sl3 = l3 * sc, sl4 = l4 * sc;
 
-  const material = useMemo(() => {
-    const crossMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    crossMaterial.userData.preserveMetalFinish = true;
-    return crossMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -2230,10 +2361,15 @@ const CZ1aMesh: React.FC<{
     addQuad(P[13], P[12], P[15], P[14], [1, 0, 0]);
     addQuad(P[12], P[8], P[11], P[15], [0, 0, -1]);
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // The hand-authored per-face normals were an inconsistent mix — some agreeing
+    // with their triangle winding, some opposing — so the cross-junction lit
+    // unevenly and, on the agreeing faces, flat and cold under side:DoubleSide.
+    // Re-derive from the winding and flip into QBa's uniform opposing convention.
+    // The weld keeps every box corner crisp (differing normals never fuse).
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     // Main duct
@@ -2300,16 +2436,7 @@ const CZ2aMesh: React.FC<{
   const sa = a * sc, sb = b * sc, sd = d * sc, sd1 = d1 * sc;
   const sL = L * sc, sl3 = l3 * sc, sl4 = l4 * sc;
 
-  const material = useMemo(() => {
-    const crossMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.14, metalness: 0.88, reflectivity: 1.0,
-      clearcoat: 0.7, clearcoatRoughness: 0.05, side: THREE.DoubleSide, envMapIntensity: 1.15,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-      flatShading: false,
-    });
-    crossMaterial.userData.preserveMetalFinish = true;
-    return crossMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const segments = 64;
@@ -2410,10 +2537,16 @@ const CZ2aMesh: React.FC<{
       [0, 1, 0],
     );
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // The front half (face + tube) was authored opposing its winding while the
+    // back half agreed with its own — an exact 50/50 split that lit the two
+    // round ends of the cross differently and, on the agreeing half, flat and
+    // cold under side:DoubleSide. Re-derive from the winding and flip into QBa's
+    // uniform opposing convention. The weld fuses each tube's shared radial-
+    // normal verts (tubes stay smooth) but not the box walls or transitions.
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     // Front circle
@@ -2485,112 +2618,137 @@ const CZ2aLabels: React.FC<{
   );
 };
 
-/* ===== TR4a — Tee with curved branch (Trójnik z od. łukowym) ===== */
+/* ===== TR4a — Tee with curved branch (Trójnik z od. łukowym) =====
+   A prism of depth `a`: one 2-D profile extruded along Z. The main duct runs
+   vertically — top mouth `b` wide, bottom mouth `c` wide (a reducing tee) — and
+   a branch `d` tall leaves the left face and sweeps up to meet it through a
+   formed elbow: inner throat radius `g` about `cg`, outer radius `d` about `cd`,
+   the outer run tilted by `alfa` (from the .NET `dbc`/`Acos` construction).
+
+   Ported from the .NET app's licz_punkty()/paint "TR4a" region — the corner
+   points p0…p9, the two arc centres, `pytajnik` and `alfa` all match. The old
+   React port copied the .NET quad list face-by-face and collapsed into a weird
+   knot; this rebuilds it as the extrusion it actually is: fill the front/back
+   sheet, wall every profile edge except the three mouths. */
 const TR4aMesh: React.FC<{
   a: number; b: number; c: number; d: number; L: number; g: number; i: number; j: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, L: lR, g: gR, i: iR, j: jR }) => {
-  const geo = useMemo(() => {
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
+
+  const { geometry } = useMemo(() => {
     const max = Math.max(aR, bR, cR, dR, iR, jR, lR, gR, 1);
-    const a = aR/max, b = bR/max, c = cR/max, d = dR/max;
-    const ii = iR/max, j = jR/max, l = lR/max, g = gR/max;
+    const sa = aR / max, sb = bR / max, scc = cR / max, sd = dR / max;
+    const si = iR / max, sj = jR / max, sl = lR / max, sg = Math.max(gR / max, 1e-3);
 
-    const pytajnik = Math.sqrt(Math.max(0, d*d - (b-c)*(b-c)));
-    const dbc = (b - c + g) / (d + g);
-    const alfa = 90 - Math.acos(Math.min(1, Math.max(-1, dbc))) * 180 / Math.PI;
+    const dbc = Math.min(1, Math.max(-1, (sb - scc + sg) / (sd + sg)));
+    const alfa = Math.PI / 2 - Math.acos(dbc);
+    const pyt = Math.sqrt(Math.max(0, sd * sd - (sb - scc) * (sb - scc)));
 
-    const dx = j + g + b;
-    const dy = l;
+    const dxv = sj + sg + sb;
+    const dyv = sl;
+    const hd = sa / 2;
+    const maxX = dxv / 2, minX = -dxv / 2, maxY = dyv / 2, minY = -dyv / 2;
 
-    // Front face pts 0-9 (z = -a/2)
-    const pts: [number, number, number][] = [];
-    pts[0] = [-dx/2 + j + g, dy/2, -a/2];
-    pts[1] = [dx/2, dy/2, -a/2];
-    pts[2] = [dx/2, -dy/2, -a/2];
-    pts[3] = [dx/2 - c, -dy/2, -a/2];
-    pts[4] = [dx/2 - c, dy/2 - pytajnik - ii, -a/2];
-    pts[5] = [-dx/2 + j, dy/2 - ii - g - d, -a/2];
-    pts[6] = [-dx/2, dy/2 - ii - g - d, -a/2];
-    pts[7] = [-dx/2, dy/2 - ii - g, -a/2];
-    pts[8] = [-dx/2 + j, dy/2 - ii - g, -a/2];
-    pts[9] = [-dx/2 + j + g, dy/2 - ii, -a/2];
+    type P = [number, number];
+    type V3 = [number, number, number];
 
-    // Back face pts 10-19 (z = a/2)
-    for (let n = 0; n < 10; n++) pts[10+n] = [pts[n][0], pts[n][1], a/2];
+    // Branch corner points (.NET `punkty[]`, seen on the front face)
+    const p0: P = [maxX - sb,        maxY];
+    const p1: P = [maxX,             maxY];
+    const p2: P = [maxX,             minY];
+    const p3: P = [maxX - scc,       minY];
+    const p4: P = [maxX - scc,       maxY - pyt - si];
+    // p5 ≡ outer-arc endpoint (straight down from cd): [minX + sj, maxY - si - sg - sd]
+    const p6: P = [minX,             maxY - si - sg - sd];
+    const p7: P = [minX,             maxY - si - sg];
+    const p8: P = [minX + sj,        maxY - si - sg];
+    // p9 ≡ inner-arc endpoint (straight right from cg): [minX + sj + sg, maxY - si]
 
-    // Inner g-curve pts 20-24 (front) and 30-34 (back)
-    for (let n = 0; n < 5; n++) {
-      const _dx = Math.sin(15*(n+1)*Math.PI/180) * g;
-      const _dy = Math.cos(15*(n+1)*Math.PI/180) * g;
-      pts[20+n] = [pts[8][0] + _dx, pts[8][1] + g - _dy, -a/2];
-      pts[30+n] = [pts[8][0] + _dx, pts[8][1] + g - _dy, a/2];
-    }
+    const cg: P = [p8[0], p8[1] + sg];   // inner throat: radius sg, p8 → p9
+    const cd: P = [p8[0], p8[1]];        // outer radius:  radius sd, p5 → (θ = alfa)
 
-    // Outer arc pts 40-44 (front) and 50-54 (back)
-    for (let n = 1; n <= 5; n++) {
-      const _dx = Math.sin(alfa * n / 5 * Math.PI/180) * d;
-      const _dy = Math.cos(alfa * n / 5 * Math.PI/180) * d;
-      pts[40+n-1] = [pts[8][0] + _dx, pts[8][1] - _dy, -a/2];
-      pts[50+n-1] = [pts[8][0] + _dx, pts[8][1] - _dy, a/2];
-    }
+    // arc points c + r·(sinθ, −cosθ); segment count scales with arc length.
+    const arc = (c: P, r: number, a0: number, a1: number, skipFirst: boolean): P[] => {
+      const span = Math.abs(a1 - a0);
+      const segs = Math.max(20, Math.min(160, Math.round(span * r * 130)));
+      const out: P[] = [];
+      for (let t = skipFirst ? 1 : 0; t <= segs; t++) {
+        const th = a0 + (a1 - a0) * (t / segs);
+        out.push([c[0] + Math.sin(th) * r, c[1] - Math.cos(th) * r]);
+      }
+      return out;
+    };
 
-    const geometry = new THREE.BufferGeometry();
+    // Closed profile, listed clockwise (reversed to CCW for triangulation).
+    const cw: P[] = [
+      p0, p1, p2, p3, p4,
+      ...arc(cd, sd, alfa, 0, false),          // outer radius: p4 → (chord) → θ=alfa … θ=0 (=p5)
+      p6, p7, p8,
+      ...arc(cg, sg, 0, Math.PI / 2, true),    // inner throat: p8 → p9
+    ];
+    const contour = cw.map(([x, y]) => new THREE.Vector2(x, y)).reverse();
+    const N = contour.length;
+
     const verts: number[] = [];
-    const tri = (a: [number,number,number], b: [number,number,number], c: [number,number,number]) => {
-      verts.push(...a, ...b, ...c);
+    const norms: number[] = [];
+    const addTri = (A: V3, B: V3, C: V3, na: V3, nb: V3 = na, nc: V3 = na) => {
+      verts.push(...A, ...B, ...C);
+      norms.push(...na, ...nb, ...nc);
     };
-    const quad = (a: [number,number,number], b: [number,number,number], c: [number,number,number], d: [number,number,number]) => {
-      tri(a, b, c); tri(a, c, d);
-    };
 
-    // Main body quads (front face side walls)
-    quad(pts[0], pts[1], pts[4], pts[9]);
-    quad(pts[1], pts[2], pts[3], pts[4]);
-    quad(pts[11], pts[12], pts[13], pts[14]);
-    quad(pts[10], pts[11], pts[14], pts[19]);
-
-    // Branch box (left side, lower)
-    quad(pts[17], pts[18], pts[8], pts[7]);
-    quad(pts[17], pts[18], pts[15], pts[16]);
-    quad(pts[6], pts[5], pts[15], pts[16]);
-    quad(pts[7], pts[8], pts[5], pts[6]);
-
-    // Connect front-back walls
-    quad(pts[1], pts[11], pts[12], pts[2]);
-    quad(pts[4], pts[14], pts[13], pts[3]);
-    quad(pts[9], pts[0], pts[10], pts[19]);
-
-    // Outer arc extrusion (front-back)
-    quad(pts[5], pts[15], pts[50], pts[40]);
-    for (let n = 0; n < 4; n++) quad(pts[40+n], pts[50+n], pts[51+n], pts[41+n]);
-    quad(pts[44], pts[54], pts[14], pts[4]);
-
-    // Inner g-curve extrusion (front-back)
-    quad(pts[8], pts[20], pts[30], pts[18]);
-    for (let n = 0; n < 4; n++) quad(pts[20+n], pts[30+n], pts[31+n], pts[21+n]);
-    quad(pts[24], pts[34], pts[19], pts[9]);
-
-    // Pentagon front faces (between inner-g-arc and outer-arc)
-    quad(pts[5], pts[8], pts[20], pts[40]);
-    quad(pts[15], pts[18], pts[30], pts[50]);
-    for (let n = 0; n < 4; n++) {
-      quad(pts[20+n], pts[40+n], pts[41+n], pts[21+n]);
-      quad(pts[30+n], pts[50+n], pts[51+n], pts[31+n]);
+    // Front (z = −hd) and back (z = +hd) sheet-metal faces.
+    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+    for (const [i0, i1, i2] of tris) {
+      const A = contour[i0], B = contour[i1], C = contour[i2];
+      addTri([C.x, C.y, -hd], [B.x, B.y, -hd], [A.x, A.y, -hd], [0, 0, -1]);
+      addTri([A.x, A.y, hd], [B.x, B.y, hd], [C.x, C.y, hd], [0, 0, 1]);
     }
-    quad(pts[24], pts[44], pts[4], pts[9]);
-    quad(pts[34], pts[54], pts[14], pts[19]);
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geometry.computeVertexNormals();
-    return geometry;
+    // Per-edge outward normal + crease-aware blend (smooth curves, crisp folds).
+    const eN: P[] = [];
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const ex = B.x - A.x, ey = B.y - A.y;
+      const L = Math.hypot(ex, ey) || 1;
+      eN.push([ey / L, -ex / L]);
+    }
+    const CREASE = Math.cos(22 * Math.PI / 180);
+    const blend = (u: P, v: P): P => {
+      if (u[0] * v[0] + u[1] * v[1] < CREASE) return v;
+      const x = u[0] + v[0], y = u[1] + v[1], l = Math.hypot(x, y) || 1;
+      return [x / l, y / l];
+    };
+
+    // Perimeter wall — every edge except the three mouths (top b, bottom c, branch d).
+    const near = (u: number, v: number) => Math.abs(u - v) < 1e-4;
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const isTop = near(A.y, maxY) && near(B.y, maxY);
+      const isBottom = near(A.y, minY) && near(B.y, minY);
+      const isBranch = near(A.x, minX) && near(B.x, minX);
+      if (isTop || isBottom || isBranch) continue;
+      if (Math.hypot(B.x - A.x, B.y - A.y) < 1e-6) continue;
+      const nA = blend(eN[(k - 1 + N) % N], eN[k]);
+      const nB = blend(eN[(k + 1) % N], eN[k]);
+      const nA3: V3 = [nA[0], nA[1], 0], nB3: V3 = [nB[0], nB[1], 0];
+      addTri([A.x, A.y, -hd], [B.x, B.y, -hd], [B.x, B.y, hd], nA3, nB3, nB3);
+      addTri([A.x, A.y, -hd], [B.x, B.y, hd], [A.x, A.y, hd], nA3, nB3, nA3);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // Authored outward, flipped into QBa's opposing convention (QBFa/DuctMesh
+    // trick — agreeing normals read flat and cold under side:DoubleSide). No
+    // weld: the elbow walls carry crease-blended smooth normals already.
+    const nArr = geo.getAttribute('normal').array as Float32Array;
+    for (let n = 0; n < nArr.length; n++) nArr[n] = -nArr[n];
+    geo.userData.preserveNormals = true;
+
+    return { geometry: geo };
   }, [aR, bR, cR, dR, lR, gR, iR, jR]);
 
-  return (
-    <mesh geometry={geo}>
-      <meshPhysicalMaterial color="#8a9bae" roughness={0.18} metalness={0.92}
-        reflectivity={1.0} clearcoat={0.5} clearcoatRoughness={0.08}
-        side={THREE.DoubleSide} envMapIntensity={1.0} />
-    </mesh>
-  );
+  return <mesh geometry={geometry} material={material} />;
 };
 
 /* TR4a dimension labels */
@@ -2628,114 +2786,165 @@ const TR4aLabels: React.FC<{
   );
 };
 
-/* ===== TR5a — Port Tee (Trójnik portkowy) ===== */
+/* ===== TR5a — Breeches / Port Tee (Trójnik portkowy) =====
+   A genuine 3-D wye: one rectangular inlet (b × a, stub length j) at the +Z end
+   splits into two rectangular outlets side-by-side in Y — branch c below and
+   branch d above, gap g between, each e × (c|d) with stub length k — at the −Z
+   end, offset h in Y and i in X (both negated, as in the .NET code). p24/p25 are
+   the crotch points where the divider meets the two side skins.
+
+   Ported face-for-face from the .NET app's licz_punkty()/paint "TR5a" region:
+   3 four-wall stubs + top/bottom skins + the crotch divider + the two 7-sided
+   side transition panels. The old React port guessed the connecting faces and
+   collapsed into a knot. */
 const TR5aMesh: React.FC<{
   a: number; b: number; c: number; d: number; e: number; L: number;
   h: number; g: number; i: number; j: number; k: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, e: eR, L: lR,
         h: hR, g: gR, i: iR, j: jR, k: kR }) => {
-  const geo = useMemo(() => {
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
+
+  const geometry = useMemo(() => {
     const max = Math.max(aR, bR, cR, dR, eR, jR, kR, lR, Math.abs(hR), Math.abs(iR), gR, 1);
-    const a = aR/max, b = bR/max, c = cR/max, d = dR/max, e = eR/max;
-    const j = jR/max, k = kR/max, l = lR/max;
-    const h = -hR/max; // C# negates h
-    const i = -iR/max; // C# negates i
-    const g = gR/max;
+    const a = aR / max, b = bR / max, c = cR / max, d = dR / max, e = eR / max;
+    const j = jR / max, k = kR / max, l = lR / max, g = gR / max;
+    const h = -hR / max;   // .NET: h = -h
+    const i = -iR / max;   // .NET: i = -i
 
-    // Main duct: pts 0-3 front, 4-7 back (along z-axis)
-    const pts: [number, number, number][] = [];
-    pts[0] = [-(b+i)/2, -a/2, l/2];
-    pts[1] = [-(b+i)/2, a/2, l/2];
-    pts[2] = [-(b+i)/2 + b, a/2, l/2];
-    pts[3] = [-(b+i)/2 + b, -a/2, l/2];
-    pts[4] = [-(b+i)/2, -a/2, l/2 - j];
-    pts[5] = [-(b+i)/2, a/2, l/2 - j];
-    pts[6] = [-(b+i)/2 + b, a/2, l/2 - j];
-    pts[7] = [-(b+i)/2 + b, -a/2, l/2 - j];
+    type V3 = [number, number, number];
+    const p: V3[] = [];
 
-    // Lower port c: pts 8-11 top, 12-15 bottom
-    pts[8]  = [(b+i)/2 - e, -a/2 + h, -l/2 + k];
-    pts[9]  = [(b+i)/2 - e, -a/2 + h + c, -l/2 + k];
-    pts[10] = [(b+i)/2, -a/2 + h + c, -l/2 + k];
-    pts[11] = [(b+i)/2, -a/2 + h, -l/2 + k];
-    pts[12] = [(b+i)/2 - e, -a/2 + h, -l/2];
-    pts[13] = [(b+i)/2 - e, -a/2 + h + c, -l/2];
-    pts[14] = [(b+i)/2, -a/2 + h + c, -l/2];
-    pts[15] = [(b+i)/2, -a/2 + h, -l/2];
+    // Inlet stub (b × a), open at z = l/2 and z = l/2 − j
+    p[0] = [-(b + i) / 2,     -a / 2, l / 2];
+    p[1] = [-(b + i) / 2,      a / 2, l / 2];
+    p[2] = [-(b + i) / 2 + b,  a / 2, l / 2];
+    p[3] = [-(b + i) / 2 + b, -a / 2, l / 2];
+    p[4] = [p[0][0], p[0][1], l / 2 - j];
+    p[5] = [p[1][0], p[1][1], l / 2 - j];
+    p[6] = [p[2][0], p[2][1], l / 2 - j];
+    p[7] = [p[3][0], p[3][1], l / 2 - j];
 
-    // Upper port d: pts 16-19 top, 20-23 bottom
-    pts[16] = [(b+i)/2 - e, -a/2 + h + c + g, -l/2 + k];
-    pts[17] = [(b+i)/2 - e, -a/2 + h + c + g + d, -l/2 + k];
-    pts[18] = [(b+i)/2, -a/2 + h + c + g + d, -l/2 + k];
-    pts[19] = [(b+i)/2, -a/2 + h + c + g, -l/2 + k];
-    pts[20] = [(b+i)/2 - e, -a/2 + h + c + g, -l/2];
-    pts[21] = [(b+i)/2 - e, -a/2 + h + c + g + d, -l/2];
-    pts[22] = [(b+i)/2, -a/2 + h + c + g + d, -l/2];
-    pts[23] = [(b+i)/2, -a/2 + h + c + g, -l/2];
+    // Branch c stub (e × c), open at z = −l/2 and z = −l/2 + k
+    const bcx0 = (b + i) / 2 - e, bcx1 = (b + i) / 2;
+    const cy0 = -a / 2 + h, cy1 = -a / 2 + h + c;
+    p[8]  = [bcx0, cy0, -l / 2 + k];
+    p[9]  = [bcx0, cy1, -l / 2 + k];
+    p[10] = [bcx1, cy1, -l / 2 + k];
+    p[11] = [bcx1, cy0, -l / 2 + k];
+    p[12] = [bcx0, cy0, -l / 2];
+    p[13] = [bcx0, cy1, -l / 2];
+    p[14] = [bcx1, cy1, -l / 2];
+    p[15] = [bcx1, cy0, -l / 2];
 
-    // Junction connector pts
-    pts[24] = [pts[9][0] - (b+i-e)/2, pts[9][1] + g/2, pts[9][2] + (l-k-j)/2];
-    pts[25] = [pts[9][0] + e - i/2, pts[9][1] + g/2, pts[9][2] + (l-k-j)/2];
+    // Branch d stub (e × d), gap g above branch c
+    const dy0 = -a / 2 + h + c + g, dy1 = dy0 + d;
+    p[16] = [bcx0, dy0, -l / 2 + k];
+    p[17] = [bcx0, dy1, -l / 2 + k];
+    p[18] = [bcx1, dy1, -l / 2 + k];
+    p[19] = [bcx1, dy0, -l / 2 + k];
+    p[20] = [bcx0, dy0, -l / 2];
+    p[21] = [bcx0, dy1, -l / 2];
+    p[22] = [bcx1, dy1, -l / 2];
+    p[23] = [bcx1, dy0, -l / 2];
 
-    const geometry = new THREE.BufferGeometry();
+    // Crotch points (divider meets the side skins)
+    p[24] = [p[9][0] - (b + i - e) / 2, p[9][1] + g / 2, p[9][2] + (l - k - j) / 2];
+    p[25] = [p[9][0] + e - i / 2,       p[9][1] + g / 2, p[9][2] + (l - k - j) / 2];
+
     const verts: number[] = [];
-    const tri = (a: [number,number,number], b: [number,number,number], c: [number,number,number]) => {
-      verts.push(...a, ...b, ...c);
+    const norms: number[] = [];
+    const nrm = (v: V3): V3 => { const L = Math.hypot(v[0],v[1],v[2])||1; return [v[0]/L,v[1]/L,v[2]/L]; };
+    const crs = (u: V3, v: V3): V3 => [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    // A warped quad drawn as one triangle pair creases along its diagonal and
+    // folds against its neighbours along a visible line. Subdivide into a
+    // bilinear patch with exact analytic normals, negated into QBa's convention.
+    const panel = (i0: number, i1: number, i2: number, i3: number, res = 6) => {
+      const v0 = p[i0], v1 = p[i1], v2 = p[i2], v3 = p[i3];
+      const P = (s: number, t: number): V3 => [
+        (1-t)*((1-s)*v0[0]+s*v1[0]) + t*((1-s)*v3[0]+s*v2[0]),
+        (1-t)*((1-s)*v0[1]+s*v1[1]) + t*((1-s)*v3[1]+s*v2[1]),
+        (1-t)*((1-s)*v0[2]+s*v1[2]) + t*((1-s)*v3[2]+s*v2[2]),
+      ];
+      const N = (s: number, t: number): V3 => {
+        const ds: V3 = [(1-t)*(v1[0]-v0[0])+t*(v2[0]-v3[0]), (1-t)*(v1[1]-v0[1])+t*(v2[1]-v3[1]), (1-t)*(v1[2]-v0[2])+t*(v2[2]-v3[2])];
+        const dt: V3 = [(1-s)*(v3[0]-v0[0])+s*(v2[0]-v1[0]), (1-s)*(v3[1]-v0[1])+s*(v2[1]-v1[1]), (1-s)*(v3[2]-v0[2])+s*(v2[2]-v1[2])];
+        const n = nrm(crs(ds, dt));
+        return [-n[0], -n[1], -n[2]];
+      };
+      for (let si = 0; si < res; si++) for (let ti = 0; ti < res; ti++) {
+        const s0 = si/res, s1 = (si+1)/res, t0 = ti/res, t1 = (ti+1)/res;
+        verts.push(...P(s0,t0),...P(s1,t0),...P(s1,t1), ...P(s0,t0),...P(s1,t1),...P(s0,t1));
+        norms.push(...N(s0,t0),...N(s1,t0),...N(s1,t1), ...N(s0,t0),...N(s1,t1),...N(s0,t1));
+      }
     };
-    const quad = (a: [number,number,number], b: [number,number,number], c: [number,number,number], d: [number,number,number]) => {
-      tri(a, b, c); tri(a, c, d);
+    const face = (...idx: number[]) => {
+      // fan triangulation with one negated face normal per triangle
+      for (let n = 1; n < idx.length - 1; n++) {
+        const A = p[idx[0]], B = p[idx[n]], C = p[idx[n+1]];
+        const fn = nrm(crs([B[0]-A[0],B[1]-A[1],B[2]-A[2]], [C[0]-A[0],C[1]-A[1],C[2]-A[2]]));
+        const nn: V3 = [-fn[0], -fn[1], -fn[2]];
+        verts.push(...A, ...B, ...C);
+        norms.push(...nn, ...nn, ...nn);
+      }
     };
 
-    // Main duct walls
-    quad(pts[0], pts[1], pts[5], pts[4]);
-    quad(pts[1], pts[2], pts[6], pts[5]);
-    quad(pts[2], pts[3], pts[7], pts[6]);
-    quad(pts[3], pts[0], pts[4], pts[7]);
+    // inlet stub — 4 walls (flat)
+    face(0, 1, 5, 4); face(1, 2, 6, 5); face(2, 3, 7, 6); face(3, 0, 4, 7);
+    // branch c stub — 4 walls (flat)
+    face(8, 9, 13, 12); face(9, 10, 14, 13); face(10, 11, 15, 14); face(11, 8, 12, 15);
+    // branch d stub — 4 walls (flat)
+    face(16, 17, 21, 20); face(17, 18, 22, 21); face(18, 19, 23, 22); face(19, 16, 20, 23);
+    // body — bottom/top skins and the crotch divider: warped, so subdivide.
+    panel(7, 4, 8, 11); panel(5, 6, 18, 17); panel(9, 24, 25, 10); panel(24, 16, 19, 25);
+    // The two 7-sided side transition skins — split watertight into two bilinear
+    // patches plus one corner triangle so they read as one formed surface rather
+    // than a fan of flats. (−X side [24,9,8,4,5,17,16], then +X side.)
+    panel(24, 9, 8, 4); panel(24, 4, 5, 17); face(24, 17, 16);
+    panel(25, 10, 11, 7); panel(25, 7, 6, 18); face(25, 18, 19);
 
-    // Lower port c walls
-    quad(pts[8], pts[9], pts[13], pts[12]);
-    quad(pts[9], pts[10], pts[14], pts[13]);
-    quad(pts[10], pts[11], pts[15], pts[14]);
-    quad(pts[11], pts[8], pts[12], pts[15]);
+    // Crease-aware blend: at each coincident vertex the normals are clustered and
+    // merged only when within 35° of each other, so the stubs, skins and
+    // transitions resolve to one continuous surface with no seam lines while the
+    // sharp folds (stub-wall corners, the branch openings) stay crisp.
+    {
+      const cosC = Math.cos(35 * Math.PI / 180);
+      const key = (x: number, y: number, z: number) => `${Math.round(x*4e3)},${Math.round(y*4e3)},${Math.round(z*4e3)}`;
+      const groups = new Map<string, number[]>();
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const k = key(verts[vI], verts[vI+1], verts[vI+2]);
+        const g = groups.get(k);
+        if (g) g.push(vI); else groups.set(k, [vI]);
+      }
+      for (const idxs of groups.values()) {
+        if (idxs.length < 2) continue;
+        const clusters: { sum: V3; members: number[] }[] = [];
+        for (const vI of idxs) {
+          const nx = norms[vI], ny = norms[vI+1], nz = norms[vI+2];
+          let placed = false;
+          for (const c of clusters) {
+            const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+            if ((nx*c.sum[0] + ny*c.sum[1] + nz*c.sum[2]) / L > cosC) {
+              c.sum[0]+=nx; c.sum[1]+=ny; c.sum[2]+=nz; c.members.push(vI); placed = true; break;
+            }
+          }
+          if (!placed) clusters.push({ sum: [nx, ny, nz], members: [vI] });
+        }
+        for (const c of clusters) {
+          const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+          const nx = c.sum[0]/L, ny = c.sum[1]/L, nz = c.sum[2]/L;
+          for (const vI of c.members) { norms[vI]=nx; norms[vI+1]=ny; norms[vI+2]=nz; }
+        }
+      }
+    }
 
-    // Upper port d walls
-    quad(pts[16], pts[17], pts[21], pts[20]);
-    quad(pts[17], pts[18], pts[22], pts[21]);
-    quad(pts[18], pts[19], pts[23], pts[22]);
-    quad(pts[19], pts[16], pts[20], pts[23]);
-
-    // Connecting panels
-    quad(pts[7], pts[4], pts[8], pts[11]);
-    quad(pts[5], pts[6], pts[18], pts[17]);
-    quad(pts[9], pts[24], pts[25], pts[10]);
-    quad(pts[24], pts[16], pts[19], pts[25]);
-
-    // Side polygons (front & back connecting faces)
-    // Front connector: 24→9→8→4→5→17→16
-    tri(pts[24], pts[9], pts[8]);
-    tri(pts[24], pts[8], pts[4]);
-    tri(pts[24], pts[4], pts[5]);
-    tri(pts[24], pts[5], pts[17]);
-    tri(pts[24], pts[17], pts[16]);
-    // Back connector: 25→10→11→7→6→18→19
-    tri(pts[25], pts[10], pts[11]);
-    tri(pts[25], pts[11], pts[7]);
-    tri(pts[25], pts[7], pts[6]);
-    tri(pts[25], pts[6], pts[18]);
-    tri(pts[25], pts[18], pts[19]);
-
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geometry.computeVertexNormals();
-    return geometry;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
+    return geo;
   }, [aR, bR, cR, dR, eR, lR, hR, gR, iR, jR, kR]);
 
-  return (
-    <mesh geometry={geo}>
-      <meshPhysicalMaterial color="#8a9bae" roughness={0.18} metalness={0.92}
-        reflectivity={1.0} clearcoat={0.5} clearcoatRoughness={0.08}
-        side={THREE.DoubleSide} envMapIntensity={1.0} />
-    </mesh>
-  );
+  return <mesh geometry={geometry} material={material} />;
 };
 
 /* TR5a dimension labels */
@@ -2762,7 +2971,25 @@ const TR5aLabels: React.FC<{
   );
 };
 
-/* ===== TR3a — Eagle Tee (Trójnik Orłowy) ===== */
+/* ===== TR3a — Eagle Tee (Trójnik Orłowy) =====
+   A prism of depth `a`: one 2-D profile extruded along Z. Three rectangular
+   mouths — top (b wide), left branch (d tall, m long) and right branch
+   (c tall, i long) — joined through two formed elbows whose throat radii are
+   g (left) and f (right). Like the .NET form, the mouths are plain open ends —
+   no flanges.
+
+   Ported from the .NET app's licz_punkty()/paint "TR3a" region: the branch
+   corner points p0…p12 are the .NET `punkty[]`, and the elbow centres and radii
+   match. The one deliberate change is the outer bottom skin — .NET sweeps each
+   outer radius a fixed ~45° and papers over the gap with a fan of fudge
+   polygons, which is what made the old React port (a face-by-face copy of those
+   quads) self-intersect. Here the two outer arcs are swept to the true
+   intersection of their circles (the "beak"), so the profile closes on its own
+   and every arc joins its neighbour tangentially.
+
+   The four formed runs (two inner throat fillets, two outer radii) are sampled
+   densely — segment count scales with arc length — so the rounded areas read as
+   real curved sheet rather than a coarse polygon. */
 const TR3aMesh: React.FC<{
   a: number; b: number; c: number; d: number;
   m: number; k: number; i: number; j: number;
@@ -2771,280 +2998,146 @@ const TR3aMesh: React.FC<{
   const maxDim = Math.max(a, b, c, d, m, k, iVal, j, g, f, m + g + b + f + iVal, 1);
   const sc = 2 / maxDim;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
-  const { geometry, edgeGeo } = useMemo(() => {
+  const { geometry } = useMemo(() => {
     const sa = a * sc, sb = b * sc, scc = c * sc, sd = d * sc;
     const sm = m * sc, sk = k * sc, si = iVal * sc, sj = j * sc;
-    const sg = g * sc, sf = f * sc;
+    const sg = Math.max(g * sc, 1e-3), sf = Math.max(f * sc, 1e-3);
 
-    const dx = sm + sg + sb + sf + si;
-    const dy = Math.max(sd + sg + sk, scc + sf + sj);
-    const fz = -sa / 2;
-    const bz = sa / 2;
+    const dxv = sm + sg + sb + sf + si;
+    const dyv = Math.max(sd + sg + sk, scc + sf + sj);
+    const hd = sa / 2;                        // half depth (Z)
+    const maxY = dyv / 2, minX = -dxv / 2, maxX = dxv / 2;
 
+    type P = [number, number];
     type V3 = [number, number, number];
-    const p: Record<number, V3> = {};
 
-    // Front face (z = fz)
-    p[0]  = [dx / 2 - sb - sf - si, dy / 2, fz];
-    p[1]  = [dx / 2 - sf - si,      dy / 2, fz];
-    p[2]  = [dx / 2 - sf - si,      dy / 2 - sj, fz];
-    p[3]  = [dx / 2 - si,           dy / 2 - sj - sf, fz];
-    p[4]  = [dx / 2,                dy / 2 - sj - sf, fz];
-    p[5]  = [dx / 2,                dy / 2 - sj - sf - scc, fz];
-    p[6]  = [dx / 2 - si,           dy / 2 - sj - sf - scc, fz];
-    p[8]  = [-dx / 2 + sm,          dy / 2 - sk - sg - sd, fz];
-    p[9]  = [-dx / 2,               dy / 2 - sk - sg - sd, fz];
-    p[10] = [-dx / 2,               dy / 2 - sk - sg, fz];
-    p[11] = [-dx / 2 + sm,          dy / 2 - sk - sg, fz];
-    p[12] = [-dx / 2 + sm + sg,     dy / 2 - sk, fz];
+    // Branch corner points (.NET `punkty[]`, seen on the front face)
+    const p0: P  = [maxX - sb - sf - si, maxY];
+    const p1: P  = [maxX - sf - si,      maxY];
+    const p2: P  = [maxX - sf - si,      maxY - sj];
+    const p3: P  = [maxX - si,           maxY - sj - sf];
+    const p4: P  = [maxX,                maxY - sj - sf];
+    const p5: P  = [maxX,                maxY - sj - sf - scc];
+    const p6: P  = [maxX - si,           maxY - sj - sf - scc];
+    const p9: P  = [minX,                maxY - sk - sg - sd];
+    const p10: P = [minX,                maxY - sk - sg];
+    const p11: P = [minX + sm,           maxY - sk - sg];
 
-    // Back face (z = bz)
-    p[20] = [p[0][0],  p[0][1],  bz];
-    p[21] = [p[1][0],  p[1][1],  bz];
-    p[22] = [p[2][0],  p[2][1],  bz];
-    p[23] = [p[3][0],  p[3][1],  bz];
-    p[24] = [p[4][0],  p[4][1],  bz];
-    p[25] = [p[5][0],  p[5][1],  bz];
-    p[26] = [p[6][0],  p[6][1],  bz];
-    p[28] = [p[8][0],  p[8][1],  bz];
-    p[29] = [p[9][0],  p[9][1],  bz];
-    p[30] = [p[10][0], p[10][1], bz];
-    p[31] = [p[11][0], p[11][1], bz];
-    p[32] = [p[12][0], p[12][1], bz];
+    // Elbow centres — each shared by its inner throat arc and its outer radius arc.
+    const cl: P = [p11[0], p11[1] + sg];       // left  : inner r = sg, outer r = sg + sd
+    const cr: P = [p3[0],  p3[1]  + sf];       // right : inner r = sf, outer r = sf + scc
+    const rlo = sg + sd, rro = sf + scc;
 
-    // Angle calculation
-    const gammaDeg = Math.atan(Math.abs(sk - sj) / (sb || 0.001)) * 180 / Math.PI;
-    let alfaDeg: number, betaDeg: number;
-    if (Math.abs(sj - sk) < 1e-9) {
-      alfaDeg = betaDeg = 45;
-    } else if (sj > sk) {
-      alfaDeg = gammaDeg;
-      betaDeg = 90 - gammaDeg;
-    } else {
-      alfaDeg = 90 - gammaDeg;
-      betaDeg = gammaDeg;
-    }
+    // "beak" — lower intersection of the two outer-radius circles.
+    const beak = ((): P => {
+      const vx = cr[0] - cl[0], vy = cr[1] - cl[1];
+      const dist = Math.hypot(vx, vy) || 1e-6;
+      const dd = Math.min(dist, rlo + rro - 1e-4);       // keep the circles intersecting
+      const aa = (dd * dd + rlo * rlo - rro * rro) / (2 * dd);
+      const hh = Math.sqrt(Math.max(0, rlo * rlo - aa * aa));
+      const ux = vx / dist, uy = vy / dist;
+      const bx = cl[0] + aa * ux, by = cl[1] + aa * uy;
+      const c1: P = [bx + hh * uy, by - hh * ux];
+      const c2: P = [bx - hh * uy, by + hh * ux];
+      return c1[1] <= c2[1] ? c1 : c2;
+    })();
 
-    // Outer left arc (front p[40-45], back p[46-51])
-    for (let _i = 1; _i < 7; _i++) {
-      const angRad = alfaDeg * _i / 5 * Math.PI / 180;
-      const _dx = Math.sin(angRad) * (sd + sg);
-      const _dy = Math.cos(angRad) * (sd + sg);
-      p[40 + _i - 1] = [p[11][0] + _dx, p[11][1] - _dy + sg, fz];
-      p[46 + _i - 1] = [p[11][0] + _dx, p[11][1] - _dy + sg, bz];
-    }
-
-    // Secondary vertices
-    const p2: Record<number, V3> = {};
-
-    // Outer right arc (beta): p2[40-45] front, p2[45-50] back (45 overwritten)
-    for (let _i = 1; _i < 7; _i++) {
-      const angRad = betaDeg * _i / 5 * Math.PI / 180;
-      const _dx = Math.sin(angRad) * (scc + sf);
-      const _dy = Math.cos(angRad) * (scc + sf);
-      p2[45 - _i + 1] = [p[3][0] - _dx, p[3][1] - _dy + sf, fz];
-      p2[50 - _i + 1] = [p[3][0] - _dx, p[3][1] - _dy + sf, bz];
-    }
-
-    // Inner g-curve: p2[0-6] front, p2[10-16] back
-    for (let _i = 0; _i < 7; _i++) {
-      const angRad = 15 * (_i + 1) * Math.PI / 180;
-      const _dx = Math.sin(angRad) * sg;
-      const _dy = Math.cos(angRad) * sg;
-      p2[_i]      = [p[11][0] + _dx, p[11][1] + sg - _dy, fz];
-      p2[10 + _i] = [p[11][0] + _dx, p[11][1] + sg - _dy, bz];
-    }
-
-    // Inner f-curve: p2[20-26] front, p2[30-36] back
-    for (let _i = 0; _i < 7; _i++) {
-      const angRad = 15 * (_i + 1) * Math.PI / 180;
-      const _dx = Math.cos(angRad) * sf;
-      const _dy = Math.sin(angRad) * sf;
-      p2[20 + _i] = [p[3][0] - _dx, p[3][1] + sf - _dy, fz];
-      p2[30 + _i] = [p[3][0] - _dx, p[3][1] + sf - _dy, bz];
-    }
-
-    // --- Build geometry ---
-    const verts: number[] = [];
-    const addTri = (A: V3, B: V3, C: V3) => { verts.push(...A, ...B, ...C); };
-    const addQuad = (q0: V3, q1: V3, q2: V3, q3: V3) => {
-      addTri(q0, q1, q2); addTri(q0, q2, q3);
+    // angle of `pt` about centre `c`, measured from straight-down (0,-1), +ve toward +x
+    const ang = (c: P, pt: P) => Math.atan2(pt[0] - c[0], -(pt[1] - c[1]));
+    // arc points c + r·(sinθ, −cosθ), θ: a0→a1. Segment count scales with the arc
+    // length (r·span) — roughly one primitive per 0.0075 units of sheet — so even
+    // the tight throat fillets carry ~90 facets and the wide outer radii ~200.
+    // `skipFirst` drops the point shared with the previous run.
+    const arc = (c: P, r: number, a0: number, a1: number, skipFirst: boolean): P[] => {
+      const span = Math.abs(a1 - a0);
+      const segs = Math.max(24, Math.min(224, Math.round(span * r * 130)));
+      const out: P[] = [];
+      for (let t = skipFirst ? 1 : 0; t <= segs; t++) {
+        const th = a0 + (a1 - a0) * (t / segs);
+        out.push([c[0] + Math.sin(th) * r, c[1] - Math.cos(th) * r]);
+      }
+      return out;
     };
 
-    // Right branch
-    addQuad(p[3], p[4], p[5], p[6]);
-    addQuad(p[23], p[24], p[25], p[26]);
-    addQuad(p[5], p[25], p[26], p[6]);
-    addQuad(p[3], p[4], p[24], p[23]);
+    // Closed profile, listed clockwise (reversed to CCW for triangulation below).
+    const cw: P[] = [
+      p0, p1, p2,
+      ...arc(cr, sf, -Math.PI / 2, 0, true),               // f fillet:  p2 → p3
+      p4, p5, p6,
+      ...arc(cr, rro, 0, ang(cr, beak), true),             // right outer: p6 → beak
+      ...arc(cl, rlo, ang(cl, beak), 0, true),             // left outer:  beak → p8
+      p9, p10, p11,
+      ...arc(cl, sg, 0, Math.PI / 2, true),                // g fillet:  p11 → p12 → p0
+    ];
+    const contour = cw.map(([x, y]) => new THREE.Vector2(x, y)).reverse();
+    const M = contour.length;
 
-    // Center panel
-    addQuad(p[1], p[21], p[22], p[2]);
-    addQuad(p[0], p[1], p[2], p[12]);
-    addQuad(p[20], p[21], p[22], p[32]);
-    addQuad(p[0], p[20], p[32], p[12]);
+    const verts: number[] = [];
+    const norms: number[] = [];
+    const addTri = (A: V3, B: V3, C: V3, na: V3, nb: V3 = na, nc: V3 = na) => {
+      verts.push(...A, ...B, ...C);
+      norms.push(...na, ...nb, ...nc);
+    };
 
-    // Left branch
-    addQuad(p[10], p[11], p[8], p[9]);
-    addQuad(p[30], p[31], p[28], p[29]);
-    addQuad(p[9], p[8], p[28], p[29]);
-    addQuad(p[10], p[11], p[31], p[30]);
+    // Front (z = −hd) and back (z = +hd) sheet-metal faces.
+    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+    for (const [i0, i1, i2] of tris) {
+      const A = contour[i0], B = contour[i1], C = contour[i2];
+      addTri([C.x, C.y, -hd], [B.x, B.y, -hd], [A.x, A.y, -hd], [0, 0, -1]);
+      addTri([A.x, A.y, hd], [B.x, B.y, hd], [C.x, C.y, hd], [0, 0, 1]);
+    }
 
-    // Left inner g-curve strip
-    addQuad(p[11], p[31], p2[10], p2[0]);
-    addQuad(p2[0], p2[1], p2[11], p2[10]);
-    addQuad(p2[1], p2[2], p2[12], p2[11]);
-    addQuad(p2[2], p2[3], p2[13], p2[12]);
-    addQuad(p2[3], p2[4], p2[14], p2[13]);
-    addQuad(p2[4], p[12], p[32], p2[14]);
+    // Per-edge outward flat normal, and a crease-aware blend so the formed runs
+    // shade as one smooth curved surface while the folds between flats stay crisp.
+    const eN: P[] = [];
+    for (let i = 0; i < M; i++) {
+      const A = contour[i], B = contour[(i + 1) % M];
+      const ex = B.x - A.x, ey = B.y - A.y;
+      const L = Math.hypot(ex, ey) || 1;
+      eN.push([ey / L, -ex / L]);
+    }
+    const CREASE = Math.cos(22 * Math.PI / 180);
+    const blend = (u: P, v: P): P => {
+      if (u[0] * v[0] + u[1] * v[1] < CREASE) return v;   // sharp fold → keep this edge's own normal
+      const x = u[0] + v[0], y = u[1] + v[1], l = Math.hypot(x, y) || 1;
+      return [x / l, y / l];
+    };
 
-    // Right inner f-curve strip
-    addQuad(p[2], p2[20], p2[30], p[22]);
-    addQuad(p2[20], p2[21], p2[31], p2[30]);
-    addQuad(p2[21], p2[22], p2[32], p2[31]);
-    addQuad(p2[22], p2[23], p2[33], p2[32]);
-    addQuad(p2[23], p2[24], p2[34], p2[33]);
-    addQuad(p2[24], p[3], p[23], p2[34]);
-
-    // Left outer arc
-    addQuad(p[8], p[40], p[46], p[28]);
-    addQuad(p[40], p[41], p[47], p[46]);
-    addQuad(p[41], p[42], p[48], p[47]);
-    addQuad(p[42], p[43], p[49], p[48]);
-    addQuad(p[43], p[44], p[50], p[49]);
-
-    // Closing quad between left outer arc tip and right outer arc tip
-    const p2_40_bz: V3 = [p2[40][0], p2[40][1], bz];
-    addQuad(p[44], p2[40], p2_40_bz, p[50]);
-
-    // Left branch-to-curves connectors (front & back faces of left elbow)
-    addQuad(p[8], p[11], p2[0], p[40]);
-    addQuad(p[28], p[31], p2[10], p[46]);
-
-    // Outer-to-inner face strips (left elbow paired front/back)
-    addQuad(p[40], p[41], p2[1], p2[0]);
-    addQuad(p[46], p[47], p2[11], p2[10]);
-    addQuad(p[41], p[42], p2[2], p2[1]);
-    addQuad(p[47], p[48], p2[12], p2[11]);
-    addQuad(p[42], p[43], p2[3], p2[2]);
-    addQuad(p[48], p[49], p2[13], p2[12]);
-    addQuad(p[43], p[44], p2[4], p2[3]);
-    addQuad(p[49], p[50], p2[14], p2[13]);
-
-    // End cap closing quads (left arc tip, back at z=bz, front at z=fz)
-    addQuad(p[50], p[51], [p2[40][0], p2[40][1], bz], p2[14]);
-    addQuad(
-      [p[50][0], p[50][1], fz],
-      [p[51][0], p[51][1], fz],
-      p2[40],
-      p2[4]
-    );
-
-    // Helper for back-z projection of p2 points
-    const p2bz = (idx: number): V3 => [p2[idx][0], p2[idx][1], bz];
-
-    // Right outer arc extrusion (front→back)
-    addQuad(p2[44], p[6], p[26], p2bz(44));
-    addQuad(p2[41], p2[40], p2bz(40), p2bz(41));
-    addQuad(p2[42], p2[41], p2bz(41), p2bz(42));
-    addQuad(p2[43], p2[42], p2bz(42), p2bz(43));
-    addQuad(p2[44], p2[43], p2bz(43), p2bz(44));
-
-    // Right elbow front face (z=fz) — connecting inner f-curve to outer arc
-    addQuad(p2[24], p[3], p[6], p2[44]);
-    addQuad(p2[21], p2[20], p2[40], p2[41]);
-    addQuad(p2[22], p2[21], p2[41], p2[42]);
-    addQuad(p2[23], p2[22], p2[42], p2[43]);
-    addQuad(p2[24], p2[23], p2[43], p2[44]);
-
-    // Right elbow back face (z=bz)
-    addQuad(p2[34], p[23], p[26], p2bz(44));
-    addQuad(p2[31], p2[30], p2bz(40), p2bz(41));
-    addQuad(p2[32], p2[31], p2bz(41), p2bz(42));
-    addQuad(p2[33], p2[32], p2bz(42), p2bz(43));
-    addQuad(p2[34], p2[33], p2bz(43), p2bz(44));
-
-    // Center pentagon (front z=fz) — closes gap between inner curves at bottom
-    addTri(p[12], p[2], p2[20]);
-    addTri(p[12], p2[20], p2[40]);
-    addTri(p[12], p2[40], p2[4]);
-
-    // Center pentagon (back z=bz)
-    addTri(p[32], p[22], p2[30]);
-    addTri(p[32], p2[30], p2bz(40));
-    addTri(p[32], p2bz(40), p2[14]);
+    // Perimeter wall — every edge except the three open mouths (top / left / right).
+    const near = (u: number, v: number) => Math.abs(u - v) < 1e-4;
+    for (let i = 0; i < M; i++) {
+      const A = contour[i], B = contour[(i + 1) % M];
+      const isTop = near(A.y, maxY) && near(B.y, maxY);
+      const isLeft = near(A.x, minX) && near(B.x, minX);
+      const isRight = near(A.x, maxX) && near(B.x, maxX);
+      if (isTop || isLeft || isRight) continue;
+      if (Math.hypot(B.x - A.x, B.y - A.y) < 1e-6) continue;
+      const nA = blend(eN[(i - 1 + M) % M], eN[i]);        // smoothed normal at A
+      const nB = blend(eN[(i + 1) % M], eN[i]);            // smoothed normal at B
+      const nA3: V3 = [nA[0], nA[1], 0], nB3: V3 = [nB[0], nB[1], 0];
+      addTri([A.x, A.y, -hd], [B.x, B.y, -hd], [B.x, B.y, hd], nA3, nB3, nB3);
+      addTri([A.x, A.y, -hd], [B.x, B.y, hd], [A.x, A.y, hd], nA3, nB3, nA3);
+    }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // Normals are authored pointing out of the sheet (agreeing with the winding);
+    // under side:DoubleSide that reads flat and cold, so flip into QBa's opposing
+    // convention — same trick as QBFa/DuctMesh. No weld: the wall runs already
+    // carry crease-blended smooth normals and the flats/folds stay crisp.
+    const nArr = geo.getAttribute('normal').array as Float32Array;
+    for (let n = 0; n < nArr.length; n++) nArr[n] = -nArr[n];
+    geo.userData.preserveNormals = true;
 
-    // Edge wireframe
-    const edgePts: number[] = [];
-    const seg = (A: V3, B: V3) => edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
-
-    // Right branch outline
-    seg(p[3], p[4]); seg(p[4], p[5]); seg(p[5], p[6]); seg(p[6], p[3]);
-    seg(p[23], p[24]); seg(p[24], p[25]); seg(p[25], p[26]); seg(p[26], p[23]);
-    seg(p[4], p[24]); seg(p[5], p[25]);
-
-    // Left branch outline
-    seg(p[10], p[11]); seg(p[11], p[8]); seg(p[8], p[9]); seg(p[9], p[10]);
-    seg(p[30], p[31]); seg(p[31], p[28]); seg(p[28], p[29]); seg(p[29], p[30]);
-    seg(p[9], p[29]); seg(p[10], p[30]);
-
-    // Center top
-    seg(p[0], p[1]); seg(p[20], p[21]); seg(p[0], p[20]); seg(p[1], p[21]);
-
-    // Inner g-curve (front)
-    seg(p[11], p2[0]);
-    for (let ci = 0; ci < 4; ci++) seg(p2[ci], p2[ci + 1]);
-    seg(p2[4], p[12]);
-    // Inner g-curve (back)
-    seg(p[31], p2[10]);
-    for (let ci = 10; ci < 14; ci++) seg(p2[ci], p2[ci + 1]);
-    seg(p2[14], p[32]);
-
-    // Inner f-curve (front)
-    seg(p[2], p2[20]);
-    for (let ci = 20; ci < 24; ci++) seg(p2[ci], p2[ci + 1]);
-    seg(p2[24], p[3]);
-    // Inner f-curve (back)
-    seg(p[22], p2[30]);
-    for (let ci = 30; ci < 34; ci++) seg(p2[ci], p2[ci + 1]);
-    seg(p2[34], p[23]);
-
-    // Left outer arc (front)
-    seg(p[8], p[40]);
-    for (let ci = 40; ci < 44; ci++) seg(p[ci], p[ci + 1]);
-    // Left outer arc (back)
-    seg(p[28], p[46]);
-    for (let ci = 46; ci < 50; ci++) seg(p[ci], p[ci + 1]);
-
-    // Right outer arc (front)
-    seg(p[6], p2[44]);
-    seg(p2[44], p2[43]); seg(p2[43], p2[42]); seg(p2[42], p2[41]); seg(p2[41], p2[40]);
-    // Right outer arc (back)
-    seg(p[26], p2bz(44));
-    seg(p2bz(44), p2bz(43)); seg(p2bz(43), p2bz(42)); seg(p2bz(42), p2bz(41)); seg(p2bz(41), p2bz(40));
-
-    const edgeG = new THREE.BufferGeometry();
-    edgeG.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-
-    return { geometry: geo, edgeGeo: edgeG };
+    return { geometry: geo };
   }, [a, b, c, d, m, k, iVal, j, g, f, sc]);
 
-  return (
-    <group>
-      <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
-        <lineBasicMaterial color="#222222" linewidth={1} />
-      </lineSegments>
-    </group>
-  );
+  // No wireframe overlay and no flanges — the .NET form draws only the shaded
+  // sheet, so its inlets/outlets are plain open ends with no frame around them.
+  return <mesh geometry={geometry} material={material} />;
 };
 
 /* TR3a dimension labels */
@@ -3096,10 +3189,7 @@ const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) =>
   const nb = (b / maxDim) * 2;
   const ne = (e / maxDim) * 2;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hb = nb / 2, he = ne / 2;
@@ -3122,14 +3212,20 @@ const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) =>
        hw,-hb,  he,  -hw,-hb,  he,  -hw, hb,  he,
        hw,-hb,  he,  -hw, hb,  he,   hw, hb,  he,
     ]);
+    // Per-face normals in the same convention BendMesh (QBa) authors: each opposes
+    // its own triangle winding. Under side:DoubleSide that winding-agreement — not
+    // the normal's direction — is what selects the shading normal, so matching QBa
+    // here is what gives the plate the same warm reflective finish instead of the
+    // flat cold cast it had when normalizeGroupAppearance recomputed these to agree.
+    // The four walls repeat DuctMesh's vectors; the back cap is +z (was 1,0,0 with
+    // two zero vectors before).
     const normals = new Float32Array([
        0,1,0,  0,1,0,  0,1,0,  0,1,0,  0,1,0,  0,1,0,
        0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
       -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0,
        1,0,0,  1,0,0,  1,0,0,  1,0,0,  1,0,0,  1,0,0,
-       1,0,0,  1,0,0,  0,0,0,  0,0,0,  1,0,0,  1,0,0,
+       0,0,1,  0,0,1,  0,0,1,  0,0,1,  0,0,1,  0,0,1,
     ]);
- 
 
     const uvs = new Float32Array([
       0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
@@ -3143,6 +3239,7 @@ const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) =>
     geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.userData.preserveNormals = true;
 
     // 12 wireframe edges
     const edgePts: number[] = [];
@@ -3203,15 +3300,7 @@ const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: n
   const sa = a * scale, sb = b * scale, sd = sb; // d = b symmetric
   const se = e * scale, sf = f * scale, sr = r * scale;
 
-  const material = useMemo(() => {
-    const elbowMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-      envMapRotation: new THREE.Euler(0, Math.PI / 2, 0),
-    });
-    elbowMaterial.userData.preserveMetalFinish = true;
-    return elbowMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const totalW = se + sb;
@@ -3272,6 +3361,13 @@ const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: n
         [dy / length, -dx / length, 0],
       );
     }
+
+    // Authored pointing out of the sheet, i.e. AGREEING with the triangle winding.
+    // QBa's BendMesh authors the opposite, and under side:DoubleSide that
+    // winding-agreement is what selects the shading normal — so as authored this
+    // elbow samples the environment from the wrong hemisphere and reads flat and
+    // cold. Negate to land in QBa's family (same fix as QBFRa).
+    for (let i = 0; i < norms.length; i++) norms[i] = -norms[i];
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -3377,14 +3473,7 @@ const ReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l: num
   const s = 2 / maxDim;
   const na = a * s, nb = b * s, nc = c * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
 
-  const material = useMemo(() => {
-    const reducerMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-      clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-    });
-    reducerMaterial.userData.preserveMetalFinish = true;
-    return reducerMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     // 16 vertices defining 4 cross-section planes along z-axis
@@ -3533,10 +3622,7 @@ const AsymReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l:
   const na = a * s, nb = b * s, nc = c * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
   const ne = e * s, nf = f * s;
 
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const ha = na / 2, hb = nb / 2;
@@ -3603,6 +3689,7 @@ const AsymReducerMesh: React.FC<{ a: number; b: number; c: number; d: number; l:
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.userData.preserveNormals = true;
 
     const edgePts: number[] = [];
     const planes = [
@@ -3669,14 +3756,7 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
   const na = a * s, nb = b * s, nd = d * s, nl = l * s, nh = h * s, nm = m * s;
   const nr = nd / 2;
 
-  const material = useMemo(() => {
-    const transitionMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
-      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
-    });
-    transitionMaterial.userData.preserveMetalFinish = true;
-    return transitionMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hh = nb / 2;
@@ -3796,7 +3876,7 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-    return { geometry: geo, edgeGeo: eGeo };
+    return { geometry: applyStandardShading(geo), edgeGeo: eGeo };
   }, [na, nb, nr, nl, nh, nm]);
 
   return (
@@ -3846,14 +3926,7 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
   const ccx = -na / 2 + nf + nr;
   const ccy = nb / 2 - ne - nr;
 
-  const material = useMemo(() => {
-    const transitionMaterial = new THREE.MeshPhysicalMaterial({
-      color: '#c8d1d8', roughness: 0.22, metalness: 0.94, reflectivity: 0.9,
-      clearcoat: 0.35, clearcoatRoughness: 0.18, side: THREE.DoubleSide, envMapIntensity: 0.65,
-    });
-    transitionMaterial.userData.preserveMetalFinish = true;
-    return transitionMaterial;
-  }, []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const hw = na / 2, hh = nb / 2;
@@ -3966,7 +4039,7 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-    return { geometry: geo, edgeGeo: eGeo };
+    return { geometry: applyStandardShading(geo), edgeGeo: eGeo };
   }, [na, nb, nr, nl, nh, nm, ccx, ccy]);
 
   return (
@@ -4016,10 +4089,7 @@ const AutoRotate: React.FC<{ groupRef: React.RefObject<THREE.Group | null>; enab
 const QD1aMesh: React.FC<{
   a: number; b: number; L: number; alfa: number; e: number; f: number;
 }> = ({ a: aR, b: bR, L: lR, alfa: alfaDeg, e: eR, f: fR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const max = Math.max(aR, bR, eR, fR, lR, 1);
@@ -4076,14 +4146,29 @@ const QD1aMesh: React.FC<{
       [7, 4, 8, 11],
     ];
 
+    // Per-quad flat normals in QBa's convention (each opposes its own winding).
+    // These panels only share the four opening-edge corners, and the mounting
+    // plate meets the angled duct there at a sharp fold — welding those verts and
+    // running computeVertexNormals() averages the plate's ±z with the duct-wall
+    // direction and turns half the shell inside-out. Authoring per-face and
+    // marking preserveNormals keeps every panel crisp and correctly lit.
     const verts: number[] = [];
+    const norms: number[] = [];
     for (const [q0, q1, q2, q3] of quads) {
-      verts.push(...allPts[q0], ...allPts[q1], ...allPts[q2], ...allPts[q0], ...allPts[q2], ...allPts[q3]);
+      const A = allPts[q0], B = allPts[q1], C = allPts[q2], D = allPts[q3];
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
+      const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const n: [number, number, number] = [-nx / nl, -ny / nl, -nz / nl];
+      verts.push(...A, ...B, ...C, ...A, ...C, ...D);
+      for (let k = 0; k < 6; k++) norms.push(...n);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edges
     const edgePts: number[] = [];
@@ -4183,10 +4268,7 @@ const QD1aLabels: React.FC<{
 const QD2aMesh: React.FC<{
   a: number; b: number; L: number; e: number; f: number;
 }> = ({ a: aR, b: bR, L: lR, e: eR, f: fR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     const max = Math.max(aR, bR, eR, fR, lR, 1);
@@ -4212,13 +4294,27 @@ const QD2aMesh: React.FC<{
       [0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7],
       [4,5,9,8], [5,6,10,9], [6,7,11,10], [7,4,8,11],
     ];
+    // Per-quad flat normals in QBa's convention (each opposes its own winding).
+    // Like QD1a, welding this shell (mergeVertices collapses it to 12 shared
+    // corners) makes computeVertexNormals() average the coplanar top frame with
+    // the perpendicular duct walls and flip half of it inside-out. Author
+    // per-face and mark preserveNormals so every panel stays crisp.
     const verts: number[] = [];
+    const norms: number[] = [];
     for (const [q0, q1, q2, q3] of quads) {
-      verts.push(...pts[q0], ...pts[q1], ...pts[q2], ...pts[q0], ...pts[q2], ...pts[q3]);
+      const A = pts[q0], B = pts[q1], C = pts[q2], D = pts[q3];
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
+      const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const n: [number, number, number] = [-nx / nl, -ny / nl, -nz / nl];
+      verts.push(...A, ...B, ...C, ...A, ...C, ...D);
+      for (let k = 0; k < 6; k++) norms.push(...n);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     const edgePts: number[] = [];
     const addEdge = (i: number, j: number) => { edgePts.push(...pts[i], ...pts[j]); };
@@ -4270,206 +4366,139 @@ const QD2aLabels: React.FC<{
   );
 };
 
-// ── TR7a — Skew tee (Trójnik skośny) ──
+/* ── TR7a — Skew tee (Trójnik skośny) ──
+   A prism of depth `a`: one 2-D profile extruded along Z. Three mouths — top
+   branch `d` wide, bottom branch `b` wide, horizontal duct `h` tall — with the
+   top and bottom branches joined by a skew diagonal (p2→p3) and two formed
+   corner radii, `r` and `q`.
+
+   Ported from the .NET app's licz_punkty()/paint "TR7a" region: corner points
+   p0…p11 and the two arc centres match. The old React port hand-built a stack of
+   fill quads and 5-segment arc fans that read flat and coarse; this rebuilds it
+   as the extrusion it is, with dense adaptive arcs and crease-blended normals so
+   the formed radii look like real curved sheet. */
 const TR7aMesh: React.FC<{
   a: number; b: number; d: number; h: number; e: number;
   r: number; q: number; i: number; j: number; p: number;
 }> = ({ a: aR, b: bR, d: dR, h: hR, e: eR, r: rR, q: qR, i: iR, j: jR, p: pR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
-  const { geometry, edgeGeo } = useMemo(() => {
+  const { geometry } = useMemo(() => {
     const max = Math.max(aR, bR, dR, hR, eR, rR, qR, iR, jR, pR, 1);
-    const a = aR/max, b = bR/max, d = dR/max, h = hR/max, e = eR/max;
-    const r = rR/max, q = qR/max, ii = iR/max, j = jR/max, p = pR/max;
+    const sa = aR / max, sb = bR / max, sd = dR / max, sh = hR / max, se = eR / max;
+    const sr = Math.max(rR / max, 1e-3), sq = Math.max(qR / max, 1e-3);
+    const si = iR / max, sjv = jR / max, sp = pR / max;
 
-    const dx = p + r + b + e;
-    const dy = ii + r + h + q + j;
+    const dxv = sp + sr + sb + se;
+    const dyv = si + sr + sh + sq + sjv;
+    const hd = sa / 2;
+    const maxX = dxv / 2, minX = -dxv / 2, maxY = dyv / 2, minY = -dyv / 2;
 
-    // 24 main vertices (0-11 at z=-a/2, 12-23 at z=+a/2)
-    const pts: Record<number, [number, number, number]> = {};
-    // Front face (z = -a/2)
-    pts[0]  = [-dx/2 + p + q,       dy/2,               -a/2];
-    pts[1]  = [-dx/2 + p + q + d,   dy/2,               -a/2];
-    pts[2]  = [-dx/2 + p + q + d,   dy/2 - j,           -a/2];
-    pts[3]  = [ dx/2 - e,           -dy/2 + ii,          -a/2];
-    pts[4]  = [ dx/2 - e,           -dy/2,               -a/2];
-    pts[5]  = [ dx/2 - e - b,       -dy/2,               -a/2];
-    pts[6]  = [ dx/2 - e - b,       -dy/2 + ii,          -a/2];
-    pts[7]  = [ dx/2 - e - b - r,   -dy/2 + ii + r,      -a/2];
-    pts[8]  = [-dx/2,               -dy/2 + ii + r,      -a/2];
-    pts[9]  = [-dx/2,               -dy/2 + ii + r + h,  -a/2];
-    pts[10] = [-dx/2 + p,           -dy/2 + ii + r + h,  -a/2];
-    pts[11] = [-dx/2 + p + q,       -dy/2 + ii + r + h + q, -a/2];
-    // Back face (z = +a/2)
-    for (let n = 0; n <= 11; n++) {
-      pts[12 + n] = [pts[n][0], pts[n][1], a/2];
+    type P = [number, number];
+    type V3 = [number, number, number];
+
+    // Corner points (.NET `punkty[]`, front face)
+    const p0: P  = [minX + sp + sq,      maxY];
+    const p1: P  = [minX + sp + sq + sd, maxY];
+    const p2: P  = [minX + sp + sq + sd, maxY - sjv];
+    const p3: P  = [maxX - se,           minY + si];
+    const p4: P  = [maxX - se,           minY];
+    const p5: P  = [maxX - se - sb,      minY];
+    const p6: P  = [maxX - se - sb,      minY + si];
+    // p7 ≡ r-arc end (up from rc): [maxX - se - sb - sr, minY + si + sr]
+    const p8: P  = [minX,                minY + si + sr];
+    const p9: P  = [minX,                minY + si + sr + sh];
+    const p10: P = [minX + sp,           minY + si + sr + sh];
+    // p11 ≡ q-arc end (up-right from qc): [minX + sp + sq, minY + si + sr + sh + sq]
+
+    // r fillet: centre (p6.x − sr, p6.y) — quarter arc p6 → p7
+    const rc: P = [p6[0] - sr, p6[1]];
+    // q fillet: centre (p10.x, p10.y + sq) — quarter arc p10 → p11
+    const qc: P = [p10[0], p10[1] + sq];
+
+    const segCount = (radius: number) =>
+      Math.max(20, Math.min(140, Math.round((Math.PI / 2) * radius * 130)));
+    const rArc: P[] = [];   // p6 → p7  (φ: π/2 → 0)
+    {
+      const s = segCount(sr);
+      for (let t = 1; t <= s; t++) {
+        const phi = (Math.PI / 2) * (1 - t / s);
+        rArc.push([rc[0] + Math.sin(phi) * sr, rc[1] + Math.cos(phi) * sr]);
+      }
     }
-    // Helper vertices for fill quads
-    pts[30] = [pts[0][0],  pts[10][1], -a/2];
-    pts[31] = [pts[0][0],  pts[10][1],  a/2];
-    pts[32] = [pts[6][0],  pts[7][1],  -a/2];
-    pts[33] = [pts[6][0],  pts[7][1],   a/2];
-
-    // Arc vertices (r-radius between pts 7→6→18→19, q-radius between pts 10→11→23→22)
-    const ARC_STEPS = 5;
-    for (let n = 0; n < ARC_STEPS; n++) {
-      const ang = 15.0 * (n + 1) * Math.PI / 180;
-      const rdx = Math.sin(ang) * r;
-      const rdy = Math.cos(ang) * r;
-      pts[40 + n] = [pts[7][0] + rdx, pts[7][1] - r + rdy, a/2];
-      pts[50 + n] = [pts[7][0] + rdx, pts[7][1] - r + rdy, -a/2];
-    }
-    for (let n = 0; n < ARC_STEPS; n++) {
-      const ang = 15.0 * (n + 1) * Math.PI / 180;
-      const qdx = Math.sin(ang) * q;
-      const qdy = q - Math.cos(ang) * q;
-      pts[45 + n] = [pts[10][0] + qdx, pts[10][1] + qdy, a/2];
-      pts[55 + n] = [pts[10][0] + qdx, pts[10][1] + qdy, -a/2];
+    const qArc: P[] = [];   // p10 → p11 (φ: 0 → π/2)
+    {
+      const s = segCount(sq);
+      for (let t = 1; t <= s; t++) {
+        const phi = (Math.PI / 2) * (t / s);
+        qArc.push([qc[0] + Math.sin(phi) * sq, qc[1] - Math.cos(phi) * sq]);
+      }
     }
 
-    // Quads from C# GL code
-    const quads: [number, number, number, number][] = [
-      // Horizontal duct walls (8→9→10→7 region)
-      [8, 9, 10, 7], [9, 21, 22, 10], [21, 20, 19, 22], [20, 8, 7, 19],
-      // Top branch walls (0→1→2→11)
-      [0, 1, 2, 11], [1, 13, 14, 2], [13, 12, 23, 14], [12, 0, 11, 23],
-      // Bottom branch walls (6→3→4→5)
-      [6, 3, 4, 5], [3, 15, 16, 4], [15, 18, 17, 16], [18, 6, 5, 17],
-      // Diagonal connecting wall (between branch and horizontal)
-      [3, 2, 14, 15],
-    ];
-
-    // Interior fill quads (two sets for z=+a/2 and z=-a/2)
-    const fillQuadsFront: [number, number, number, number][] = [
-      [32, 6, 3, 2], [32, 2, 11, 30], [32, 30, 10, 7],
-    ];
+    // Closed profile, clockwise (reversed to CCW for triangulation).
+    const cw: P[] = [p0, p1, p2, p3, p4, p5, p6, ...rArc, p8, p9, p10, ...qArc];
+    const contour = cw.map(([x, y]) => new THREE.Vector2(x, y)).reverse();
+    const N = contour.length;
 
     const verts: number[] = [];
-    const addQuad = (a0: number, a1: number, a2: number, a3: number) => {
-      verts.push(...pts[a0], ...pts[a1], ...pts[a2], ...pts[a0], ...pts[a2], ...pts[a3]);
+    const norms: number[] = [];
+    const addTri = (A: V3, B: V3, C: V3, na: V3, nb: V3 = na, nc: V3 = na) => {
+      verts.push(...A, ...B, ...C);
+      norms.push(...na, ...nb, ...nc);
     };
-    for (const [q0, q1, q2, q3] of quads) addQuad(q0, q1, q2, q3);
 
-    // Fill quads at z=+a/2 (using pts with z=a/2 i.e. pts[33].z)
-    for (const [q0, q1, q2, q3] of fillQuadsFront) {
-      const p0: [number,number,number] = [pts[q0][0], pts[q0][1], a/2];
-      const p1: [number,number,number] = [pts[q1][0], pts[q1][1], a/2];
-      const p2: [number,number,number] = [pts[q2][0], pts[q2][1], a/2];
-      const p3: [number,number,number] = [pts[q3][0], pts[q3][1], a/2];
-      verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
-    }
-    // Fill quads at z=-a/2
-    for (const [q0, q1, q2, q3] of fillQuadsFront) {
-      const p0: [number,number,number] = [pts[q0][0], pts[q0][1], -a/2];
-      const p1: [number,number,number] = [pts[q1][0], pts[q1][1], -a/2];
-      const p2: [number,number,number] = [pts[q2][0], pts[q2][1], -a/2];
-      const p3: [number,number,number] = [pts[q3][0], pts[q3][1], -a/2];
-      verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
+    // Front (z = −hd) and back (z = +hd) sheet-metal faces.
+    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+    for (const [i0, i1, i2] of tris) {
+      const A = contour[i0], B = contour[i1], C = contour[i2];
+      addTri([C.x, C.y, -hd], [B.x, B.y, -hd], [A.x, A.y, -hd], [0, 0, -1]);
+      addTri([A.x, A.y, hd], [B.x, B.y, hd], [C.x, C.y, hd], [0, 0, 1]);
     }
 
-    // Radius arc quads (r-radius: 7 segments between pt 7→18/6)
-    const rArcFront = [7, 50, 51, 52, 53, 54, 6];
-    const rArcBack  = [19, 40, 41, 42, 43, 44, 18];
-    for (let n = 0; n < rArcFront.length - 1; n++) {
-      addQuad(rArcFront[n], rArcBack[n], rArcBack[n+1], rArcFront[n+1]);
+    // Per-edge outward normal + crease-aware blend.
+    const eN: P[] = [];
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const ex = B.x - A.x, ey = B.y - A.y;
+      const L = Math.hypot(ex, ey) || 1;
+      eN.push([ey / L, -ex / L]);
     }
-    // q-radius arc quads (q-radius: 7 segments between pt 10→11/23→22)
-    const qArcFront = [10, 55, 56, 57, 58, 59, 11];
-    const qArcBack  = [22, 45, 46, 47, 48, 49, 23];
-    for (let n = 0; n < qArcFront.length - 1; n++) {
-      addQuad(qArcFront[n], qArcBack[n], qArcBack[n+1], qArcFront[n+1]);
-    }
-
-    // Triangle fans filling arc regions at z=±a/2
-    const addTri = (v0: [number,number,number], v1: [number,number,number], v2: [number,number,number]) => {
-      verts.push(...v0, ...v1, ...v2);
+    const CREASE = Math.cos(22 * Math.PI / 180);
+    const blend = (u: P, v: P): P => {
+      if (u[0] * v[0] + u[1] * v[1] < CREASE) return v;
+      const x = u[0] + v[0], y = u[1] + v[1], l = Math.hypot(x, y) || 1;
+      return [x / l, y / l];
     };
-    // R-arc fan at z=+a/2 (center=pt33, sequence: 7,40,41,42,43,44,18→6 mapped to back z)
-    const rFanBack = [7, 40, 41, 42, 43, 44, 6];
-    for (let n = 0; n < rFanBack.length - 1; n++) {
-      addTri(
-        [pts[rFanBack[n]][0], pts[rFanBack[n]][1], a/2],
-        [pts[rFanBack[n+1]][0], pts[rFanBack[n+1]][1], a/2],
-        [pts[33][0], pts[33][1], a/2]
-      );
-    }
-    // R-arc fan at z=-a/2 (center=pt32)
-    for (let n = 0; n < rFanBack.length - 1; n++) {
-      addTri(
-        [pts[rFanBack[n]][0], pts[rFanBack[n]][1], -a/2],
-        [pts[rFanBack[n+1]][0], pts[rFanBack[n+1]][1], -a/2],
-        [pts[32][0], pts[32][1], -a/2]
-      );
-    }
-    // Q-arc fan at z=+a/2 (center=pt31, sequence: 10,45,46,47,48,49,11→23 mapped to back z)
-    const qFanBack = [10, 45, 46, 47, 48, 49, 11];
-    for (let n = 0; n < qFanBack.length - 1; n++) {
-      addTri(
-        [pts[qFanBack[n]][0], pts[qFanBack[n]][1], a/2],
-        [pts[qFanBack[n+1]][0], pts[qFanBack[n+1]][1], a/2],
-        [pts[31][0], pts[31][1], a/2]
-      );
-    }
-    // Q-arc fan at z=-a/2 (center=pt30)
-    for (let n = 0; n < qFanBack.length - 1; n++) {
-      addTri(
-        [pts[qFanBack[n]][0], pts[qFanBack[n]][1], -a/2],
-        [pts[qFanBack[n+1]][0], pts[qFanBack[n+1]][1], -a/2],
-        [pts[30][0], pts[30][1], -a/2]
-      );
+
+    // Perimeter wall — every edge except the three mouths (top d, bottom b, duct h).
+    const near = (u: number, v: number) => Math.abs(u - v) < 1e-4;
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const isTop = near(A.y, maxY) && near(B.y, maxY);
+      const isBottom = near(A.y, minY) && near(B.y, minY);
+      const isDuct = near(A.x, minX) && near(B.x, minX);
+      if (isTop || isBottom || isDuct) continue;
+      if (Math.hypot(B.x - A.x, B.y - A.y) < 1e-6) continue;
+      const nA = blend(eN[(k - 1 + N) % N], eN[k]);
+      const nB = blend(eN[(k + 1) % N], eN[k]);
+      const nA3: V3 = [nA[0], nA[1], 0], nB3: V3 = [nB[0], nB[1], 0];
+      addTri([A.x, A.y, -hd], [B.x, B.y, -hd], [B.x, B.y, hd], nA3, nB3, nB3);
+      addTri([A.x, A.y, -hd], [B.x, B.y, hd], [A.x, A.y, hd], nA3, nB3, nA3);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // Authored outward, flipped into QBa's opposing convention. No weld: the
+    // fillet walls carry crease-blended smooth normals already.
+    const nArr = geo.getAttribute('normal').array as Float32Array;
+    for (let n = 0; n < nArr.length; n++) nArr[n] = -nArr[n];
+    geo.userData.preserveNormals = true;
 
-    // Edge lines
-    const edgePts: number[] = [];
-    const addEdge = (i0: number, i1: number) => { edgePts.push(...pts[i0], ...pts[i1]); };
-    // Front face outline (z=-a/2)
-    const frontLoop = [0, 1, 2, 3, 4, 5, 6];
-    for (let n = 0; n < frontLoop.length - 1; n++) addEdge(frontLoop[n], frontLoop[n+1]);
-    addEdge(8, 9); addEdge(9, 10);
-    addEdge(0, 11);
-    // Back face outline (z=+a/2)
-    const backLoop = [12, 13, 14, 15, 16, 17, 18];
-    for (let n = 0; n < backLoop.length - 1; n++) addEdge(backLoop[n], backLoop[n+1]);
-    addEdge(20, 21); addEdge(21, 22);
-    addEdge(12, 23);
-    // Connecting front-to-back edges
-    for (let n = 0; n <= 11; n++) addEdge(n, n + 12);
-    // R-arc edges front
-    const rEdgeFront = [7, 50, 51, 52, 53, 54, 6];
-    for (let n = 0; n < rEdgeFront.length - 1; n++) addEdge(rEdgeFront[n], rEdgeFront[n+1]);
-    // R-arc edges back
-    const rEdgeBack = [19, 40, 41, 42, 43, 44, 18];
-    for (let n = 0; n < rEdgeBack.length - 1; n++) addEdge(rEdgeBack[n], rEdgeBack[n+1]);
-    // Q-arc edges front
-    const qEdgeFront = [10, 55, 56, 57, 58, 59, 11];
-    for (let n = 0; n < qEdgeFront.length - 1; n++) addEdge(qEdgeFront[n], qEdgeFront[n+1]);
-    // Q-arc edges back
-    const qEdgeBack = [22, 45, 46, 47, 48, 49, 23];
-    for (let n = 0; n < qEdgeBack.length - 1; n++) addEdge(qEdgeBack[n], qEdgeBack[n+1]);
-    // Horizontal duct edges
-    addEdge(7, 8); addEdge(19, 20);
-
-    const eGeo = new THREE.BufferGeometry();
-    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-
-    return { geometry: geo, edgeGeo: eGeo };
+    return { geometry: geo };
   }, [aR, bR, dR, hR, eR, rR, qR, iR, jR, pR]);
 
-  return (
-    <group>
-      <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
-        <lineBasicMaterial color="#222222" linewidth={1} />
-      </lineSegments>
-    </group>
-  );
+  return <mesh geometry={geometry} material={material} />;
 };
 
 const TR7aLabels: React.FC<{
@@ -4533,10 +4562,7 @@ const TR9aMesh: React.FC<{
   a: number; b: number; c: number; d: number; d1: number;
   l: number; l3: number; m: number; n: number; e: number; f: number; i: number; j: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, d1: d1R, l: lR, l3: l3R, m: mR, n: nR, e: eR, f: fR, i: iR, j: jR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     // ── C# normalization (Form1.cs lines 5083-5100) ──
@@ -4659,37 +4685,91 @@ const TR9aMesh: React.FC<{
     }
 
     // ── Build geometry ──
+    // Explicit per-face normals for the flat sheet-metal panels (so each panel
+    // shades as one surface with no visible triangulation seam) and smooth
+    // radial normals around the round branch sleeve — the same approach QBa uses.
     const verts: number[] = [];
-    const addQ = (v0: [number,number,number], v1: [number,number,number], v2: [number,number,number], v3: [number,number,number]) => {
+    const norms: number[] = [];
+    type V3 = [number, number, number];
+    const cross = (u: V3, v: V3): V3 => [
+      u[1] * v[2] - u[2] * v[1],
+      u[2] * v[0] - u[0] * v[2],
+      u[0] * v[1] - u[1] * v[0],
+    ];
+    const norm = (v: V3): V3 => {
+      const L = Math.hypot(v[0], v[1], v[2]) || 1;
+      return [v[0] / L, v[1] / L, v[2] / L];
+    };
+    // Newell's method — robust for the slightly non-planar skew-tee panels.
+    const quadNormal = (v0: V3, v1: V3, v2: V3, v3: V3): V3 => {
+      const vs = [v0, v1, v2, v3];
+      let nx = 0, ny = 0, nz = 0;
+      for (let k = 0; k < 4; k++) {
+        const c = vs[k], n = vs[(k + 1) % 4];
+        nx += (c[1] - n[1]) * (c[2] + n[2]);
+        ny += (c[2] - n[2]) * (c[0] + n[0]);
+        nz += (c[0] - n[0]) * (c[1] + n[1]);
+      }
+      return norm([nx, ny, nz]);
+    };
+    const neg = (v: V3): V3 => [-v[0], -v[1], -v[2]];
+    // Flat panel: one negated Newell normal for the whole quad, kept crisp.
+    const addFlat = (v0: V3, v1: V3, v2: V3, v3: V3) => {
+      const n = neg(quadNormal(v0, v1, v2, v3));
       verts.push(...v0, ...v1, ...v2, ...v0, ...v2, ...v3);
+      for (let k = 0; k < 6; k++) norms.push(...n);
+    };
+    const addSmooth = (v0: V3, v1: V3, v2: V3, v3: V3, n0: V3, n1: V3, n2: V3, n3: V3) => {
+      verts.push(...v0, ...v1, ...v2, ...v0, ...v2, ...v3);
+      norms.push(...n0, ...n1, ...n2, ...n0, ...n2, ...n3);
+    };
+    const lerp3 = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    // A warped (non-planar) quad — a skew-tee panel or a sleeve segment — drawn as
+    // one triangle pair shows a hard diagonal crease and folds against its
+    // neighbours along a visible line. Subdivide it into a bilinear patch with
+    // exact analytic normals, negated into QBa's opposing convention, so it shades
+    // as one formed sheet. The cross-panel averaging pass below then blends the
+    // joins so the whole body reads as a single surface.
+    const addPanel = (v0: V3, v1: V3, v2: V3, v3: V3, res = 8) => {
+      const P = (s: number, t: number): V3 => lerp3(lerp3(v0, v1, s), lerp3(v3, v2, s), t);
+      const N = (s: number, t: number): V3 => {
+        const ds: V3 = [
+          (1 - t) * (v1[0] - v0[0]) + t * (v2[0] - v3[0]),
+          (1 - t) * (v1[1] - v0[1]) + t * (v2[1] - v3[1]),
+          (1 - t) * (v1[2] - v0[2]) + t * (v2[2] - v3[2]),
+        ];
+        const dt: V3 = [
+          (1 - s) * (v3[0] - v0[0]) + s * (v2[0] - v1[0]),
+          (1 - s) * (v3[1] - v0[1]) + s * (v2[1] - v1[1]),
+          (1 - s) * (v3[2] - v0[2]) + s * (v2[2] - v1[2]),
+        ];
+        return neg(norm(cross(ds, dt)));
+      };
+      for (let si = 0; si < res; si++) {
+        for (let ti = 0; ti < res; ti++) {
+          const s0 = si / res, s1 = (si + 1) / res, t0 = ti / res, t1 = (ti + 1) / res;
+          addSmooth(
+            P(s0, t0), P(s1, t0), P(s1, t1), P(s0, t1),
+            N(s0, t0), N(s1, t0), N(s1, t1), N(s0, t1),
+          );
+        }
+      }
     };
 
     // Main duct walls (C# GL quads lines 489-544)
-    addQ(p[0], p[4], p[5], p[1]);   // top wall
-    addQ(p[1], p[5], p[6], p[2]);   // right wall
-    addQ(p[2], p[6], p[7], p[3]);   // bottom wall
+    addPanel(p[0], p[4], p[5], p[1]);   // top wall
+    addPanel(p[1], p[5], p[6], p[2]);   // right wall
+    addPanel(p[2], p[6], p[7], p[3]);   // bottom wall
     // End cap walls with branch opening (lines 531-544)
-    addQ(p[3], p[0], p[9], p[10]);  // front-to-branch top
-    addQ(p[7], p[3], p[10], p[14]); // bottom-to-branch
-    addQ(p[4], p[7], p[14], p[13]); // back-to-branch
-    addQ(p[0], p[4], p[13], p[9]);  // left-to-branch
-
-    // Front flanges 0-3 → 16-19 (lines 547-566)
-    addQ(p[0], p[1], p[17], p[16]);
-    addQ(p[1], p[2], p[18], p[17]);
-    addQ(p[2], p[3], p[19], p[18]);
-    addQ(p[3], p[0], p[16], p[19]);
-
-    // Back flanges 4-7 → 20-23 (lines 568-596)
-    addQ(p[5], p[4], p[20], p[21]);
-    addQ(p[4], p[7], p[23], p[20]);
-    addQ(p[7], p[6], p[22], p[23]);
-    addQ(p[6], p[5], p[21], p[22]);
+    addPanel(p[3], p[0], p[9], p[10]);  // front-to-branch top
+    addPanel(p[7], p[3], p[10], p[14]); // bottom-to-branch
+    addPanel(p[4], p[7], p[14], p[13]); // back-to-branch
+    addPanel(p[0], p[4], p[13], p[9]);  // left-to-branch
 
     // Smooth the legacy 24-sided branch profile into a 96-sided sleeve while
     // retaining its exact square-to-round transition at the connection ring.
     const BRANCH_SEGMENTS = 96;
-    const interpolateRing = (ring: [number, number, number][], position: number): [number, number, number] => {
+    const interpolateRing = (ring: V3[], position: number): V3 => {
       const base = Math.floor(position);
       const t = position - base;
       const sample = (offset: number) => ring[(base + offset + 24) % 24];
@@ -4712,28 +4792,80 @@ const TR9aMesh: React.FC<{
       ];
     };
 
+    // Round branch sleeve — each segment is a bilinear patch, analytic normals in
+    // QBa's convention (addPanel), so it shades as a smooth tube.
     for (let ii = 0; ii < BRANCH_SEGMENTS; ii++) {
-      const current = ii * 24 / BRANCH_SEGMENTS;
-      const next = (ii + 1) * 24 / BRANCH_SEGMENTS;
-      addQ(
-        interpolateRing(circ, current),
-        interpolateRing(circ, next),
-        interpolateRing(circ2, next),
-        interpolateRing(circ2, current),
+      const cur = ii * 24 / BRANCH_SEGMENTS;
+      const nxt = (ii + 1) * 24 / BRANCH_SEGMENTS;
+      addPanel(
+        interpolateRing(circ, cur),
+        interpolateRing(circ, nxt),
+        interpolateRing(circ2, nxt),
+        interpolateRing(circ2, cur),
+        1,
       );
     }
 
-    // Square-to-circle transition (lines 615-632)
+    // Square-to-circle transition — warped quads, subdivided so the collar between
+    // the rectangular opening and the round sleeve reads as one formed surface.
     const at = [16, 17, 18, 19, 20, 21, 22, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
     for (let ii = 0; ii < 24; ii++) {
       const ac = at[ii] + 1;
       const ad = at[ii];
-      addQ(circ[ii], circ[ii + 1], bridge[ac], bridge[ad]);
+      addPanel(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 3);
     }
+
+    // Crease-aware blend across every panel boundary: at each coincident vertex
+    // the normals are clustered and only merged when they are within 35° of each
+    // other, so the duct walls, branch collar, square-to-round transition and
+    // sleeve resolve to one continuous surface with no seam lines while genuine
+    // folds (wall-to-wall edges, the mouth of the tunnel) stay crisp.
+    {
+      const cosC = Math.cos(35 * Math.PI / 180);
+      const key = (x: number, y: number, z: number) =>
+        `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
+      const groups = new Map<string, number[]>();
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const k = key(verts[vI], verts[vI + 1], verts[vI + 2]);
+        const g = groups.get(k);
+        if (g) g.push(vI); else groups.set(k, [vI]);
+      }
+      for (const idxs of groups.values()) {
+        if (idxs.length < 2) continue;
+        const clusters: { sum: V3; members: number[] }[] = [];
+        for (const vI of idxs) {
+          const nx = norms[vI], ny = norms[vI + 1], nz = norms[vI + 2];
+          let placed = false;
+          for (const c of clusters) {
+            const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+            if ((nx * c.sum[0] + ny * c.sum[1] + nz * c.sum[2]) / L > cosC) {
+              c.sum[0] += nx; c.sum[1] += ny; c.sum[2] += nz; c.members.push(vI); placed = true; break;
+            }
+          }
+          if (!placed) clusters.push({ sum: [nx, ny, nz], members: [vI] });
+        }
+        for (const c of clusters) {
+          const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+          const nx = c.sum[0] / L, ny = c.sum[1] / L, nz = c.sum[2] / L;
+          for (const vI of c.members) { norms[vI] = nx; norms[vI + 1] = ny; norms[vI + 2] = nz; }
+        }
+      }
+    }
+
+    // Flanges — appended AFTER the averaging pass so their folded lips stay crisp.
+    addFlat(p[0], p[1], p[17], p[16]);
+    addFlat(p[1], p[2], p[18], p[17]);
+    addFlat(p[2], p[3], p[19], p[18]);
+    addFlat(p[3], p[0], p[16], p[19]);
+    addFlat(p[5], p[4], p[20], p[21]);
+    addFlat(p[4], p[7], p[23], p[20]);
+    addFlat(p[7], p[6], p[22], p[23]);
+    addFlat(p[6], p[5], p[21], p[22]);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // ── Edge lines ──
     const edgePts: number[] = [];
@@ -4769,9 +4901,11 @@ const TR9aMesh: React.FC<{
   return (
     <group>
       <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
-        <lineBasicMaterial color="#222222" linewidth={1} />
-      </lineSegments>
+      {!HIDE_POLYGON_CONNECTION_LINES && (
+        <lineSegments geometry={edgeGeo}>
+          <lineBasicMaterial color="#7a7e85" linewidth={1} />
+        </lineSegments>
+      )}
     </group>
   );
 };
@@ -4818,10 +4952,7 @@ const TR8aMesh: React.FC<{
   a: number; b: number; c: number; d: number; w: number; g: number;
   l: number; l3: number; m: number; n: number; e: number; f: number; i: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, w: wR, g: gR, l: lR, l3: l3R, m: mR, n: nR, e: eR, f: fR, i: iR }) => {
-  const material = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#8a9bae', roughness: 0.18, metalness: 0.92, reflectivity: 1.0,
-    clearcoat: 0.5, clearcoatRoughness: 0.08, side: THREE.DoubleSide, envMapIntensity: 1.0,
-  }), []);
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
 
   const { geometry, edgeGeo } = useMemo(() => {
     // C# max: max(a,b,l,c,d+l3)
@@ -4867,39 +4998,25 @@ const TR8aMesh: React.FC<{
       pts[16 + ii] = [pts[ii][0], pts[ii][1], pts[ii][2] + (ii < 4 ? i : -i)];
     }
 
-    const verts: number[] = [];
-    const addQuad = (a0: number, a1: number, a2: number, a3: number) => {
-      verts.push(...pts[a0], ...pts[a1], ...pts[a2], ...pts[a0], ...pts[a2], ...pts[a3]);
-    };
+    const P = (idx: number) => pts[idx] as Vec3;
+    const sh = new SheetShell();
 
-    // Main duct walls
-    addQuad(0, 4, 5, 1);
-    addQuad(1, 5, 6, 2);
-    addQuad(2, 6, 7, 3);
-    // End cap walls connecting main duct to branch openings
-    addQuad(3, 0, 9, 10);
-    addQuad(7, 3, 10, 14);
-    addQuad(4, 7, 14, 13);
-    addQuad(0, 4, 13, 9);
-    // Branch inner walls
-    addQuad(9, 13, 12, 8);
-    addQuad(13, 14, 15, 12);
-    addQuad(14, 10, 11, 15);
-    addQuad(10, 9, 8, 11);
-    // Front flanges (0-3 → 16-19)
-    addQuad(0, 1, 17, 16);
-    addQuad(1, 2, 18, 17);
-    addQuad(2, 3, 19, 18);
-    addQuad(3, 0, 16, 19);
-    // Back flanges (4-7 → 20-23)
-    addQuad(5, 4, 20, 21);
-    addQuad(4, 7, 23, 20);
-    addQuad(7, 6, 22, 23);
-    addQuad(6, 5, 21, 22);
+    // Body — warped duct walls (front c×b → back a×d), the collar strips that
+    // wrap the branch mouth, and the branch tunnel walls — subdivided, then
+    // blended so the whole thing reads as one formed surface with a tunnel.
+    sh.panel(P(0), P(4), P(5), P(1)); sh.panel(P(1), P(5), P(6), P(2)); sh.panel(P(2), P(6), P(7), P(3));
+    sh.panel(P(3), P(0), P(9), P(10)); sh.panel(P(7), P(3), P(10), P(14));
+    sh.panel(P(4), P(7), P(14), P(13)); sh.panel(P(0), P(4), P(13), P(9));
+    sh.panel(P(9), P(13), P(12), P(8)); sh.panel(P(13), P(14), P(15), P(12));
+    sh.panel(P(14), P(10), P(11), P(15)); sh.panel(P(10), P(9), P(8), P(11));
+    sh.blend();
+    // Flange lips — after the blend so their folds stay crisp.
+    sh.flat(P(0), P(1), P(17), P(16)); sh.flat(P(1), P(2), P(18), P(17));
+    sh.flat(P(2), P(3), P(19), P(18)); sh.flat(P(3), P(0), P(16), P(19));
+    sh.flat(P(5), P(4), P(20), P(21)); sh.flat(P(4), P(7), P(23), P(20));
+    sh.flat(P(7), P(6), P(22), P(23)); sh.flat(P(6), P(5), P(21), P(22));
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    const geo = sh.build();
 
     // Edge lines
     const edgePts: number[] = [];
@@ -4980,6 +5097,17 @@ const KeepAlive = () => {
   return null;
 };
 
+/* DEV-only: expose the live scene for automated visual inspection (Playwright).
+   Compiled out of production builds. */
+const SceneDebug = () => {
+  const { scene } = useThree();
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __r3fScene?: unknown }).__r3fScene = scene;
+  }, [scene]);
+  return null;
+};
+
 const SUPPORTED_3D = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'QPR2a', 'PR1a', 'PR7a', 'QBRa', 'QBR1a', 'QBFRa', 'QBFa', 'QESa', 'TR1a', 'TR2a', 'TRa', 'QPR3a', 'QPR4a', 'TR6a', 'CZ1a', 'CZ2a', 'TR3a', 'TR4a', 'TR5a', 'QD1a', 'QD2a', 'TR7a', 'TR8a', 'TR9a'];
 
 const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (text) => text }) => {
@@ -4990,8 +5118,25 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    normalizeGroupAppearance(groupRef.current);
-    normalizeGroupAppearance(modalGroupRef.current);
+    // Child meshes/geometries are (re)built in their own useMemo hooks and can
+    // commit a frame after this effect on the first render for a symbol. Running
+    // the appearance pass again on the next few frames makes the very first
+    // render match what you'd otherwise only get on a second click.
+    const run = () => {
+      normalizeGroupAppearance(groupRef.current);
+      normalizeGroupAppearance(modalGroupRef.current);
+    };
+    let raf = 0;
+    const start = performance.now();
+    const tick = () => {
+      run();
+      // react-three-fiber may attach the freshly-built child meshes/lines a few
+      // frames after this effect fires. Keep re-applying for a short window so
+      // the first render lands on the same result as a re-selection.
+      if (performance.now() - start < 900) raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(raf);
   }, [symbol, values, showDimensions, expanded]);
 
   if (!SUPPORTED_3D.includes(symbol)) {
@@ -5099,17 +5244,22 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
         }
         // CZ1a — cross-junction with rectangular branches
         if (symbol === 'CZ1a') {
-          const d_val  = values[2] || 200;
-          const w_val  = values[3] || 150;
-          const tL     = values[4] || 800;
-          const d1_val = values[5] || 200;
-          const w1_val = values[6] || 150;
-          const e1_val = values[7] || 200;
-          const f1_val = values[8] || 200;
-          const e_val  = values[9] || 200;
-          const f_val  = values[10] || 200;
-          const l3_val = values[11] || 250;
-          const l4_val = values[12] || 250;
+          // Defaults mirror the .NET app's built-in CZ1a sample (Form1.cs): a symmetric
+          // czwórnik with small rectangular branches centred on each face. The old
+          // fallbacks made every branch as wide as the duct and shoved it f = a off the
+          // left face, so each branch hung half off the duct's edge and the top/bottom
+          // face panels folded through themselves.
+          const d_val  = values[2] || 70;
+          const w_val  = values[3] || 90;
+          const tL     = values[4] || 500;
+          const d1_val = values[5] || 70;
+          const w1_val = values[6] || 90;
+          const e1_val = values[7] || 250;
+          const f1_val = values[8] || 110;
+          const e_val  = values[9] || 250;
+          const f_val  = values[10] || 110;
+          const l3_val = values[11] || 80;
+          const l4_val = values[12] || 80;
           return (
             <>
               <CZ1aMesh a={a} b={b} d={d_val} w={w_val} L={tL}
@@ -5122,11 +5272,15 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
         }
         // CZ2a — cross-junction with round branches
         if (symbol === 'CZ2a') {
-          const d_val  = values[2] || 200;
-          const tL     = values[3] || 800;
-          const d1_val = values[4] || 200;
-          const l3_val = values[9] || 250;
-          const l4_val = values[10] || 250;
+          // Defaults mirror the .NET app's built-in CZ2a sample (Form1.cs): a symmetric
+          // czwórnik with small round branches centred on each end face. The old
+          // fallbacks made each branch d = a (as tall as the duct cross-section), so the
+          // circle→rectangle end transition collapsed to zero width top and bottom.
+          const d_val  = values[2] || 70;
+          const tL     = values[3] || 500;
+          const d1_val = values[4] || 70;
+          const l3_val = values[9] || 80;
+          const l4_val = values[10] || 80;
           return (
             <>
               <CZ2aMesh a={a} b={b} d={d_val} d1={d1_val} L={tL} l3={l3_val} l4={l4_val} />
@@ -5136,25 +5290,31 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
         }
         // TR3a — eagle tee
         if (symbol === 'TR3a') {
-          const c_val = values[2] || 200;
+          // Defaults mirror the .NET app's built-in TR3a sample (Form1.cs).
+          const a_val = values[0] || 500;
+          const b_val = values[1] || 300;
+          const c_val = values[2] || 300;
           const d_val = values[3] || 200;
           const m_val = values[4] || 100;
-          const k_val = values[5] || 50;
+          const k_val = values[5] || 100;
           const i_val = values[6] || 100;
-          const j_val = values[7] || 50;
-          const g_val = values[8] || 80;
-          const f_val = values[9] || 80;
+          const j_val = values[7] || 100;
+          const g_val = values[8] || 150;
+          const f_val = values[9] || 150;
           return (
             <>
-              <TR3aMesh a={a} b={b} c={c_val} d={d_val} m={m_val} k={k_val}
+              <TR3aMesh a={a_val} b={b_val} c={c_val} d={d_val} m={m_val} k={k_val}
                 i={i_val} j={j_val} g={g_val} f={f_val} />
-              {showDimensions && <TR3aLabels a={a} b={b} c={c_val} d={d_val} m={m_val} k={k_val}
+              {showDimensions && <TR3aLabels a={a_val} b={b_val} c={c_val} d={d_val} m={m_val} k={k_val}
                 i={i_val} j={j_val} g={g_val} f={f_val} />}
             </>
           );
         }
         // TR4a — tee with curved branch
         if (symbol === 'TR4a') {
+          // Defaults mirror the .NET app's built-in TR4a sample (Form1.cs).
+          const a_val = values[0] || 100;
+          const b_val = values[1] || 300;
           const c_val = values[2] || 200;
           const d_val = values[3] || 200;
           const tL = values[4] || 550;
@@ -5163,27 +5323,31 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
           const j_val = values[7] || 100;
           return (
             <>
-              <TR4aMesh a={a} b={b} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />
-              {showDimensions && <TR4aLabels a={a} b={b} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />}
+              <TR4aMesh a={a_val} b={b_val} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />
+              {showDimensions && <TR4aLabels a={a_val} b={b_val} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />}
             </>
           );
         }
-        // TR5a — port tee
+        // TR5a — breeches / port tee
         if (symbol === 'TR5a') {
-          const c_val = values[2] || 200;
-          const d_val = values[3] || 200;
-          const e_val = values[4] || 200;
-          const tL = values[5] || 500;
-          const h_val = values[6] || 50;
-          const g_val = values[7] || 50;
-          const i_val = values[8] || 50;
-          const j_val = values[9] || 100;
-          const k_val = values[10] || 100;
+          // Defaults mirror the .NET app's built-in TR5a sample (Form1.cs) —
+          // h and i are the raw (negative) textbox values; the mesh negates them.
+          const a_val = values[0] || 460;
+          const b_val = values[1] || 200;
+          const c_val = values[2] || 100;
+          const d_val = values[3] || 150;
+          const e_val = values[4] || 100;
+          const tL = values[5] || 300;
+          const h_val = values[6] || -50;
+          const g_val = values[7] || 100;
+          const i_val = values[8] || -100;
+          const j_val = values[9] || 50;
+          const k_val = values[10] || 50;
           return (
             <>
-              <TR5aMesh a={a} b={b} c={c_val} d={d_val} e={e_val} L={tL}
+              <TR5aMesh a={a_val} b={b_val} c={c_val} d={d_val} e={e_val} L={tL}
                 h={h_val} g={g_val} i={i_val} j={j_val} k={k_val} />
-              {showDimensions && <TR5aLabels a={a} b={b} c={c_val} d={d_val} e={e_val} L={tL}
+              {showDimensions && <TR5aLabels a={a_val} b={b_val} c={c_val} d={d_val} e={e_val} L={tL}
                 h={h_val} g={g_val} i={i_val} j={j_val} k={k_val} />}
             </>
           );
@@ -5511,16 +5675,18 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
           style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: 8 }}
         >
           <KeepAlive />
-          <ambientLight intensity={0.35} />
-          <hemisphereLight args={['#c0c8d8', '#606878', 0.4]} />
-          <directionalLight position={[4, 5, 4]} intensity={0.6} />
-          <directionalLight position={[-3, 2, -4]} intensity={0.25} />
+          <SceneDebug />
+          <ambientLight intensity={0.5} />
+          <hemisphereLight args={['#dfe6f0', '#8a909c', 0.75]} />
+          <directionalLight position={[4, 5, 4]} intensity={0.65} />
+          <directionalLight position={[-3, 2, -4]} intensity={0.35} />
+          <directionalLight position={[0, 1, 6]} intensity={0.25} />
           <FreeControls rotateSpeed={1.5} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} />
           <group ref={groupRef}>
             {renderShapeMesh()}
           </group>
           <AutoRotate groupRef={groupRef} enabled={autoRotate} />
-          <Environment preset="city" />
+          <Environment preset="warehouse" />
         </Canvas>
       </div>
       <div className="shape-3d-toggles">
@@ -5584,16 +5750,17 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
               style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: '0 0 8px 8px' }}
             >
               <KeepAlive />
-              <ambientLight intensity={0.35} />
-              <hemisphereLight args={['#c0c8d8', '#606878', 0.4]} />
-              <directionalLight position={[4, 5, 4]} intensity={0.6} />
-              <directionalLight position={[-3, 2, -4]} intensity={0.25} />
+              <ambientLight intensity={0.5} />
+              <hemisphereLight args={['#dfe6f0', '#8a909c', 0.75]} />
+              <directionalLight position={[4, 5, 4]} intensity={0.65} />
+              <directionalLight position={[-3, 2, -4]} intensity={0.35} />
+              <directionalLight position={[0, 1, 6]} intensity={0.25} />
               <FreeControls rotateSpeed={1.5} zoomSpeed={0.8} minDistance={1.2} maxDistance={8} />
               <group ref={modalGroupRef}>
                 {renderShapeMesh()}
               </group>
               <AutoRotate groupRef={modalGroupRef} enabled={autoRotate} />
-              <Environment preset="city" />
+              <Environment preset="warehouse" />
             </Canvas>
           </div>
         </div>

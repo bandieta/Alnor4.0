@@ -14,6 +14,64 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   const width = 360;
   const height = 160;
 
+  // Every per-shape renderer below lays its drawing out in its own local coordinate
+  // space, inherited from the WinForms Bitmap(358, 141) canvas of the original app.
+  // Rather than re-deriving the framing inside 28 separate layout functions, the
+  // finished drawing is measured after paint and the viewBox is fitted around it,
+  // so the content is always centred and never clipped by the frame.
+  const contentRef = React.useRef<SVGGElement | null>(null);
+  const [viewBox, setViewBox] = React.useState(`0 0 ${width} ${height}`);
+  const valuesKey = values.join(',');
+
+  React.useLayoutEffect(() => {
+    const node = contentRef.current;
+    if (!node) return;
+    let box: DOMRect;
+    try {
+      box = node.getBBox();
+    } catch {
+      return;
+    }
+    if (!(box.width > 0) || !(box.height > 0)) return;
+
+    // getBBox() ignores stroke width and marker geometry; pad so arrowheads and
+    // half-strokes on the outermost elements stay inside the frame.
+    const pad = 7;
+    let x = box.x - pad;
+    let y = box.y - pad;
+    let w = box.width + 2 * pad;
+    let h = box.height + 2 * pad;
+
+    // Grow the shorter axis to the frame aspect ratio so the drawing keeps its
+    // proportions and ends up centred on both axes.
+    const aspect = width / height;
+    if (w / h < aspect) {
+      const grown = h * aspect;
+      x -= (grown - w) / 2;
+      w = grown;
+    } else {
+      const grown = w / aspect;
+      y -= (grown - h) / 2;
+      h = grown;
+    }
+
+    // A compact drawing would otherwise be blown up until its labels dwarfed those of
+    // every other shape. Cap how far the frame may zoom IN so label size stays roughly
+    // uniform across the shape list; zooming OUT is left unbounded so nothing is clipped.
+    const minSpan = 250;
+    if (w < minSpan) {
+      const grown = minSpan;
+      const grownH = grown / aspect;
+      x -= (grown - w) / 2;
+      y -= (grownH - h) / 2;
+      w = grown;
+      h = grownH;
+    }
+
+    const next = `${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`;
+    setViewBox((prev) => (prev === next ? prev : next));
+  }, [symbol, valuesKey, t]);
+
   const renderShape = () => {
     switch (symbol) {
       case 'QDa': return renderRectangularDuct();
@@ -306,7 +364,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         <line x1={left.x1} y1={lower.y0} x2={left.x1 + r} y2={left.y1}
           stroke="#9b9b9b" strokeWidth={0.9} />
-        <text x={left.x1 + r + 3} y={left.y1 - 8} fontSize={10} fill="#555555">r</text>
+        <text x={left.x1 + r + 5} y={left.y1 + 3} fontSize={10} fill="#555555">r</text>
 
         <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
           fill="none" stroke="#004290" strokeWidth={1.2} />
@@ -501,7 +559,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             <>
               <line x1={ox} y1={oy} x2={ox + sr * Math.cos(midAngle)} y2={oy + sr * Math.sin(midAngle)}
                 stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
-              <text x={ox + sr * 0.45 * Math.cos(midAngle) + 3} y={oy + sr * 0.45 * Math.sin(midAngle)} fontSize={10} fill="#555555">r</text>
+              <text x={ox + sr * 0.8 * Math.cos(alfaRad * 0.3)} y={oy + sr * 0.8 * Math.sin(alfaRad * 0.3)}
+                textAnchor="middle" fontSize={10} fill="#555555">r</text>
             </>
           );
         })()}
@@ -517,8 +576,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           return (
             <>
               <polyline points={arcPts.join(' ')} fill="none" stroke="#9b9b9b" strokeWidth={0.6} />
-              <text x={ox + arcR * 1.3 * Math.cos(alfaRad / 2)} y={oy + arcR * 1.3 * Math.sin(alfaRad / 2)}
-                textAnchor="middle" fontSize={9} fill="#555555">{`α=${Math.round(alfa)}°`}</text>
+              <text x={vInnerX - 7} y={oy - 7}
+                textAnchor="end" fontSize={9} fill="#555555">{`α=${Math.round(alfa)}°`}</text>
             </>
           );
         })()}
@@ -631,7 +690,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* d dimension — right (rear height) */}
         <line x1={svX + sl + 16} y1={svT2} x2={svX + sl + 16} y2={svB2}
           stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl + 28} y={svCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
+        <text x={svX + sl + 21} y={svCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
 
         {/* L dimension — below */}
         <line x1={svX} y1={dimBotY} x2={svX + sl} y2={dimBotY}
@@ -672,8 +731,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={crossX + sa / 2} y={crossY - p - 16} textAnchor="middle" fontSize={11} fill="#555555">a</text>
 
         {/* c label near dashed inner rect */}
-        <text x={crossX + (sa + sCross) / 2 + 6} y={svCY + 4}
-          textAnchor="start" fontSize={10} fill="#9b9b9b">c</text>
+        <text x={crossX + sa / 2} y={crossY + sb + p + 12}
+          textAnchor="middle" fontSize={10} fill="#555555">c</text>
       </g>
     );
   };
@@ -889,7 +948,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* d dimension — right (rear diameter) */}
         <line x1={svX + sl + 18} y1={svT2} x2={svX + sl + 18} y2={svB2}
           stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl + 30} y={svCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
+        <text x={svX + sl + 23} y={svCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
 
         {/* L dimension — below */}
         <line x1={svX} y1={dimBotY} x2={svX + sl} y2={dimBotY}
@@ -1011,7 +1070,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* d dimension — right */}
         <line x1={svX + sl + 18} y1={svT2} x2={svX + sl + 18} y2={svB2}
           stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl + 30} y={cirCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
+        <text x={svX + sl + 23} y={cirCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
 
         {/* L dimension */}
         <line x1={svX} y1={dimBotY} x2={svX + sl} y2={dimBotY}
@@ -1210,13 +1269,13 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           const dStartY = eIEndY + flangeNY * dOff;
           const dEndX = eOEndX + flangeNX * dOff;
           const dEndY = eOEndY + flangeNY * dOff;
-          const dLabelX = (dStartX + dEndX) / 2 + flangeNX * 10;
-          const dLabelY = (dStartY + dEndY) / 2 + flangeNY * 10;
+          const dLabelX = (dStartX + dEndX) / 2 + sfDirX * 4;
+          const dLabelY = (dStartY + dEndY) / 2 + sfDirY * 4 + 3.8;
           return (
             <>
               <line x1={dStartX} y1={dStartY} x2={dEndX} y2={dEndY}
                 stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-              <text x={dLabelX} y={dLabelY} textAnchor="middle" fontSize={10} fill="#555555">d</text>
+              <text x={dLabelX} y={dLabelY} textAnchor="end" fontSize={10} fill="#555555">d</text>
             </>
           );
         })()}
@@ -1233,8 +1292,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           const eDimStartY = eOStartY + flangeNY * eOff;
           const eDimEndX = eOEndX + flangeNX * eOff;
           const eDimEndY = eOEndY + flangeNY * eOff;
-          const eLabelX = (eDimStartX + eDimEndX) / 2 + flangeNX * 10;
-          const eLabelY = (eDimStartY + eDimEndY) / 2 + flangeNY * 10;
+          const eLabelX = (eDimStartX + eDimEndX) / 2 + flangeNX * 13;
+          const eLabelY = (eDimStartY + eDimEndY) / 2 + flangeNY * 13;
           return (
             <>
               <line x1={eDimStartX} y1={eDimStartY} x2={eDimEndX} y2={eDimEndY}
@@ -1251,7 +1310,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             <>
               <line x1={ox} y1={oy} x2={ox + sr * Math.cos(midAngle)} y2={oy + sr * Math.sin(midAngle)}
                 stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
-              <text x={ox + sr * 0.45 * Math.cos(midAngle) + 3} y={oy + sr * 0.45 * Math.sin(midAngle)} fontSize={10} fill="#555555">r</text>
+              <text x={ox + sr * 0.45 * Math.cos(midAngle) + 3 + 5 * Math.sin(midAngle)} y={oy + sr * 0.45 * Math.sin(midAngle) - 5 * Math.cos(midAngle)} fontSize={10} fill="#555555">r</text>
             </>
           );
         })()}
@@ -1304,7 +1363,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           <>
             <line x1={crossX + ca + 4} y1={crossY + (cb - cd) / 2} x2={crossX + ca + 4} y2={crossY + (cb + cd) / 2}
               stroke="#9b9b9b" strokeWidth={0.6} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={crossX + ca + 10} y={crossY + cb / 2 + 4} textAnchor="start" fontSize={9} fill="#9b9b9b">d</text>
+            <text x={crossX + ca + (cp + 8) / 2} y={crossY + cb / 2 + 4} textAnchor="middle" fontSize={9} fill="#9b9b9b">d</text>
           </>
         )}
       </g>
@@ -1469,8 +1528,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           const dStartY = eIEndY + flangeNY * dOff;
           const dEndX = eOEndX + flangeNX * dOff;
           const dEndY = eOEndY + flangeNY * dOff;
-          const dLabelX = (dStartX + dEndX) / 2 + flangeNX * 10;
-          const dLabelY = (dStartY + dEndY) / 2 + flangeNY * 10;
+          const dLabelX = (dStartX + dEndX) / 2 + sfDirX * 8;
+          const dLabelY = (dStartY + dEndY) / 2 + sfDirY * 8 + 3.5;
           return (
             <>
               <line x1={dStartX} y1={dStartY} x2={dEndX} y2={dEndY}
@@ -1492,8 +1551,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           const eDimStartY = eOStartY + flangeNY * eOff;
           const eDimEndX = eOEndX + flangeNX * eOff;
           const eDimEndY = eOEndY + flangeNY * eOff;
-          const eLabelX = (eDimStartX + eDimEndX) / 2 + flangeNX * 10;
-          const eLabelY = (eDimStartY + eDimEndY) / 2 + flangeNY * 10;
+          const eLabelX = (eDimStartX + eDimEndX) / 2 + flangeNX * 14;
+          const eLabelY = (eDimStartY + eDimEndY) / 2 + flangeNY * 14;
           return (
             <>
               <line x1={eDimStartX} y1={eDimStartY} x2={eDimEndX} y2={eDimEndY}
@@ -1510,7 +1569,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             <>
               <line x1={ox} y1={oy} x2={ox + sr * Math.cos(midAngle)} y2={oy + sr * Math.sin(midAngle)}
                 stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
-              <text x={ox + sr * 0.45 * Math.cos(midAngle) + 3} y={oy + sr * 0.45 * Math.sin(midAngle)} fontSize={10} fill="#555555">r</text>
+              <text x={ox + sr * 0.45 * Math.cos(midAngle) + Math.sin(midAngle) * 9} y={oy + sr * 0.45 * Math.sin(midAngle) - Math.cos(midAngle) * 9 + 3.5} textAnchor="middle" fontSize={10} fill="#555555">r</text>
             </>
           );
         })()}
@@ -1830,8 +1889,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             <line x1={arcCX} y1={arcCY}
               x2={arcCX + sr * Math.cos(-Math.PI / 4)} y2={arcCY + sr * Math.sin(-Math.PI / 4)}
               stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2" />
-            <text x={arcCX + sr * 0.4} y={arcCY - sr * 0.4 - 2}
-              textAnchor="middle" fontSize={9} fill="#555555">r</text>
+            <text x={cornerX + 2} y={cornerY - 1}
+              textAnchor="start" fontSize={9} fill="#555555">r</text>
           </>
         )}
 
@@ -2009,7 +2068,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <line x1={ox} y1={oy - fp - 12} x2={ox + sL} y2={oy - fp - 12}
           stroke="#9b9b9b" strokeWidth={0.8}
           markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL / 2} y={oy - fp - 14}
+        <text x={ox + sL / 2} y={oy - fp - 17}
           textAnchor="middle" fontSize={10} fill="#555555">L</text>
 
         {/* b dimension (main duct height) */}
@@ -2025,7 +2084,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             <line x1={ox + se} y1={oy + sb + sl3 + 14} x2={ox + se + sw} y2={oy + sb + sl3 + 14}
               stroke="#9b9b9b" strokeWidth={0.8}
               markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={ox + se + sw / 2} y={oy + sb + sl3 + 24}
+            <text x={ox + se + sw / 2} y={oy + sb + sl3 + 26}
               textAnchor="middle" fontSize={10} fill="#555555">w</text>
           </>
         )}
@@ -2188,7 +2247,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={(ox + bCenterX) / 2} y={oy + sa * 0.3 + 12} textAnchor="middle" fontSize={9} fill="#555555">e</text>
 
         {/* === CROSS-SECTION === */}
-        <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
+        <text x={crossX + ca / 2} y={brCrossY - branchR - 30} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* Main duct cross-section a×b */}
         <rect x={crossX} y={crossY} width={ca} height={cb}
@@ -2920,7 +2979,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <line x1={ox + sE1 - sW1 / 2} y1={oy + sB + sL4 + 8}
               x2={ox + sE1 + sW1 / 2} y2={oy + sB + sL4 + 8}
               stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sE1} y={oy + sB + sL4 + 18} textAnchor="middle" fontSize={8} fill="#555555">w1</text>
+        <text x={ox + sE1 + sW1 / 2 + sP + 5} y={oy + sB + sL4 + 4} textAnchor="start" fontSize={8} fill="#555555">w1</text>
 
         {/* l3 dimension — left of top branch */}
         <line x1={ox - 10} y1={oy} x2={ox - 10} y2={oy - sL3}
@@ -3002,7 +3061,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 + 2}
               x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 + 2}
               stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA - csF1} y={csy + csB + csL4 + 12} textAnchor="middle" fontSize={8} fill="#555555">d1</text>
+        <text x={csx + csA - csF1 - csD1 / 2 - csP - 4} y={csy + csB + csL4 + 1} textAnchor="end" fontSize={8} fill="#555555">d1</text>
 
         {/* f dimension snippet — from right edge (top) */}
         <line x1={csx + csA} y1={csy + csP + 2}
@@ -3187,7 +3246,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 + 2}
               x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 + 2}
               stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA - csF1} y={csy + csB + csL4 + 12} textAnchor="middle" fontSize={8} fill="#555555">d1</text>
+        <text x={csx + csA - csF1 + csD1 / 2 + 4} y={csy + csB + csL4 + 5} textAnchor="start" fontSize={8} fill="#555555">d1</text>
 
         {/* f dimension snippet */}
         <line x1={csx + csA} y1={csy + csP + 2}
@@ -3235,7 +3294,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     if (c_raw + f_raw + j_raw > max) max = c_raw + f_raw + j_raw;
     if (d_raw + g_raw + k_raw > max) max = d_raw + g_raw + k_raw;
 
-    const mnoznik = 55;
+    // Form1.cs uses 55 here, which drew this fitting noticeably smaller than every other
+    // shape in the list. 80 matches the density the rest of the drawings are built at, so
+    // the auto-fitted frame lands on the same label scale as its neighbours.
+    const mnoznik = 80;
     let a = Math.trunc(a_raw / max * mnoznik);
     let b = Math.trunc(b_raw / max * mnoznik);
     let c = Math.trunc(c_raw / max * mnoznik);
@@ -3300,7 +3362,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     els.push(<line key={K()} x1={sx(csX)} y1={sy(dy)} x2={sx(csX+a)} y2={sy(dy)} stroke="#333" strokeWidth={0.4}/>);
     els.push(<line key={K()} x1={sx(csX)} y1={sy(dy-3)} x2={sx(csX)} y2={sy(dy+3)} stroke="#333" strokeWidth={0.4}/>);
     els.push(<line key={K()} x1={sx(csX+a)} y1={sy(dy-3)} x2={sx(csX+a)} y2={sy(dy+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(csX+a/2)} y={sy(dy-1)} fontSize={7} fill="#333" textAnchor="middle">b</text>);}
+    els.push(<text key={K()} x={sx(csX+a/2)} y={sy(dy)+6} fontSize={7} fill="#333" textAnchor="middle">b</text>);}
 
     // ── Left branch d×m ("poziomy") ──
     const lbX = 20+push_x, lbY = 20+push_y+c+f+j-d-g-k;
@@ -3357,7 +3419,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     els.push(<line key={K()} x1={sx(qX)} y1={sy(ady)} x2={sx(qX+b)} y2={sy(ady)} stroke="#333" strokeWidth={0.4}/>);
     els.push(<line key={K()} x1={sx(qX)} y1={sy(ady-3)} x2={sx(qX)} y2={sy(ady+3)} stroke="#333" strokeWidth={0.4}/>);
     els.push(<line key={K()} x1={sx(qX+b)} y1={sy(ady-3)} x2={sx(qX+b)} y2={sy(ady+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(qX+b/2)} y={sy(ady-1)} fontSize={7} fill="#333" textAnchor="middle">a</text>);}
+    els.push(<text key={K()} x={sx(qX+b/2)} y={sy(ady)+6} fontSize={7} fill="#333" textAnchor="middle">a</text>);}
 
     // ── j-line (vertical from qwe+b upward by j) ──
     const jX = qX+b;
@@ -3604,7 +3666,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       stroke="#333" strokeWidth={0.4}/>);
     els.push(<line key={K()} x1={sx(lx-3)} y1={sy(topY+l)} x2={sx(lx+3)} y2={sy(topY+l)}
       stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(lx+5)} y={sy(topY+l/2+2)} fontSize={7} fill="#333">L</text>);}
+    els.push(<text key={K()} x={sx(lx-5)} y={sy(topY+l/2+2)} fontSize={7} fill="#333" textAnchor="end">L</text>);}
 
     // i dim
     {const idx = bx1 - 15;
@@ -4129,7 +4191,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       els.push(<path key={K()}
         d={`M ${sx(arcSx)},${sy(arcSy)} A ${sd(r)},${sd(r)} 0 0,1 ${sx(arcEx)},${sy(arcEy)}`}
         fill="none" stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(p2x2 - 40)} y={sy(p2y2 - 15)}
+      els.push(<text key={K()} x={sx(p2x2 - 38)} y={sy(p2y2) - 5}
         fontSize={6} fill="#333">alfa</text>);
     }
 
@@ -4148,8 +4210,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         x1={sx(lx2 - lt)} y1={sy(ly2 + lu)} x2={sx(lx2 + lt)} y2={sy(ly2 - lu)}
         stroke="#333" strokeWidth={0.4}/>);
       els.push(<text key={K()}
-        x={sx(Math.trunc((lx1 + lx2) / 2)) - 5}
-        y={sy(Math.trunc((ly1 + ly2) / 2))}
+        x={sx(Math.trunc((lx1 + lx2) / 2)) - 9}
+        y={sy(Math.trunc((ly1 + ly2) / 2)) + 8}
         fontSize={7} fill="#333">L</text>);
     }
 
@@ -4937,8 +4999,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         stroke={D} strokeWidth={dsw} />);
       els.push(<line key={K()} x1={sx(pkt1x)} y1={sy(dy - 3)} x2={sx(pkt1x)} y2={sy(dy + 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(pkt0x + d / 2 - 5)} y={sy(dy - 15)}
-        fontSize={6} fill="#333">d</text>);
+      els.push(<text key={K()} x={sx(pkt0x + d / 2)} y={sy(dy - 3)}
+        fontSize={6} fill="#333" textAnchor="middle">d</text>);
     }
 
     // ── n dimension (top-right offset) ──
@@ -4950,8 +5012,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       // Note: n ticks are below d ticks since we're further right
       els.push(<line key={K()} x1={sx(nx - n)} y1={sy(ny - 3)} x2={sx(nx - n)} y2={sy(ny + 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(nx - n / 2 - 5)} y={sy(ny - 15)}
-        fontSize={6} fill="#333">n</text>);
+      els.push(<text key={K()} x={sx(nx - n / 2)} y={sy(ny - 3)}
+        fontSize={6} fill="#333" textAnchor="middle">n</text>);
     }
 
     // ── l dimension (right side) ──
@@ -4980,8 +5042,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         stroke={D} strokeWidth={dsw} />);
       els.push(<line key={K()} x1={sx(bx_right)} y1={sy(by + 3)} x2={sx(bx_right)} y2={sy(by - 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(bx_left + b / 2 - 5)} y={sy(by + 3)}
-        fontSize={6} fill="green">b</text>);
+      els.push(<text key={K()} x={sx(bx_left + b / 2)} y={sy(by + 7)}
+        fontSize={6} fill="green" textAnchor="middle">b</text>);
     }
 
     // ── f dimension (bottom-left) ──
@@ -4995,8 +5057,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         stroke={D} strokeWidth={dsw} />);
       els.push(<line key={K()} x1={sx(fx_right)} y1={sy(fy - 3)} x2={sx(fx_right)} y2={sy(fy + 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(fx_left + f / 2 - 5)} y={sy(fy + 2)}
-        fontSize={6} fill="#333">f</text>);
+      els.push(<text key={K()} x={sx(fx_left + f / 2)} y={sy(fy + 6)}
+        fontSize={6} fill="#333" textAnchor="middle">f</text>);
     }
 
     // ── g dimension (above branch rect on right) ──
@@ -5008,8 +5070,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         stroke={D} strokeWidth={dsw} />);
       els.push(<line key={K()} x1={sx(pk1_1x)} y1={sy(gy - 3)} x2={sx(pk1_1x)} y2={sy(gy + 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(pk1_0x + g / 2 - 3)} y={sy(gy - 10)}
-        fontSize={6} fill="#333">g</text>);
+      els.push(<text key={K()} x={sx(pk1_0x + g / 2)} y={sy(gy - 5)}
+        fontSize={6} fill="#333" textAnchor="middle">g</text>);
     }
 
     // Branch polygon pk1 (inner rect)
@@ -5056,8 +5118,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         stroke={D} strokeWidth={dsw} />);
       els.push(<line key={K()} x1={sx(p2_1x)} y1={sy(cy - 3)} x2={sx(p2_1x)} y2={sy(cy + 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(p2_0x + c / 2 - 3)} y={sy(cy - 15)}
-        fontSize={6} fill="#333">c</text>);
+      els.push(<text key={K()} x={sx(p2_0x + c / 2)} y={sy(cy - 3)}
+        fontSize={6} fill="#333" textAnchor="middle">c</text>);
     }
 
     // ── i=j top dimension (right side of left view top) ──
@@ -5095,8 +5157,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         stroke={D} strokeWidth={dsw} />);
       els.push(<line key={K()} x1={sx(p2_3x + a)} y1={sy(ay - 3)} x2={sx(p2_3x + a)} y2={sy(ay + 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(p2_3x + a / 2 - 5)} y={sy(ay + 3)}
-        fontSize={6} fill="red">a</text>);
+      els.push(<text key={K()} x={sx(p2_3x + a / 2)} y={sy(ay + 6)}
+        fontSize={6} fill="red" textAnchor="middle">a</text>);
     }
 
     // ── m dimension (bottom-right of left view) ──
@@ -5108,8 +5170,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         stroke={D} strokeWidth={dsw} />);
       els.push(<line key={K()} x1={sx(p2_2x - m)} y1={sy(my - 3)} x2={sx(p2_2x - m)} y2={sy(my + 3)}
         stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(p2_2x - m / 2 - 5)} y={sy(my + 3)}
-        fontSize={6} fill="#333">m</text>);
+      els.push(<text key={K()} x={sx(p2_2x - m / 2)} y={sy(my + 6)}
+        fontSize={6} fill="#333" textAnchor="middle">m</text>);
     }
 
     // ── e dimension (vertical from top center of left view) ──
@@ -5287,7 +5349,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // right tick
     aa.X -= d; bb.X -= d;
     DL(aa, bb, D, dsw); // left tick
-    aa.X += (d / 2 - 5) | 0; aa.Y -= 15;
+    // Form1.cs offsets the label by -15 because GDI+ anchors a 13px-tall string by its
+    // top-left; as an SVG baseline that leaves the glyph floating far above its own
+    // dimension line, so -3 restores the small gap the original actually renders.
+    aa.X += (d / 2 - 5) | 0; aa.Y -= 3;
     DS('d', aa, '#333', 6);
 
     // ── n dimension (continuation from d) ──
@@ -5297,7 +5362,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // n line
     aa = { ...bb }; aa.Y -= 3; bb.Y += 3;
     DL(aa, bb, D, dsw); // n tick
-    aa.Y -= 15; aa.X += (n / 2 - 5) | 0;
+    aa.Y -= 3; aa.X += (n / 2 - 5) | 0;
     DS('n', aa, '#333', 6);
 
     // ── l dimension (BEFORE X mutations, matching C#) ──
@@ -5341,7 +5406,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // left tick
     aa.X += b; bb.X += b;
     DL(aa, bb, D, dsw); // right tick
-    aa.X -= (b / 2 + 5) | 0;
+    aa.X -= (b / 2 + 5) | 0; aa.Y += 3;
     DS('b', aa, 'green', 6);
 
     // ── f dimension ──
@@ -5353,7 +5418,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // left tick
     bb.X += f; aa.X += f;
     DL(aa, bb, D, dsw); // right tick
-    aa.X -= (f / 2 + 5) | 0; aa.Y += 2;
+    aa.X -= (f / 2 + 5) | 0; aa.Y += 9;
     DS('f', aa, '#333', 6);
 
     // ── alfa, w1 ──
@@ -5377,7 +5442,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // left tick
     aa.X += d1; bb.X += d1;
     DL(aa, bb, D, dsw); // right tick
-    aa.X -= ((d1 / 2 + 3) | 0); aa.Y -= 10;
+    aa.X -= ((d1 / 2 + 3) | 0); aa.Y -= 4;
     DS('d1', aa, '#333', 6);
 
     // ── Draw circle (branch opening) ──
@@ -5415,7 +5480,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // left tick
     aa.X += c; bb.X += c;
     DL(aa, bb, D, dsw); // right tick
-    aa.X -= ((c / 2 + 3) | 0); aa.Y -= 15;
+    aa.X -= ((c / 2 + 3) | 0); aa.Y -= 3;
     DS('c', aa, '#333', 6);
 
     // ── i dimension (top, left view) ──
@@ -5466,7 +5531,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // left tick
     bb.X += a; aa.X += a;
     DL(aa, bb, D, dsw); // right tick
-    aa.X -= ((a / 2 + 5) | 0);
+    aa.X -= ((a / 2 + 5) | 0); aa.Y += 3;
     DS('a', aa, 'red', 6);
 
     // ── m dimension ──
@@ -5479,7 +5544,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     DL(aa, bb, D, dsw); // right tick
     bb.X -= m; aa.X -= m;
     DL(aa, bb, D, dsw); // left tick
-    aa.X += ((m / 2 - 5) | 0);
+    aa.X += ((m / 2 - 5) | 0); aa.Y += 3;
     DS('m', aa, '#333', 6);
 
     // ── e dimension ──
@@ -5612,7 +5677,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
   return (
     <div className="shape-diagram">
-      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
+      <svg viewBox={viewBox} style={{ width: '100%', height: 'auto' }}>
         <defs>
           <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto">
             <polygon points="0 0, 8 2.5, 0 5" fill="#555555" />
@@ -5621,7 +5686,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             <polygon points="8 0, 0 2.5, 8 5" fill="#555555" />
           </marker>
         </defs>
-        {renderShape()}
+        <g ref={contentRef}>{renderShape()}</g>
       </svg>
     </div>
   );
