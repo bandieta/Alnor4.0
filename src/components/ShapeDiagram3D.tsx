@@ -2064,9 +2064,13 @@ const TR6aMesh: React.FC<{
     // Intentionally keep top and bottom open: this matches legacy TR6a,
     // which is modeled as a saddle shell (side walls + two end caps).
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    // computeVertexNormals() alone agrees with the triangle winding, which under
+    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
+    // convention. applyStandardShading welds (keeping the saddle curve smooth),
+    // recomputes, and flips into it so the shell shades as warm sheet metal.
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     // Left face outline (top curve + bottom + verticals)
