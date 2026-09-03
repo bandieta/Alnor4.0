@@ -1433,10 +1433,17 @@ const TR2aMesh: React.FC<{
       addTri(topCircle[i], botCircle[i + 1], botCircle[i], normal0, normal1, normal0);
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // The three main-duct walls were authored pointing physically outward, which
+    // makes them AGREE with their triangle winding, while the top strips, the
+    // collar transition and the branch tube all OPPOSE theirs. That split lit the
+    // tee unevenly and, on the agreeing walls, flat and cold. Re-derive from the
+    // winding and flip into QBa's uniform opposing convention. The weld fuses the
+    // branch tube's shared radial-normal verts (keeping it smooth) but not the
+    // box corners (keeping them crisp).
+    const geo = applyStandardShading(rawGeo);
 
     // ── Edge wireframe ──────────────────────────────────────────────────────
     // Main duct edges
