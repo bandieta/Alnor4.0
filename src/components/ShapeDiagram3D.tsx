@@ -4794,44 +4794,84 @@ const TR8aMesh: React.FC<{
 
     const verts: number[] = [];
     const norms: number[] = [];
-    // Per-face flat normal in QBa's convention (opposes its own winding). This
-    // shell is all flat panels meeting at sharp folds; welding it and running
-    // computeVertexNormals() rounds the folds and reads flat and cold.
-    const addQuad = (a0: number, a1: number, a2: number, a3: number) => {
+    type V3t = [number, number, number];
+    const nrm = (v: V3t): V3t => { const L = Math.hypot(v[0],v[1],v[2])||1; return [v[0]/L,v[1]/L,v[2]/L]; };
+    const crs = (u: V3t, v: V3t): V3t => [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+
+    // A warped quad (a strip wrapping the branch mouth, or a tunnel wall) drawn as
+    // one flat pair of triangles shows a hard diagonal crease and its neighbours
+    // fold against it along a visible line. Subdivide it into a bilinear patch
+    // with exact analytic normals so it shades as one continuous formed sheet and
+    // the joins to its neighbours blend. Normal is negated into QBa's convention
+    // (opposes the winding) to match the other fittings.
+    const emitPanel = (a0: number, a1: number, a2: number, a3: number, res = 8) => {
+      const v0 = pts[a0], v1 = pts[a1], v2 = pts[a2], v3 = pts[a3];
+      const P = (s: number, t: number): V3t => [
+        (1-t)*((1-s)*v0[0]+s*v1[0]) + t*((1-s)*v3[0]+s*v2[0]),
+        (1-t)*((1-s)*v0[1]+s*v1[1]) + t*((1-s)*v3[1]+s*v2[1]),
+        (1-t)*((1-s)*v0[2]+s*v1[2]) + t*((1-s)*v3[2]+s*v2[2]),
+      ];
+      const N = (s: number, t: number): V3t => {
+        const ds: V3t = [
+          (1-t)*(v1[0]-v0[0]) + t*(v2[0]-v3[0]),
+          (1-t)*(v1[1]-v0[1]) + t*(v2[1]-v3[1]),
+          (1-t)*(v1[2]-v0[2]) + t*(v2[2]-v3[2]),
+        ];
+        const dt: V3t = [
+          (1-s)*(v3[0]-v0[0]) + s*(v2[0]-v1[0]),
+          (1-s)*(v3[1]-v0[1]) + s*(v2[1]-v1[1]),
+          (1-s)*(v3[2]-v0[2]) + s*(v2[2]-v1[2]),
+        ];
+        const n = nrm(crs(ds, dt));
+        return [-n[0], -n[1], -n[2]];
+      };
+      for (let si = 0; si < res; si++) for (let ti = 0; ti < res; ti++) {
+        const s0 = si/res, s1 = (si+1)/res, t0 = ti/res, t1 = (ti+1)/res;
+        const p00 = P(s0,t0), p10 = P(s1,t0), p11 = P(s1,t1), p01 = P(s0,t1);
+        const n00 = N(s0,t0), n10 = N(s1,t0), n11 = N(s1,t1), n01 = N(s0,t1);
+        verts.push(...p00,...p10,...p11, ...p00,...p11,...p01);
+        norms.push(...n00,...n10,...n11, ...n00,...n11,...n01);
+      }
+    };
+    // A flat panel: one negated face normal for the whole quad, kept crisp.
+    const emitFlat = (a0: number, a1: number, a2: number, a3: number) => {
       const A = pts[a0], B = pts[a1], C = pts[a2], D = pts[a3];
-      const ux = B[0]-A[0], uy = B[1]-A[1], uz = B[2]-A[2];
-      const vx = C[0]-A[0], vy = C[1]-A[1], vz = C[2]-A[2];
-      const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
-      const nl = Math.hypot(nx, ny, nz) || 1;
-      const nn = [-nx/nl, -ny/nl, -nz/nl];
-      verts.push(...A, ...B, ...C, ...A, ...C, ...D);
+      const n = nrm(crs([B[0]-A[0],B[1]-A[1],B[2]-A[2]], [C[0]-A[0],C[1]-A[1],C[2]-A[2]]));
+      const nn: V3t = [-n[0], -n[1], -n[2]];
+      verts.push(...A,...B,...C, ...A,...C,...D);
       for (let k = 0; k < 6; k++) norms.push(...nn);
     };
 
-    // Main duct walls
-    addQuad(0, 4, 5, 1);
-    addQuad(1, 5, 6, 2);
-    addQuad(2, 6, 7, 3);
-    // End cap walls connecting main duct to branch openings
-    addQuad(3, 0, 9, 10);
-    addQuad(7, 3, 10, 14);
-    addQuad(4, 7, 14, 13);
-    addQuad(0, 4, 13, 9);
-    // Branch inner walls
-    addQuad(9, 13, 12, 8);
-    addQuad(13, 14, 15, 12);
-    addQuad(14, 10, 11, 15);
-    addQuad(10, 9, 8, 11);
-    // Front flanges (0-3 → 16-19)
-    addQuad(0, 1, 17, 16);
-    addQuad(1, 2, 18, 17);
-    addQuad(2, 3, 19, 18);
-    addQuad(3, 0, 16, 19);
-    // Back flanges (4-7 → 20-23)
-    addQuad(5, 4, 20, 21);
-    addQuad(4, 7, 23, 20);
-    addQuad(7, 6, 22, 23);
-    addQuad(6, 5, 21, 22);
+    // The body: warped duct walls (front c×b → back a×d), the collar strips that
+    // wrap the branch mouth, and the branch tunnel walls. Subdivide each into a
+    // bilinear patch...
+    emitPanel(0, 4, 5, 1); emitPanel(1, 5, 6, 2); emitPanel(2, 6, 7, 3);
+    emitPanel(3, 0, 9, 10); emitPanel(7, 3, 10, 14); emitPanel(4, 7, 14, 13); emitPanel(0, 4, 13, 9);
+    emitPanel(9, 13, 12, 8); emitPanel(13, 14, 15, 12); emitPanel(14, 10, 11, 15); emitPanel(10, 9, 8, 11);
+
+    // ...then average the normals of every coincident vertex ACROSS panel
+    // boundaries, so the whole body — walls, collar and tunnel — resolves to a
+    // single continuous surface with no seam lines where the panels meet.
+    {
+      const key = (x: number, y: number, z: number) =>
+        `${Math.round(x*4e3)},${Math.round(y*4e3)},${Math.round(z*4e3)}`;
+      const acc = new Map<string, V3t>();
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const k = key(verts[vI], verts[vI+1], verts[vI+2]);
+        const e = acc.get(k) ?? [0,0,0];
+        e[0]+=norms[vI]; e[1]+=norms[vI+1]; e[2]+=norms[vI+2];
+        acc.set(k, e);
+      }
+      for (const e of acc.values()) { const L = Math.hypot(e[0],e[1],e[2])||1; e[0]/=L; e[1]/=L; e[2]/=L; }
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const e = acc.get(key(verts[vI], verts[vI+1], verts[vI+2]))!;
+        norms[vI] = e[0]; norms[vI+1] = e[1]; norms[vI+2] = e[2];
+      }
+    }
+
+    // Flange lips — appended AFTER the averaging pass so their folds stay crisp.
+    emitFlat(0, 1, 17, 16); emitFlat(1, 2, 18, 17); emitFlat(2, 3, 19, 18); emitFlat(3, 0, 16, 19);
+    emitFlat(5, 4, 20, 21); emitFlat(4, 7, 23, 20); emitFlat(7, 6, 22, 23); emitFlat(6, 5, 21, 22);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
