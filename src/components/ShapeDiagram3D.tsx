@@ -99,6 +99,36 @@ const normalizeGroupAppearance = (root: THREE.Object3D | null) => {
   });
 };
 
+/* Weld a hand-built shell, derive smooth vertex normals from it, then flip them into
+   the convention BendMesh (QBa) authors: normals that oppose their own triangle's
+   winding.
+
+   Under side:DoubleSide three.js negates the shading normal on back-facing fragments,
+   so the normal the shader actually uses is decided purely by whether the authored
+   normal agrees with the winding — the authored direction itself cancels out.
+   computeVertexNormals() always produces agreeing normals, which makes a fitting
+   sample the environment from the wrong hemisphere: flat, cold-blue, no reflection.
+   Flipping puts it in QBa's family — warm sheet metal with real HDRI reflection.
+
+   preserveNormals then stops normalizeGroupAppearance recomputing (and so undoing)
+   this, which also means the weld has to happen here rather than there. */
+const applyStandardShading = (geo: THREE.BufferGeometry) => {
+  let g = geo;
+  if (!g.index) {
+    const welded = mergeVertices(g, 1e-6);
+    if (welded !== g) g = welded;
+  }
+  g.deleteAttribute('normal');
+  g.computeVertexNormals();
+  g.normalizeNormals();
+  const normal = g.getAttribute('normal') as THREE.BufferAttribute;
+  const arr = normal.array as Float32Array;
+  for (let i = 0; i < arr.length; i++) arr[i] = -arr[i];
+  normal.needsUpdate = true;
+  g.userData.preserveNormals = true;
+  return g;
+};
+
 /* Duct mesh — 4 side walls only (open inlet/outlet like original) */
 const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) => {
   // Normalize so the longest side = 2 units
@@ -3660,7 +3690,7 @@ const SquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: number; 
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-    return { geometry: geo, edgeGeo: eGeo };
+    return { geometry: applyStandardShading(geo), edgeGeo: eGeo };
   }, [na, nb, nr, nl, nh, nm]);
 
   return (
@@ -3823,7 +3853,7 @@ const AsymSquareToRoundMesh: React.FC<{ a: number; b: number; d: number; l: numb
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-    return { geometry: geo, edgeGeo: eGeo };
+    return { geometry: applyStandardShading(geo), edgeGeo: eGeo };
   }, [na, nb, nr, nl, nh, nm, ccx, ccy]);
 
   return (
