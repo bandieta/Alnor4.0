@@ -5672,8 +5672,10 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
           frameloop="always"
           gl={{ preserveDrawingBuffer: true, antialias: true }}
           camera={{ position: [3.2, 2.4, 3.2], fov: 45, near: 0.1, far: 100 }}
-          style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: 8 }}
+          style={{ background: '#ffffff', borderRadius: 8 }}
         >
+          {/* 3D viewport background is always white, regardless of OS/browser theme */}
+          <color attach="background" args={['#ffffff']} />
           <KeepAlive />
           <SceneDebug />
           <ambientLight intensity={0.5} />
@@ -5747,8 +5749,10 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
               frameloop="always"
               gl={{ preserveDrawingBuffer: true, antialias: true }}
               camera={{ position: [3.2, 2.4, 3.2], fov: 40, near: 0.1, far: 100 }}
-              style={{ background: 'linear-gradient(180deg, #dfe3e8 0%, #f1f2f2 40%, #e8eaed 100%)', borderRadius: '0 0 8px 8px' }}
+              style={{ background: '#ffffff', borderRadius: '0 0 8px 8px' }}
             >
+              {/* 3D viewport background is always white, regardless of OS/browser theme */}
+              <color attach="background" args={['#ffffff']} />
               <KeepAlive />
               <ambientLight intensity={0.5} />
               <hemisphereLight args={['#dfe6f0', '#8a909c', 0.75]} />

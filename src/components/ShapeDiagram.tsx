@@ -2880,19 +2880,21 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // CZ1a: cross-junction with rectangular branches
     // Side view (left) + cross-section (right)
     // labels: a, b, d, w, L, d1, w1, e1, f1, e, f, l3, l4
-    const a_val  = values[0] || 400;
-    const b_val  = values[1] || 300;
-    const d_val  = values[2] || 200;
-    const w_val  = values[3] || 150;
-    const L_val  = values[4] || 800;
-    const d1_val = values[5] || 200;
-    const w1_val = values[6] || 150;
-    const e1_val = values[7] || 200;
-    const f1_val = values[8] || 200;
-    const e_val  = values[9] || 200;
-    const f_val  = values[10] || 200;
-    const l3_val = values[11] || 250;
-    const l4_val = values[12] || 250;
+    // Defaults mirror the .NET app's built-in CZ1a sample (Form1.cs) so the empty-form
+    // preview matches the 3D view: a symmetric czwórnik with small branches on each face.
+    const a_val  = values[0] || 200;
+    const b_val  = values[1] || 200;
+    const d_val  = values[2] || 70;
+    const w_val  = values[3] || 90;
+    const L_val  = values[4] || 500;
+    const d1_val = values[5] || 70;
+    const w1_val = values[6] || 90;
+    const e1_val = values[7] || 250;
+    const f1_val = values[8] || 110;
+    const e_val  = values[9] || 250;
+    const f_val  = values[10] || 110;
+    const l3_val = values[11] || 80;
+    const l4_val = values[12] || 80;
 
     const totalH = l3_val + b_val + l4_val;
 
@@ -3082,17 +3084,19 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // CZ2a: cross-junction with round branches
     // Side view (left) + cross-section (right)
     // labels: a, b, d, L, d1, e1, f1, e, f, l3, l4
-    const a_val  = values[0] || 400;
-    const b_val  = values[1] || 300;
-    const d_val  = values[2] || 200;
-    const L_val  = values[3] || 800;
-    const d1_val = values[4] || 200;
-    const e1_val = values[5] || 200;
-    const f1_val = values[6] || 200;
-    const e_val  = values[7] || 200;
-    const f_val  = values[8] || 200;
-    const l3_val = values[9] || 250;
-    const l4_val = values[10] || 250;
+    // Defaults mirror the .NET app's built-in CZ2a sample (Form1.cs) so the empty-form
+    // preview matches the 3D view: a symmetric czwórnik with small round branches.
+    const a_val  = values[0] || 200;
+    const b_val  = values[1] || 200;
+    const d_val  = values[2] || 70;
+    const L_val  = values[3] || 500;
+    const d1_val = values[4] || 70;
+    const e1_val = values[5] || 250;
+    const f1_val = values[6] || 110;
+    const e_val  = values[7] || 250;
+    const f_val  = values[8] || 110;
+    const l3_val = values[9] || 80;
+    const l4_val = values[10] || 80;
 
     // Round branches: w = d, w1 = d1
     const w_val = d_val;
@@ -3264,16 +3268,18 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   };
 
   const renderEagleTee = () => {
-    const a_raw = values[0] || 200;
-    const b_raw = values[1] || 200;
-    const c_raw = values[2] || 200;
+    // Defaults mirror the .NET app's built-in TR3a sample (Form1.cs) so the empty-form
+    // preview matches the 3D view.
+    const a_raw = values[0] || 500;
+    const b_raw = values[1] || 300;
+    const c_raw = values[2] || 300;
     const d_raw = values[3] || 200;
     const m_raw = values[4] || 100;
-    const k_raw = values[5] || 50;
+    const k_raw = values[5] || 100;
     const i_raw = values[6] || 100;
-    const j_raw = values[7] || 50;
-    const g_raw = values[8] || 80;
-    const f_raw = values[9] || 80;
+    const j_raw = values[7] || 100;
+    const g_raw = values[8] || 150;
+    const f_raw = values[9] || 150;
 
     // Heron's formula (direct from C#)
     const r0 = g_raw + d_raw, r1 = f_raw + c_raw;
