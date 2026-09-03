@@ -126,18 +126,23 @@ const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) =>
        hw, -hh, hd,   hw, hh, hd,   hw, hh, -hd,
        hw, -hh, hd,   hw, hh, -hd,  hw, -hh, -hd,
     ]);
-    // Normals authored to match the triangle winding above (CCW from inside the
-    // tube); with side:DoubleSide the exterior back-faces are flipped and lit
-    // correctly by the key lights instead of shading as a dark interior surface.
+    // Outward-facing normals, i.e. the same convention BendMesh (QBa) authors: the
+    // normal points out of the sheet and therefore opposes the winding-derived normal
+    // of its own triangle. Under side:DoubleSide three.js negates the shading normal
+    // on back-facing fragments, so what the shader ends up using is decided purely by
+    // whether the authored normal agrees with the winding — not by its own direction.
+    // Matching QBa's disagreeing convention is what gives the duct the same warm
+    // sheet-metal reflection instead of the flat cold-blue cast it had when the
+    // normals agreed with the winding.
     const normals = new Float32Array([
       // Top
-      0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
-      // Bottom
       0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0, 0,1,0,
+      // Bottom
+      0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
       // Left
-      1,0,0, 1,0,0, 1,0,0, 1,0,0, 1,0,0, 1,0,0,
-      // Right
       -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0,
+      // Right
+      1,0,0, 1,0,0, 1,0,0, 1,0,0, 1,0,0, 1,0,0,
     ]);
     const uvs = new Float32Array([
       0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
