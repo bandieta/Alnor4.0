@@ -3198,6 +3198,13 @@ const QBFaElbowMesh: React.FC<{ a: number; b: number; e: number; f: number; r: n
       );
     }
 
+    // Authored pointing out of the sheet, i.e. AGREEING with the triangle winding.
+    // QBa's BendMesh authors the opposite, and under side:DoubleSide that
+    // winding-agreement is what selects the shading normal — so as authored this
+    // elbow samples the environment from the wrong hemisphere and reads flat and
+    // cold. Negate to land in QBa's family (same fix as QBFRa).
+    for (let i = 0; i < norms.length; i++) norms[i] = -norms[i];
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
