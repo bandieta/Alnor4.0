@@ -4178,219 +4178,139 @@ const QD2aLabels: React.FC<{
   );
 };
 
-// ── TR7a — Skew tee (Trójnik skośny) ──
+/* ── TR7a — Skew tee (Trójnik skośny) ──
+   A prism of depth `a`: one 2-D profile extruded along Z. Three mouths — top
+   branch `d` wide, bottom branch `b` wide, horizontal duct `h` tall — with the
+   top and bottom branches joined by a skew diagonal (p2→p3) and two formed
+   corner radii, `r` and `q`.
+
+   Ported from the .NET app's licz_punkty()/paint "TR7a" region: corner points
+   p0…p11 and the two arc centres match. The old React port hand-built a stack of
+   fill quads and 5-segment arc fans that read flat and coarse; this rebuilds it
+   as the extrusion it is, with dense adaptive arcs and crease-blended normals so
+   the formed radii look like real curved sheet. */
 const TR7aMesh: React.FC<{
   a: number; b: number; d: number; h: number; e: number;
   r: number; q: number; i: number; j: number; p: number;
 }> = ({ a: aR, b: bR, d: dR, h: hR, e: eR, r: rR, q: qR, i: iR, j: jR, p: pR }) => {
   const material = useMemo(() => makeStandardMetalMaterial(), []);
 
-  const { geometry, edgeGeo } = useMemo(() => {
+  const { geometry } = useMemo(() => {
     const max = Math.max(aR, bR, dR, hR, eR, rR, qR, iR, jR, pR, 1);
-    const a = aR/max, b = bR/max, d = dR/max, h = hR/max, e = eR/max;
-    const r = rR/max, q = qR/max, ii = iR/max, j = jR/max, p = pR/max;
+    const sa = aR / max, sb = bR / max, sd = dR / max, sh = hR / max, se = eR / max;
+    const sr = Math.max(rR / max, 1e-3), sq = Math.max(qR / max, 1e-3);
+    const si = iR / max, sjv = jR / max, sp = pR / max;
 
-    const dx = p + r + b + e;
-    const dy = ii + r + h + q + j;
+    const dxv = sp + sr + sb + se;
+    const dyv = si + sr + sh + sq + sjv;
+    const hd = sa / 2;
+    const maxX = dxv / 2, minX = -dxv / 2, maxY = dyv / 2, minY = -dyv / 2;
 
-    // 24 main vertices (0-11 at z=-a/2, 12-23 at z=+a/2)
-    const pts: Record<number, [number, number, number]> = {};
-    // Front face (z = -a/2)
-    pts[0]  = [-dx/2 + p + q,       dy/2,               -a/2];
-    pts[1]  = [-dx/2 + p + q + d,   dy/2,               -a/2];
-    pts[2]  = [-dx/2 + p + q + d,   dy/2 - j,           -a/2];
-    pts[3]  = [ dx/2 - e,           -dy/2 + ii,          -a/2];
-    pts[4]  = [ dx/2 - e,           -dy/2,               -a/2];
-    pts[5]  = [ dx/2 - e - b,       -dy/2,               -a/2];
-    pts[6]  = [ dx/2 - e - b,       -dy/2 + ii,          -a/2];
-    pts[7]  = [ dx/2 - e - b - r,   -dy/2 + ii + r,      -a/2];
-    pts[8]  = [-dx/2,               -dy/2 + ii + r,      -a/2];
-    pts[9]  = [-dx/2,               -dy/2 + ii + r + h,  -a/2];
-    pts[10] = [-dx/2 + p,           -dy/2 + ii + r + h,  -a/2];
-    pts[11] = [-dx/2 + p + q,       -dy/2 + ii + r + h + q, -a/2];
-    // Back face (z = +a/2)
-    for (let n = 0; n <= 11; n++) {
-      pts[12 + n] = [pts[n][0], pts[n][1], a/2];
+    type P = [number, number];
+    type V3 = [number, number, number];
+
+    // Corner points (.NET `punkty[]`, front face)
+    const p0: P  = [minX + sp + sq,      maxY];
+    const p1: P  = [minX + sp + sq + sd, maxY];
+    const p2: P  = [minX + sp + sq + sd, maxY - sjv];
+    const p3: P  = [maxX - se,           minY + si];
+    const p4: P  = [maxX - se,           minY];
+    const p5: P  = [maxX - se - sb,      minY];
+    const p6: P  = [maxX - se - sb,      minY + si];
+    // p7 ≡ r-arc end (up from rc): [maxX - se - sb - sr, minY + si + sr]
+    const p8: P  = [minX,                minY + si + sr];
+    const p9: P  = [minX,                minY + si + sr + sh];
+    const p10: P = [minX + sp,           minY + si + sr + sh];
+    // p11 ≡ q-arc end (up-right from qc): [minX + sp + sq, minY + si + sr + sh + sq]
+
+    // r fillet: centre (p6.x − sr, p6.y) — quarter arc p6 → p7
+    const rc: P = [p6[0] - sr, p6[1]];
+    // q fillet: centre (p10.x, p10.y + sq) — quarter arc p10 → p11
+    const qc: P = [p10[0], p10[1] + sq];
+
+    const segCount = (radius: number) =>
+      Math.max(20, Math.min(140, Math.round((Math.PI / 2) * radius * 130)));
+    const rArc: P[] = [];   // p6 → p7  (φ: π/2 → 0)
+    {
+      const s = segCount(sr);
+      for (let t = 1; t <= s; t++) {
+        const phi = (Math.PI / 2) * (1 - t / s);
+        rArc.push([rc[0] + Math.sin(phi) * sr, rc[1] + Math.cos(phi) * sr]);
+      }
     }
-    // Helper vertices for fill quads
-    pts[30] = [pts[0][0],  pts[10][1], -a/2];
-    pts[31] = [pts[0][0],  pts[10][1],  a/2];
-    pts[32] = [pts[6][0],  pts[7][1],  -a/2];
-    pts[33] = [pts[6][0],  pts[7][1],   a/2];
-
-    // Arc vertices (r-radius between pts 7→6→18→19, q-radius between pts 10→11→23→22)
-    const ARC_STEPS = 5;
-    for (let n = 0; n < ARC_STEPS; n++) {
-      const ang = 15.0 * (n + 1) * Math.PI / 180;
-      const rdx = Math.sin(ang) * r;
-      const rdy = Math.cos(ang) * r;
-      pts[40 + n] = [pts[7][0] + rdx, pts[7][1] - r + rdy, a/2];
-      pts[50 + n] = [pts[7][0] + rdx, pts[7][1] - r + rdy, -a/2];
-    }
-    for (let n = 0; n < ARC_STEPS; n++) {
-      const ang = 15.0 * (n + 1) * Math.PI / 180;
-      const qdx = Math.sin(ang) * q;
-      const qdy = q - Math.cos(ang) * q;
-      pts[45 + n] = [pts[10][0] + qdx, pts[10][1] + qdy, a/2];
-      pts[55 + n] = [pts[10][0] + qdx, pts[10][1] + qdy, -a/2];
+    const qArc: P[] = [];   // p10 → p11 (φ: 0 → π/2)
+    {
+      const s = segCount(sq);
+      for (let t = 1; t <= s; t++) {
+        const phi = (Math.PI / 2) * (t / s);
+        qArc.push([qc[0] + Math.sin(phi) * sq, qc[1] - Math.cos(phi) * sq]);
+      }
     }
 
-    // Quads from C# GL code
-    const quads: [number, number, number, number][] = [
-      // Horizontal duct walls (8→9→10→7 region)
-      [8, 9, 10, 7], [9, 21, 22, 10], [21, 20, 19, 22], [20, 8, 7, 19],
-      // Top branch walls (0→1→2→11)
-      [0, 1, 2, 11], [1, 13, 14, 2], [13, 12, 23, 14], [12, 0, 11, 23],
-      // Bottom branch walls (6→3→4→5)
-      [6, 3, 4, 5], [3, 15, 16, 4], [15, 18, 17, 16], [18, 6, 5, 17],
-      // Diagonal connecting wall (between branch and horizontal)
-      [3, 2, 14, 15],
-    ];
-
-    // Interior fill quads (two sets for z=+a/2 and z=-a/2)
-    const fillQuadsFront: [number, number, number, number][] = [
-      [32, 6, 3, 2], [32, 2, 11, 30], [32, 30, 10, 7],
-    ];
+    // Closed profile, clockwise (reversed to CCW for triangulation).
+    const cw: P[] = [p0, p1, p2, p3, p4, p5, p6, ...rArc, p8, p9, p10, ...qArc];
+    const contour = cw.map(([x, y]) => new THREE.Vector2(x, y)).reverse();
+    const N = contour.length;
 
     const verts: number[] = [];
     const norms: number[] = [];
-    // Per-face flat normal in QBa's convention (opposes its own winding). This
-    // shell is mostly flat panels meeting at sharp folds; welding it and running
-    // computeVertexNormals() rounds those folds and flattens the big sheet faces.
-    const pushFace = (
-      A: [number,number,number], B: [number,number,number],
-      C: [number,number,number], D?: [number,number,number],
-    ) => {
-      const ux = B[0]-A[0], uy = B[1]-A[1], uz = B[2]-A[2];
-      const vx = C[0]-A[0], vy = C[1]-A[1], vz = C[2]-A[2];
-      const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
-      const nl = Math.hypot(nx, ny, nz) || 1;
-      const n = [-nx/nl, -ny/nl, -nz/nl];
+    const addTri = (A: V3, B: V3, C: V3, na: V3, nb: V3 = na, nc: V3 = na) => {
       verts.push(...A, ...B, ...C);
-      norms.push(...n, ...n, ...n);
-      if (D) { verts.push(...A, ...C, ...D); norms.push(...n, ...n, ...n); }
+      norms.push(...na, ...nb, ...nc);
     };
-    const addQuad = (a0: number, a1: number, a2: number, a3: number) => {
-      pushFace(pts[a0], pts[a1], pts[a2], pts[a3]);
-    };
-    for (const [q0, q1, q2, q3] of quads) addQuad(q0, q1, q2, q3);
 
-    // Fill quads at z=+a/2 (using pts with z=a/2 i.e. pts[33].z)
-    for (const [q0, q1, q2, q3] of fillQuadsFront) {
-      pushFace(
-        [pts[q0][0], pts[q0][1], a/2], [pts[q1][0], pts[q1][1], a/2],
-        [pts[q2][0], pts[q2][1], a/2], [pts[q3][0], pts[q3][1], a/2],
-      );
-    }
-    // Fill quads at z=-a/2
-    for (const [q0, q1, q2, q3] of fillQuadsFront) {
-      pushFace(
-        [pts[q0][0], pts[q0][1], -a/2], [pts[q1][0], pts[q1][1], -a/2],
-        [pts[q2][0], pts[q2][1], -a/2], [pts[q3][0], pts[q3][1], -a/2],
-      );
+    // Front (z = −hd) and back (z = +hd) sheet-metal faces.
+    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+    for (const [i0, i1, i2] of tris) {
+      const A = contour[i0], B = contour[i1], C = contour[i2];
+      addTri([C.x, C.y, -hd], [B.x, B.y, -hd], [A.x, A.y, -hd], [0, 0, -1]);
+      addTri([A.x, A.y, hd], [B.x, B.y, hd], [C.x, C.y, hd], [0, 0, 1]);
     }
 
-    // Radius arc quads (r-radius: 7 segments between pt 7→18/6)
-    const rArcFront = [7, 50, 51, 52, 53, 54, 6];
-    const rArcBack  = [19, 40, 41, 42, 43, 44, 18];
-    for (let n = 0; n < rArcFront.length - 1; n++) {
-      addQuad(rArcFront[n], rArcBack[n], rArcBack[n+1], rArcFront[n+1]);
+    // Per-edge outward normal + crease-aware blend.
+    const eN: P[] = [];
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const ex = B.x - A.x, ey = B.y - A.y;
+      const L = Math.hypot(ex, ey) || 1;
+      eN.push([ey / L, -ex / L]);
     }
-    // q-radius arc quads (q-radius: 7 segments between pt 10→11/23→22)
-    const qArcFront = [10, 55, 56, 57, 58, 59, 11];
-    const qArcBack  = [22, 45, 46, 47, 48, 49, 23];
-    for (let n = 0; n < qArcFront.length - 1; n++) {
-      addQuad(qArcFront[n], qArcBack[n], qArcBack[n+1], qArcFront[n+1]);
-    }
-
-    // Triangle fans filling arc regions at z=±a/2
-    const addTri = (v0: [number,number,number], v1: [number,number,number], v2: [number,number,number]) => {
-      pushFace(v0, v1, v2);
+    const CREASE = Math.cos(22 * Math.PI / 180);
+    const blend = (u: P, v: P): P => {
+      if (u[0] * v[0] + u[1] * v[1] < CREASE) return v;
+      const x = u[0] + v[0], y = u[1] + v[1], l = Math.hypot(x, y) || 1;
+      return [x / l, y / l];
     };
-    // R-arc fan at z=+a/2 (center=pt33, sequence: 7,40,41,42,43,44,18→6 mapped to back z)
-    const rFanBack = [7, 40, 41, 42, 43, 44, 6];
-    for (let n = 0; n < rFanBack.length - 1; n++) {
-      addTri(
-        [pts[rFanBack[n]][0], pts[rFanBack[n]][1], a/2],
-        [pts[rFanBack[n+1]][0], pts[rFanBack[n+1]][1], a/2],
-        [pts[33][0], pts[33][1], a/2]
-      );
-    }
-    // R-arc fan at z=-a/2 (center=pt32)
-    for (let n = 0; n < rFanBack.length - 1; n++) {
-      addTri(
-        [pts[rFanBack[n]][0], pts[rFanBack[n]][1], -a/2],
-        [pts[rFanBack[n+1]][0], pts[rFanBack[n+1]][1], -a/2],
-        [pts[32][0], pts[32][1], -a/2]
-      );
-    }
-    // Q-arc fan at z=+a/2 (center=pt31, sequence: 10,45,46,47,48,49,11→23 mapped to back z)
-    const qFanBack = [10, 45, 46, 47, 48, 49, 11];
-    for (let n = 0; n < qFanBack.length - 1; n++) {
-      addTri(
-        [pts[qFanBack[n]][0], pts[qFanBack[n]][1], a/2],
-        [pts[qFanBack[n+1]][0], pts[qFanBack[n+1]][1], a/2],
-        [pts[31][0], pts[31][1], a/2]
-      );
-    }
-    // Q-arc fan at z=-a/2 (center=pt30)
-    for (let n = 0; n < qFanBack.length - 1; n++) {
-      addTri(
-        [pts[qFanBack[n]][0], pts[qFanBack[n]][1], -a/2],
-        [pts[qFanBack[n+1]][0], pts[qFanBack[n+1]][1], -a/2],
-        [pts[30][0], pts[30][1], -a/2]
-      );
+
+    // Perimeter wall — every edge except the three mouths (top d, bottom b, duct h).
+    const near = (u: number, v: number) => Math.abs(u - v) < 1e-4;
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const isTop = near(A.y, maxY) && near(B.y, maxY);
+      const isBottom = near(A.y, minY) && near(B.y, minY);
+      const isDuct = near(A.x, minX) && near(B.x, minX);
+      if (isTop || isBottom || isDuct) continue;
+      if (Math.hypot(B.x - A.x, B.y - A.y) < 1e-6) continue;
+      const nA = blend(eN[(k - 1 + N) % N], eN[k]);
+      const nB = blend(eN[(k + 1) % N], eN[k]);
+      const nA3: V3 = [nA[0], nA[1], 0], nB3: V3 = [nB[0], nB[1], 0];
+      addTri([A.x, A.y, -hd], [B.x, B.y, -hd], [B.x, B.y, hd], nA3, nB3, nB3);
+      addTri([A.x, A.y, -hd], [B.x, B.y, hd], [A.x, A.y, hd], nA3, nB3, nA3);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // Authored outward, flipped into QBa's opposing convention. No weld: the
+    // fillet walls carry crease-blended smooth normals already.
+    const nArr = geo.getAttribute('normal').array as Float32Array;
+    for (let n = 0; n < nArr.length; n++) nArr[n] = -nArr[n];
     geo.userData.preserveNormals = true;
 
-    // Edge lines
-    const edgePts: number[] = [];
-    const addEdge = (i0: number, i1: number) => { edgePts.push(...pts[i0], ...pts[i1]); };
-    // Front face outline (z=-a/2)
-    const frontLoop = [0, 1, 2, 3, 4, 5, 6];
-    for (let n = 0; n < frontLoop.length - 1; n++) addEdge(frontLoop[n], frontLoop[n+1]);
-    addEdge(8, 9); addEdge(9, 10);
-    addEdge(0, 11);
-    // Back face outline (z=+a/2)
-    const backLoop = [12, 13, 14, 15, 16, 17, 18];
-    for (let n = 0; n < backLoop.length - 1; n++) addEdge(backLoop[n], backLoop[n+1]);
-    addEdge(20, 21); addEdge(21, 22);
-    addEdge(12, 23);
-    // Connecting front-to-back edges
-    for (let n = 0; n <= 11; n++) addEdge(n, n + 12);
-    // R-arc edges front
-    const rEdgeFront = [7, 50, 51, 52, 53, 54, 6];
-    for (let n = 0; n < rEdgeFront.length - 1; n++) addEdge(rEdgeFront[n], rEdgeFront[n+1]);
-    // R-arc edges back
-    const rEdgeBack = [19, 40, 41, 42, 43, 44, 18];
-    for (let n = 0; n < rEdgeBack.length - 1; n++) addEdge(rEdgeBack[n], rEdgeBack[n+1]);
-    // Q-arc edges front
-    const qEdgeFront = [10, 55, 56, 57, 58, 59, 11];
-    for (let n = 0; n < qEdgeFront.length - 1; n++) addEdge(qEdgeFront[n], qEdgeFront[n+1]);
-    // Q-arc edges back
-    const qEdgeBack = [22, 45, 46, 47, 48, 49, 23];
-    for (let n = 0; n < qEdgeBack.length - 1; n++) addEdge(qEdgeBack[n], qEdgeBack[n+1]);
-    // Horizontal duct edges
-    addEdge(7, 8); addEdge(19, 20);
-
-    const eGeo = new THREE.BufferGeometry();
-    eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
-
-    return { geometry: geo, edgeGeo: eGeo };
+    return { geometry: geo };
   }, [aR, bR, dR, hR, eR, rR, qR, iR, jR, pR]);
 
-  return (
-    <group>
-      <mesh geometry={geometry} material={material} />
-      <lineSegments geometry={edgeGeo}>
-        <lineBasicMaterial color="#222222" linewidth={1} />
-      </lineSegments>
-    </group>
-  );
+  return <mesh geometry={geometry} material={material} />;
 };
 
 const TR7aLabels: React.FC<{
@@ -4873,8 +4793,19 @@ const TR8aMesh: React.FC<{
     }
 
     const verts: number[] = [];
+    const norms: number[] = [];
+    // Per-face flat normal in QBa's convention (opposes its own winding). This
+    // shell is all flat panels meeting at sharp folds; welding it and running
+    // computeVertexNormals() rounds the folds and reads flat and cold.
     const addQuad = (a0: number, a1: number, a2: number, a3: number) => {
-      verts.push(...pts[a0], ...pts[a1], ...pts[a2], ...pts[a0], ...pts[a2], ...pts[a3]);
+      const A = pts[a0], B = pts[a1], C = pts[a2], D = pts[a3];
+      const ux = B[0]-A[0], uy = B[1]-A[1], uz = B[2]-A[2];
+      const vx = C[0]-A[0], vy = C[1]-A[1], vz = C[2]-A[2];
+      const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const nn = [-nx/nl, -ny/nl, -nz/nl];
+      verts.push(...A, ...B, ...C, ...A, ...C, ...D);
+      for (let k = 0; k < 6; k++) norms.push(...nn);
     };
 
     // Main duct walls
@@ -4904,7 +4835,8 @@ const TR8aMesh: React.FC<{
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge lines
     const edgePts: number[] = [];
