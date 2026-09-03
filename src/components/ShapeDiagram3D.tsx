@@ -2414,10 +2414,16 @@ const CZ2aMesh: React.FC<{
       [0, 1, 0],
     );
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // The front half (face + tube) was authored opposing its winding while the
+    // back half agreed with its own — an exact 50/50 split that lit the two
+    // round ends of the cross differently and, on the agreeing half, flat and
+    // cold under side:DoubleSide. Re-derive from the winding and flip into QBa's
+    // uniform opposing convention. The weld fuses each tube's shared radial-
+    // normal verts (tubes stay smooth) but not the box walls or transitions.
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     // Front circle
@@ -5175,17 +5181,22 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
         }
         // CZ1a — cross-junction with rectangular branches
         if (symbol === 'CZ1a') {
-          const d_val  = values[2] || 200;
-          const w_val  = values[3] || 150;
-          const tL     = values[4] || 800;
-          const d1_val = values[5] || 200;
-          const w1_val = values[6] || 150;
-          const e1_val = values[7] || 200;
-          const f1_val = values[8] || 200;
-          const e_val  = values[9] || 200;
-          const f_val  = values[10] || 200;
-          const l3_val = values[11] || 250;
-          const l4_val = values[12] || 250;
+          // Defaults mirror the .NET app's built-in CZ1a sample (Form1.cs): a symmetric
+          // czwórnik with small rectangular branches centred on each face. The old
+          // fallbacks made every branch as wide as the duct and shoved it f = a off the
+          // left face, so each branch hung half off the duct's edge and the top/bottom
+          // face panels folded through themselves.
+          const d_val  = values[2] || 70;
+          const w_val  = values[3] || 90;
+          const tL     = values[4] || 500;
+          const d1_val = values[5] || 70;
+          const w1_val = values[6] || 90;
+          const e1_val = values[7] || 250;
+          const f1_val = values[8] || 110;
+          const e_val  = values[9] || 250;
+          const f_val  = values[10] || 110;
+          const l3_val = values[11] || 80;
+          const l4_val = values[12] || 80;
           return (
             <>
               <CZ1aMesh a={a} b={b} d={d_val} w={w_val} L={tL}
@@ -5198,11 +5209,15 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
         }
         // CZ2a — cross-junction with round branches
         if (symbol === 'CZ2a') {
-          const d_val  = values[2] || 200;
-          const tL     = values[3] || 800;
-          const d1_val = values[4] || 200;
-          const l3_val = values[9] || 250;
-          const l4_val = values[10] || 250;
+          // Defaults mirror the .NET app's built-in CZ2a sample (Form1.cs): a symmetric
+          // czwórnik with small round branches centred on each end face. The old
+          // fallbacks made each branch d = a (as tall as the duct cross-section), so the
+          // circle→rectangle end transition collapsed to zero width top and bottom.
+          const d_val  = values[2] || 70;
+          const tL     = values[3] || 500;
+          const d1_val = values[4] || 70;
+          const l3_val = values[9] || 80;
+          const l4_val = values[10] || 80;
           return (
             <>
               <CZ2aMesh a={a} b={b} d={d_val} d1={d1_val} L={tL} l3={l3_val} l4={l4_val} />
