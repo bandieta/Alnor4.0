@@ -3055,14 +3055,20 @@ const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) =>
        hw,-hb,  he,  -hw,-hb,  he,  -hw, hb,  he,
        hw,-hb,  he,  -hw, hb,  he,   hw, hb,  he,
     ]);
+    // Per-face normals in the same convention BendMesh (QBa) authors: each opposes
+    // its own triangle winding. Under side:DoubleSide that winding-agreement — not
+    // the normal's direction — is what selects the shading normal, so matching QBa
+    // here is what gives the plate the same warm reflective finish instead of the
+    // flat cold cast it had when normalizeGroupAppearance recomputed these to agree.
+    // The four walls repeat DuctMesh's vectors; the back cap is +z (was 1,0,0 with
+    // two zero vectors before).
     const normals = new Float32Array([
        0,1,0,  0,1,0,  0,1,0,  0,1,0,  0,1,0,  0,1,0,
        0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0,
       -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0, -1,0,0,
        1,0,0,  1,0,0,  1,0,0,  1,0,0,  1,0,0,  1,0,0,
-       1,0,0,  1,0,0,  0,0,0,  0,0,0,  1,0,0,  1,0,0,
+       0,0,1,  0,0,1,  0,0,1,  0,0,1,  0,0,1,  0,0,1,
     ]);
- 
 
     const uvs = new Float32Array([
       0,0, 1,0, 1,1, 0,0, 1,1, 0,1,
@@ -3076,6 +3082,7 @@ const QESaMesh: React.FC<{ a: number; b: number; e: number }> = ({ a, b, e }) =>
     geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.userData.preserveNormals = true;
 
     // 12 wireframe edges
     const edgePts: number[] = [];
