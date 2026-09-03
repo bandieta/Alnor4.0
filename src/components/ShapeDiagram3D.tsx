@@ -2238,10 +2238,15 @@ const CZ1aMesh: React.FC<{
     addQuad(P[13], P[12], P[15], P[14], [1, 0, 0]);
     addQuad(P[12], P[8], P[11], P[15], [0, 0, -1]);
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // The hand-authored per-face normals were an inconsistent mix — some agreeing
+    // with their triangle winding, some opposing — so the cross-junction lit
+    // unevenly and, on the agreeing faces, flat and cold under side:DoubleSide.
+    // Re-derive from the winding and flip into QBa's uniform opposing convention.
+    // The weld keeps every box corner crisp (differing normals never fuse).
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     // Main duct
