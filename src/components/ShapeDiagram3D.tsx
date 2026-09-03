@@ -2495,120 +2495,137 @@ const CZ2aLabels: React.FC<{
   );
 };
 
-/* ===== TR4a — Tee with curved branch (Trójnik z od. łukowym) ===== */
+/* ===== TR4a — Tee with curved branch (Trójnik z od. łukowym) =====
+   A prism of depth `a`: one 2-D profile extruded along Z. The main duct runs
+   vertically — top mouth `b` wide, bottom mouth `c` wide (a reducing tee) — and
+   a branch `d` tall leaves the left face and sweeps up to meet it through a
+   formed elbow: inner throat radius `g` about `cg`, outer radius `d` about `cd`,
+   the outer run tilted by `alfa` (from the .NET `dbc`/`Acos` construction).
+
+   Ported from the .NET app's licz_punkty()/paint "TR4a" region — the corner
+   points p0…p9, the two arc centres, `pytajnik` and `alfa` all match. The old
+   React port copied the .NET quad list face-by-face and collapsed into a weird
+   knot; this rebuilds it as the extrusion it actually is: fill the front/back
+   sheet, wall every profile edge except the three mouths. */
 const TR4aMesh: React.FC<{
   a: number; b: number; c: number; d: number; L: number; g: number; i: number; j: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, L: lR, g: gR, i: iR, j: jR }) => {
-  const geo = useMemo(() => {
-    const max = Math.max(aR, bR, cR, dR, iR, jR, lR, gR, 1);
-    const a = aR/max, b = bR/max, c = cR/max, d = dR/max;
-    const ii = iR/max, j = jR/max, l = lR/max, g = gR/max;
-
-    const pytajnik = Math.sqrt(Math.max(0, d*d - (b-c)*(b-c)));
-    const dbc = (b - c + g) / (d + g);
-    const alfa = 90 - Math.acos(Math.min(1, Math.max(-1, dbc))) * 180 / Math.PI;
-
-    const dx = j + g + b;
-    const dy = l;
-
-    // Front face pts 0-9 (z = -a/2)
-    const pts: [number, number, number][] = [];
-    pts[0] = [-dx/2 + j + g, dy/2, -a/2];
-    pts[1] = [dx/2, dy/2, -a/2];
-    pts[2] = [dx/2, -dy/2, -a/2];
-    pts[3] = [dx/2 - c, -dy/2, -a/2];
-    pts[4] = [dx/2 - c, dy/2 - pytajnik - ii, -a/2];
-    pts[5] = [-dx/2 + j, dy/2 - ii - g - d, -a/2];
-    pts[6] = [-dx/2, dy/2 - ii - g - d, -a/2];
-    pts[7] = [-dx/2, dy/2 - ii - g, -a/2];
-    pts[8] = [-dx/2 + j, dy/2 - ii - g, -a/2];
-    pts[9] = [-dx/2 + j + g, dy/2 - ii, -a/2];
-
-    // Back face pts 10-19 (z = a/2)
-    for (let n = 0; n < 10; n++) pts[10+n] = [pts[n][0], pts[n][1], a/2];
-
-    // The elbow's inner fillet and outer radius were each sampled at only 5
-    // points, so the formed sheet read as a coarse polygon. Rebuild both as
-    // dense arcs (front/back pairs) over the same angular spans the strips
-    // below consume.
-    const ARC = 40;
-    type V3t = [number, number, number];
-    // Inner g-curve — centre pts[8]+(0,g), radius g, angle 15° → 75° (as consumed).
-    const gF: V3t[] = [], gB: V3t[] = [];
-    for (let t = 0; t <= ARC; t++) {
-      const ang = (15 + 60 * t / ARC) * Math.PI / 180;
-      const px = pts[8][0] + Math.sin(ang) * g;
-      const py = pts[8][1] + g - Math.cos(ang) * g;
-      gF.push([px, py, -a / 2]);
-      gB.push([px, py, a / 2]);
-    }
-    // Outer arc — centre pts[8], radius d, angle alfa/5 → alfa (as consumed).
-    const oaF: V3t[] = [], oaB: V3t[] = [];
-    for (let t = 0; t <= ARC; t++) {
-      const ang = (alfa / 5 + (alfa - alfa / 5) * t / ARC) * Math.PI / 180;
-      const px = pts[8][0] + Math.sin(ang) * d;
-      const py = pts[8][1] - Math.cos(ang) * d;
-      oaF.push([px, py, -a / 2]);
-      oaB.push([px, py, a / 2]);
-    }
-
-    const verts: number[] = [];
-    const tri = (a: [number,number,number], b: [number,number,number], c: [number,number,number]) => {
-      verts.push(...a, ...b, ...c);
-    };
-    const quad = (a: [number,number,number], b: [number,number,number], c: [number,number,number], d: [number,number,number]) => {
-      tri(a, b, c); tri(a, c, d);
-    };
-
-    // Main body quads (front face side walls)
-    quad(pts[0], pts[1], pts[4], pts[9]);
-    quad(pts[1], pts[2], pts[3], pts[4]);
-    quad(pts[11], pts[12], pts[13], pts[14]);
-    quad(pts[10], pts[11], pts[14], pts[19]);
-
-    // Branch box (left side, lower)
-    quad(pts[17], pts[18], pts[8], pts[7]);
-    quad(pts[17], pts[18], pts[15], pts[16]);
-    quad(pts[6], pts[5], pts[15], pts[16]);
-    quad(pts[7], pts[8], pts[5], pts[6]);
-
-    // Connect front-back walls
-    quad(pts[1], pts[11], pts[12], pts[2]);
-    quad(pts[4], pts[14], pts[13], pts[3]);
-    quad(pts[9], pts[0], pts[10], pts[19]);
-
-    // Outer arc extrusion (front-back)
-    quad(pts[5], pts[15], oaB[0], oaF[0]);
-    for (let t = 0; t < ARC; t++) quad(oaF[t], oaB[t], oaB[t + 1], oaF[t + 1]);
-    quad(oaF[ARC], oaB[ARC], pts[14], pts[4]);
-
-    // Inner g-curve extrusion (front-back)
-    quad(pts[8], gF[0], gB[0], pts[18]);
-    for (let t = 0; t < ARC; t++) quad(gF[t], gB[t], gB[t + 1], gF[t + 1]);
-    quad(gF[ARC], gB[ARC], pts[19], pts[9]);
-
-    // Pentagon faces (the elbow wall between inner fillet and outer radius)
-    quad(pts[5], pts[8], gF[0], oaF[0]);
-    quad(pts[15], pts[18], gB[0], oaB[0]);
-    for (let t = 0; t < ARC; t++) {
-      quad(gF[t], oaF[t], oaF[t + 1], gF[t + 1]);
-      quad(gB[t], oaB[t], oaB[t + 1], gB[t + 1]);
-    }
-    quad(gF[ARC], oaF[ARC], pts[4], pts[9]);
-    quad(gB[ARC], oaB[ARC], pts[14], pts[19]);
-
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone agrees with the triangle winding, which under
-    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
-    // convention. applyStandardShading welds (so the dense arcs shade smooth),
-    // recomputes, and flips into it.
-    return applyStandardShading(rawGeo);
-  }, [aR, bR, cR, dR, lR, gR, iR, jR]);
-
   const material = useMemo(() => makeStandardMetalMaterial(), []);
 
-  return <mesh geometry={geo} material={material} />;
+  const { geometry } = useMemo(() => {
+    const max = Math.max(aR, bR, cR, dR, iR, jR, lR, gR, 1);
+    const sa = aR / max, sb = bR / max, scc = cR / max, sd = dR / max;
+    const si = iR / max, sj = jR / max, sl = lR / max, sg = Math.max(gR / max, 1e-3);
+
+    const dbc = Math.min(1, Math.max(-1, (sb - scc + sg) / (sd + sg)));
+    const alfa = Math.PI / 2 - Math.acos(dbc);
+    const pyt = Math.sqrt(Math.max(0, sd * sd - (sb - scc) * (sb - scc)));
+
+    const dxv = sj + sg + sb;
+    const dyv = sl;
+    const hd = sa / 2;
+    const maxX = dxv / 2, minX = -dxv / 2, maxY = dyv / 2, minY = -dyv / 2;
+
+    type P = [number, number];
+    type V3 = [number, number, number];
+
+    // Branch corner points (.NET `punkty[]`, seen on the front face)
+    const p0: P = [maxX - sb,        maxY];
+    const p1: P = [maxX,             maxY];
+    const p2: P = [maxX,             minY];
+    const p3: P = [maxX - scc,       minY];
+    const p4: P = [maxX - scc,       maxY - pyt - si];
+    // p5 ≡ outer-arc endpoint (straight down from cd): [minX + sj, maxY - si - sg - sd]
+    const p6: P = [minX,             maxY - si - sg - sd];
+    const p7: P = [minX,             maxY - si - sg];
+    const p8: P = [minX + sj,        maxY - si - sg];
+    // p9 ≡ inner-arc endpoint (straight right from cg): [minX + sj + sg, maxY - si]
+
+    const cg: P = [p8[0], p8[1] + sg];   // inner throat: radius sg, p8 → p9
+    const cd: P = [p8[0], p8[1]];        // outer radius:  radius sd, p5 → (θ = alfa)
+
+    // arc points c + r·(sinθ, −cosθ); segment count scales with arc length.
+    const arc = (c: P, r: number, a0: number, a1: number, skipFirst: boolean): P[] => {
+      const span = Math.abs(a1 - a0);
+      const segs = Math.max(20, Math.min(160, Math.round(span * r * 130)));
+      const out: P[] = [];
+      for (let t = skipFirst ? 1 : 0; t <= segs; t++) {
+        const th = a0 + (a1 - a0) * (t / segs);
+        out.push([c[0] + Math.sin(th) * r, c[1] - Math.cos(th) * r]);
+      }
+      return out;
+    };
+
+    // Closed profile, listed clockwise (reversed to CCW for triangulation).
+    const cw: P[] = [
+      p0, p1, p2, p3, p4,
+      ...arc(cd, sd, alfa, 0, false),          // outer radius: p4 → (chord) → θ=alfa … θ=0 (=p5)
+      p6, p7, p8,
+      ...arc(cg, sg, 0, Math.PI / 2, true),    // inner throat: p8 → p9
+    ];
+    const contour = cw.map(([x, y]) => new THREE.Vector2(x, y)).reverse();
+    const N = contour.length;
+
+    const verts: number[] = [];
+    const norms: number[] = [];
+    const addTri = (A: V3, B: V3, C: V3, na: V3, nb: V3 = na, nc: V3 = na) => {
+      verts.push(...A, ...B, ...C);
+      norms.push(...na, ...nb, ...nc);
+    };
+
+    // Front (z = −hd) and back (z = +hd) sheet-metal faces.
+    const tris = THREE.ShapeUtils.triangulateShape(contour, []);
+    for (const [i0, i1, i2] of tris) {
+      const A = contour[i0], B = contour[i1], C = contour[i2];
+      addTri([C.x, C.y, -hd], [B.x, B.y, -hd], [A.x, A.y, -hd], [0, 0, -1]);
+      addTri([A.x, A.y, hd], [B.x, B.y, hd], [C.x, C.y, hd], [0, 0, 1]);
+    }
+
+    // Per-edge outward normal + crease-aware blend (smooth curves, crisp folds).
+    const eN: P[] = [];
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const ex = B.x - A.x, ey = B.y - A.y;
+      const L = Math.hypot(ex, ey) || 1;
+      eN.push([ey / L, -ex / L]);
+    }
+    const CREASE = Math.cos(22 * Math.PI / 180);
+    const blend = (u: P, v: P): P => {
+      if (u[0] * v[0] + u[1] * v[1] < CREASE) return v;
+      const x = u[0] + v[0], y = u[1] + v[1], l = Math.hypot(x, y) || 1;
+      return [x / l, y / l];
+    };
+
+    // Perimeter wall — every edge except the three mouths (top b, bottom c, branch d).
+    const near = (u: number, v: number) => Math.abs(u - v) < 1e-4;
+    for (let k = 0; k < N; k++) {
+      const A = contour[k], B = contour[(k + 1) % N];
+      const isTop = near(A.y, maxY) && near(B.y, maxY);
+      const isBottom = near(A.y, minY) && near(B.y, minY);
+      const isBranch = near(A.x, minX) && near(B.x, minX);
+      if (isTop || isBottom || isBranch) continue;
+      if (Math.hypot(B.x - A.x, B.y - A.y) < 1e-6) continue;
+      const nA = blend(eN[(k - 1 + N) % N], eN[k]);
+      const nB = blend(eN[(k + 1) % N], eN[k]);
+      const nA3: V3 = [nA[0], nA[1], 0], nB3: V3 = [nB[0], nB[1], 0];
+      addTri([A.x, A.y, -hd], [B.x, B.y, -hd], [B.x, B.y, hd], nA3, nB3, nB3);
+      addTri([A.x, A.y, -hd], [B.x, B.y, hd], [A.x, A.y, hd], nA3, nB3, nA3);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // Authored outward, flipped into QBa's opposing convention (QBFa/DuctMesh
+    // trick — agreeing normals read flat and cold under side:DoubleSide). No
+    // weld: the elbow walls carry crease-blended smooth normals already.
+    const nArr = geo.getAttribute('normal').array as Float32Array;
+    for (let n = 0; n < nArr.length; n++) nArr[n] = -nArr[n];
+    geo.userData.preserveNormals = true;
+
+    return { geometry: geo };
+  }, [aR, bR, cR, dR, lR, gR, iR, jR]);
+
+  return <mesh geometry={geometry} material={material} />;
 };
 
 /* TR4a dimension labels */
@@ -2695,7 +2712,6 @@ const TR5aMesh: React.FC<{
     pts[24] = [pts[9][0] - (b+i-e)/2, pts[9][1] + g/2, pts[9][2] + (l-k-j)/2];
     pts[25] = [pts[9][0] + e - i/2, pts[9][1] + g/2, pts[9][2] + (l-k-j)/2];
 
-    const geometry = new THREE.BufferGeometry();
     const verts: number[] = [];
     const tri = (a: [number,number,number], b: [number,number,number], c: [number,number,number]) => {
       verts.push(...a, ...b, ...c);
@@ -2742,9 +2758,12 @@ const TR5aMesh: React.FC<{
     tri(pts[25], pts[6], pts[18]);
     tri(pts[25], pts[18], pts[19]);
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geometry.computeVertexNormals();
-    return geometry;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    // computeVertexNormals() alone agrees with the triangle winding, which under
+    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
+    // convention. applyStandardShading welds, recomputes, and flips into it.
+    return applyStandardShading(rawGeo);
   }, [aR, bR, cR, dR, eR, lR, hR, gR, iR, jR, kR]);
 
   const material = useMemo(() => makeStandardMetalMaterial(), []);
@@ -5148,6 +5167,9 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
         }
         // TR4a — tee with curved branch
         if (symbol === 'TR4a') {
+          // Defaults mirror the .NET app's built-in TR4a sample (Form1.cs).
+          const a_val = values[0] || 100;
+          const b_val = values[1] || 300;
           const c_val = values[2] || 200;
           const d_val = values[3] || 200;
           const tL = values[4] || 550;
@@ -5156,8 +5178,8 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
           const j_val = values[7] || 100;
           return (
             <>
-              <TR4aMesh a={a} b={b} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />
-              {showDimensions && <TR4aLabels a={a} b={b} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />}
+              <TR4aMesh a={a_val} b={b_val} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />
+              {showDimensions && <TR4aLabels a={a_val} b={b_val} c={c_val} d={d_val} L={tL} g={g_val} i={i_val} j={j_val} />}
             </>
           );
         }
