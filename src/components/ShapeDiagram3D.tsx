@@ -984,7 +984,10 @@ const ReductionElbowMesh: React.FC<{
     const x0 = -totalW / 2;
     const y0 = -totalH / 2;
     const cornerR = Math.max(0.001, Math.min(sr, se * 0.98, sf * 0.98));
-    const arcSegments = 24;
+    // Match the angular resolution the other rounded fittings use on their
+    // curves (QBa/QBRa run 48–128 over 90°), so the inner fillet reads as a
+    // formed radius rather than a low-poly chamfer.
+    const arcSegments = 96;
 
     // 2D L-profile with an inner fillet, then extruded along Z.
     const shape = new THREE.Shape();
@@ -1033,6 +1036,19 @@ const ReductionElbowMesh: React.FC<{
       addTriangle([p0.x, p0.y, halfDepth], [p1.x, p1.y, halfDepth], [p2.x, p2.y, halfDepth], [0, 0, 1]);
     }
 
+    // A contour vertex sits on the inner fillet if it is cornerR from the arc centre.
+    const onArc = (p: THREE.Vector2) =>
+      Math.abs(Math.hypot(p.x - arcCX, p.y - arcCY) - cornerR) < cornerR * 0.02 + 1e-6;
+    // Radial normal at an arc vertex, authored in the SAME pre-negate sense as
+    // the flat wall normals ([dy,-dx] = tangent rotated -90°, which on this arc
+    // works out to point toward the centre). The global negate below then flips
+    // the whole shell — flats and fillet alike — into QBa's convention.
+    const radial = (p: THREE.Vector2): [number, number, number] => {
+      const rx = arcCX - p.x, ry = arcCY - p.y;
+      const rl = Math.hypot(rx, ry) || 1;
+      return [rx / rl, ry / rl, 0];
+    };
+
     // Add perimeter walls except at the left d×a and bottom b×a duct openings.
     for (let i = 0; i < contour.length; i++) {
       const p0 = contour[i];
@@ -1046,14 +1062,23 @@ const ReductionElbowMesh: React.FC<{
       const dy = p1.y - p0.y;
       const length = Math.hypot(dx, dy);
       if (length < 1e-6) continue;
-      const normal = [dy / length, -dx / length, 0];
-      addQuad(
-        [p0.x, p0.y, -halfDepth],
-        [p1.x, p1.y, -halfDepth],
-        [p1.x, p1.y, halfDepth],
-        [p0.x, p0.y, halfDepth],
-        normal,
-      );
+
+      const q0 = [p0.x, p0.y, -halfDepth];
+      const q1 = [p1.x, p1.y, -halfDepth];
+      const q2 = [p1.x, p1.y, halfDepth];
+      const q3 = [p0.x, p0.y, halfDepth];
+
+      if (onArc(p0) && onArc(p1)) {
+        // Per-vertex radial normals so the fillet shades as one smooth surface
+        // instead of a fan of flats (the same trick QBa/QBRa use on their curves).
+        const n0 = radial(p0);
+        const n1 = radial(p1);
+        verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+        norms.push(...n0, ...n1, ...n1, ...n0, ...n1, ...n0);
+        uvArr.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+      } else {
+        addQuad(q0, q1, q2, q3, [dy / length, -dx / length, 0]);
+      }
     }
 
     // These per-face normals were authored pointing out of the sheet, which means
@@ -1070,7 +1095,9 @@ const ReductionElbowMesh: React.FC<{
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
     geo.userData.preserveNormals = true;
 
-    const eGeo = new THREE.EdgesGeometry(geo);
+    // 30° threshold so the wireframe marks the real folds only, not every
+    // fillet facet (matches QBFa).
+    const eGeo = new THREE.EdgesGeometry(geo, 30);
     return { geometry: geo, edgeGeo: eGeo };
   }, [sa, sb, sd, se, sf, sr]);
 
