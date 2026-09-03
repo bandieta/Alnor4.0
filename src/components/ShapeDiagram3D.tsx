@@ -129,6 +129,110 @@ const applyStandardShading = (geo: THREE.BufferGeometry) => {
   return g;
 };
 
+type Vec3 = [number, number, number];
+
+/* Shared builder for every 3D fitting's sheet-metal shell, so they all shade the
+   same way.
+
+   - `panel()` takes a warped (non-planar) quad and subdivides it into a bilinear
+     patch with exact analytic normals — a single flat normal on such a quad shows
+     a hard diagonal crease and folds against its neighbours along a visible line.
+   - `flat()` takes a planar face (box wall, flange lip) and gives it one face
+     normal, kept crisp.
+   - Every normal is authored in QBa's convention: it opposes its own triangle
+     winding. Under side:DoubleSide that is what puts a fitting in QBa's warm
+     reflective family instead of the flat cold hemisphere.
+   - `blend()` averages the normals of every coincident vertex added so far, so a
+     run of panels resolves to ONE continuous formed surface with no seam lines.
+     Call it once after the body, then add flange lips with `flat()` so their
+     folds stay sharp.
+   - `build()` returns a geometry with preserveNormals set, so
+     normalizeGroupAppearance never recomputes (and undoes) this. */
+class SheetShell {
+  verts: number[] = [];
+  norms: number[] = [];
+
+  private static nrm(v: Vec3): Vec3 { const L = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / L, v[1] / L, v[2] / L]; }
+  private static crs(u: Vec3, v: Vec3): Vec3 {
+    return [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  }
+
+  panel(v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, res = 6): void {
+    const P = (s: number, t: number): Vec3 => [
+      (1 - t) * ((1 - s) * v0[0] + s * v1[0]) + t * ((1 - s) * v3[0] + s * v2[0]),
+      (1 - t) * ((1 - s) * v0[1] + s * v1[1]) + t * ((1 - s) * v3[1] + s * v2[1]),
+      (1 - t) * ((1 - s) * v0[2] + s * v1[2]) + t * ((1 - s) * v3[2] + s * v2[2]),
+    ];
+    const N = (s: number, t: number): Vec3 => {
+      const ds: Vec3 = [
+        (1 - t) * (v1[0] - v0[0]) + t * (v2[0] - v3[0]),
+        (1 - t) * (v1[1] - v0[1]) + t * (v2[1] - v3[1]),
+        (1 - t) * (v1[2] - v0[2]) + t * (v2[2] - v3[2]),
+      ];
+      const dt: Vec3 = [
+        (1 - s) * (v3[0] - v0[0]) + s * (v2[0] - v1[0]),
+        (1 - s) * (v3[1] - v0[1]) + s * (v2[1] - v1[1]),
+        (1 - s) * (v3[2] - v0[2]) + s * (v2[2] - v1[2]),
+      ];
+      const n = SheetShell.nrm(SheetShell.crs(ds, dt));
+      return [-n[0], -n[1], -n[2]];
+    };
+    for (let si = 0; si < res; si++) for (let ti = 0; ti < res; ti++) {
+      const s0 = si / res, s1 = (si + 1) / res, t0 = ti / res, t1 = (ti + 1) / res;
+      this.verts.push(...P(s0, t0), ...P(s1, t0), ...P(s1, t1), ...P(s0, t0), ...P(s1, t1), ...P(s0, t1));
+      this.norms.push(...N(s0, t0), ...N(s1, t0), ...N(s1, t1), ...N(s0, t0), ...N(s1, t1), ...N(s0, t1));
+    }
+  }
+
+  /* Planar face: quad or n-gon, fan-triangulated, one negated face normal. */
+  flat(...vs: Vec3[]): void {
+    const a = vs[0];
+    for (let n = 1; n < vs.length - 1; n++) {
+      const b = vs[n], c = vs[n + 1];
+      const fn = SheetShell.nrm(SheetShell.crs(
+        [b[0] - a[0], b[1] - a[1], b[2] - a[2]],
+        [c[0] - a[0], c[1] - a[1], c[2] - a[2]],
+      ));
+      const nn: Vec3 = [-fn[0], -fn[1], -fn[2]];
+      this.verts.push(...a, ...b, ...c);
+      this.norms.push(...nn, ...nn, ...nn);
+    }
+  }
+
+  /* Add pre-computed smooth normals (e.g. radial normals on a curved wall). */
+  smoothQuad(v0: Vec3, v1: Vec3, v2: Vec3, v3: Vec3, n0: Vec3, n1: Vec3, n2: Vec3, n3: Vec3): void {
+    this.verts.push(...v0, ...v1, ...v2, ...v0, ...v2, ...v3);
+    this.norms.push(...n0, ...n1, ...n2, ...n0, ...n2, ...n3);
+  }
+
+  /* Blend the normals of coincident vertices added so far, so the panels resolve
+     to one continuous surface with no seam lines. */
+  blend(): void {
+    const key = (x: number, y: number, z: number) =>
+      `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
+    const acc = new Map<string, Vec3>();
+    for (let i = 0; i < this.verts.length; i += 3) {
+      const k = key(this.verts[i], this.verts[i + 1], this.verts[i + 2]);
+      const e = acc.get(k) ?? [0, 0, 0];
+      e[0] += this.norms[i]; e[1] += this.norms[i + 1]; e[2] += this.norms[i + 2];
+      acc.set(k, e);
+    }
+    for (const e of acc.values()) { const L = Math.hypot(e[0], e[1], e[2]) || 1; e[0] /= L; e[1] /= L; e[2] /= L; }
+    for (let i = 0; i < this.verts.length; i += 3) {
+      const e = acc.get(key(this.verts[i], this.verts[i + 1], this.verts[i + 2]))!;
+      this.norms[i] = e[0]; this.norms[i + 1] = e[1]; this.norms[i + 2] = e[2];
+    }
+  }
+
+  build(): THREE.BufferGeometry {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.verts, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.norms, 3));
+    g.userData.preserveNormals = true;
+    return g;
+  }
+}
+
 /* Duct mesh — 4 side walls only (open inlet/outlet like original) */
 const DuctMesh: React.FC<{ a: number; b: number; l: number }> = ({ a, b, l }) => {
   // Normalize so the longest side = 2 units
@@ -4841,91 +4945,25 @@ const TR8aMesh: React.FC<{
       pts[16 + ii] = [pts[ii][0], pts[ii][1], pts[ii][2] + (ii < 4 ? i : -i)];
     }
 
-    const verts: number[] = [];
-    const norms: number[] = [];
-    type V3t = [number, number, number];
-    const nrm = (v: V3t): V3t => { const L = Math.hypot(v[0],v[1],v[2])||1; return [v[0]/L,v[1]/L,v[2]/L]; };
-    const crs = (u: V3t, v: V3t): V3t => [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const P = (idx: number) => pts[idx] as Vec3;
+    const sh = new SheetShell();
 
-    // A warped quad (a strip wrapping the branch mouth, or a tunnel wall) drawn as
-    // one flat pair of triangles shows a hard diagonal crease and its neighbours
-    // fold against it along a visible line. Subdivide it into a bilinear patch
-    // with exact analytic normals so it shades as one continuous formed sheet and
-    // the joins to its neighbours blend. Normal is negated into QBa's convention
-    // (opposes the winding) to match the other fittings.
-    const emitPanel = (a0: number, a1: number, a2: number, a3: number, res = 8) => {
-      const v0 = pts[a0], v1 = pts[a1], v2 = pts[a2], v3 = pts[a3];
-      const P = (s: number, t: number): V3t => [
-        (1-t)*((1-s)*v0[0]+s*v1[0]) + t*((1-s)*v3[0]+s*v2[0]),
-        (1-t)*((1-s)*v0[1]+s*v1[1]) + t*((1-s)*v3[1]+s*v2[1]),
-        (1-t)*((1-s)*v0[2]+s*v1[2]) + t*((1-s)*v3[2]+s*v2[2]),
-      ];
-      const N = (s: number, t: number): V3t => {
-        const ds: V3t = [
-          (1-t)*(v1[0]-v0[0]) + t*(v2[0]-v3[0]),
-          (1-t)*(v1[1]-v0[1]) + t*(v2[1]-v3[1]),
-          (1-t)*(v1[2]-v0[2]) + t*(v2[2]-v3[2]),
-        ];
-        const dt: V3t = [
-          (1-s)*(v3[0]-v0[0]) + s*(v2[0]-v1[0]),
-          (1-s)*(v3[1]-v0[1]) + s*(v2[1]-v1[1]),
-          (1-s)*(v3[2]-v0[2]) + s*(v2[2]-v1[2]),
-        ];
-        const n = nrm(crs(ds, dt));
-        return [-n[0], -n[1], -n[2]];
-      };
-      for (let si = 0; si < res; si++) for (let ti = 0; ti < res; ti++) {
-        const s0 = si/res, s1 = (si+1)/res, t0 = ti/res, t1 = (ti+1)/res;
-        const p00 = P(s0,t0), p10 = P(s1,t0), p11 = P(s1,t1), p01 = P(s0,t1);
-        const n00 = N(s0,t0), n10 = N(s1,t0), n11 = N(s1,t1), n01 = N(s0,t1);
-        verts.push(...p00,...p10,...p11, ...p00,...p11,...p01);
-        norms.push(...n00,...n10,...n11, ...n00,...n11,...n01);
-      }
-    };
-    // A flat panel: one negated face normal for the whole quad, kept crisp.
-    const emitFlat = (a0: number, a1: number, a2: number, a3: number) => {
-      const A = pts[a0], B = pts[a1], C = pts[a2], D = pts[a3];
-      const n = nrm(crs([B[0]-A[0],B[1]-A[1],B[2]-A[2]], [C[0]-A[0],C[1]-A[1],C[2]-A[2]]));
-      const nn: V3t = [-n[0], -n[1], -n[2]];
-      verts.push(...A,...B,...C, ...A,...C,...D);
-      for (let k = 0; k < 6; k++) norms.push(...nn);
-    };
+    // Body — warped duct walls (front c×b → back a×d), the collar strips that
+    // wrap the branch mouth, and the branch tunnel walls — subdivided, then
+    // blended so the whole thing reads as one formed surface with a tunnel.
+    sh.panel(P(0), P(4), P(5), P(1)); sh.panel(P(1), P(5), P(6), P(2)); sh.panel(P(2), P(6), P(7), P(3));
+    sh.panel(P(3), P(0), P(9), P(10)); sh.panel(P(7), P(3), P(10), P(14));
+    sh.panel(P(4), P(7), P(14), P(13)); sh.panel(P(0), P(4), P(13), P(9));
+    sh.panel(P(9), P(13), P(12), P(8)); sh.panel(P(13), P(14), P(15), P(12));
+    sh.panel(P(14), P(10), P(11), P(15)); sh.panel(P(10), P(9), P(8), P(11));
+    sh.blend();
+    // Flange lips — after the blend so their folds stay crisp.
+    sh.flat(P(0), P(1), P(17), P(16)); sh.flat(P(1), P(2), P(18), P(17));
+    sh.flat(P(2), P(3), P(19), P(18)); sh.flat(P(3), P(0), P(16), P(19));
+    sh.flat(P(5), P(4), P(20), P(21)); sh.flat(P(4), P(7), P(23), P(20));
+    sh.flat(P(7), P(6), P(22), P(23)); sh.flat(P(6), P(5), P(21), P(22));
 
-    // The body: warped duct walls (front c×b → back a×d), the collar strips that
-    // wrap the branch mouth, and the branch tunnel walls. Subdivide each into a
-    // bilinear patch...
-    emitPanel(0, 4, 5, 1); emitPanel(1, 5, 6, 2); emitPanel(2, 6, 7, 3);
-    emitPanel(3, 0, 9, 10); emitPanel(7, 3, 10, 14); emitPanel(4, 7, 14, 13); emitPanel(0, 4, 13, 9);
-    emitPanel(9, 13, 12, 8); emitPanel(13, 14, 15, 12); emitPanel(14, 10, 11, 15); emitPanel(10, 9, 8, 11);
-
-    // ...then average the normals of every coincident vertex ACROSS panel
-    // boundaries, so the whole body — walls, collar and tunnel — resolves to a
-    // single continuous surface with no seam lines where the panels meet.
-    {
-      const key = (x: number, y: number, z: number) =>
-        `${Math.round(x*4e3)},${Math.round(y*4e3)},${Math.round(z*4e3)}`;
-      const acc = new Map<string, V3t>();
-      for (let vI = 0; vI < verts.length; vI += 3) {
-        const k = key(verts[vI], verts[vI+1], verts[vI+2]);
-        const e = acc.get(k) ?? [0,0,0];
-        e[0]+=norms[vI]; e[1]+=norms[vI+1]; e[2]+=norms[vI+2];
-        acc.set(k, e);
-      }
-      for (const e of acc.values()) { const L = Math.hypot(e[0],e[1],e[2])||1; e[0]/=L; e[1]/=L; e[2]/=L; }
-      for (let vI = 0; vI < verts.length; vI += 3) {
-        const e = acc.get(key(verts[vI], verts[vI+1], verts[vI+2]))!;
-        norms[vI] = e[0]; norms[vI+1] = e[1]; norms[vI+2] = e[2];
-      }
-    }
-
-    // Flange lips — appended AFTER the averaging pass so their folds stay crisp.
-    emitFlat(0, 1, 17, 16); emitFlat(1, 2, 18, 17); emitFlat(2, 3, 19, 18); emitFlat(3, 0, 16, 19);
-    emitFlat(5, 4, 20, 21); emitFlat(4, 7, 23, 20); emitFlat(7, 6, 22, 23); emitFlat(6, 5, 21, 22);
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const geo = sh.build();
 
     // Edge lines
     const edgePts: number[] = [];
