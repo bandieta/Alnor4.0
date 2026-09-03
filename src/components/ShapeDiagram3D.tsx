@@ -4106,13 +4106,27 @@ const QD2aMesh: React.FC<{
       [0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7],
       [4,5,9,8], [5,6,10,9], [6,7,11,10], [7,4,8,11],
     ];
+    // Per-quad flat normals in QBa's convention (each opposes its own winding).
+    // Like QD1a, welding this shell (mergeVertices collapses it to 12 shared
+    // corners) makes computeVertexNormals() average the coplanar top frame with
+    // the perpendicular duct walls and flip half of it inside-out. Author
+    // per-face and mark preserveNormals so every panel stays crisp.
     const verts: number[] = [];
+    const norms: number[] = [];
     for (const [q0, q1, q2, q3] of quads) {
-      verts.push(...pts[q0], ...pts[q1], ...pts[q2], ...pts[q0], ...pts[q2], ...pts[q3]);
+      const A = pts[q0], B = pts[q1], C = pts[q2], D = pts[q3];
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
+      const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const n: [number, number, number] = [-nx / nl, -ny / nl, -nz / nl];
+      verts.push(...A, ...B, ...C, ...A, ...C, ...D);
+      for (let k = 0; k < 6; k++) norms.push(...n);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     const edgePts: number[] = [];
     const addEdge = (i: number, j: number) => { edgePts.push(...pts[i], ...pts[j]); };
