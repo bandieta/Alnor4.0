@@ -2663,112 +2663,100 @@ const TR4aLabels: React.FC<{
   );
 };
 
-/* ===== TR5a — Port Tee (Trójnik portkowy) ===== */
+/* ===== TR5a — Breeches / Port Tee (Trójnik portkowy) =====
+   A genuine 3-D wye: one rectangular inlet (b × a, stub length j) at the +Z end
+   splits into two rectangular outlets side-by-side in Y — branch c below and
+   branch d above, gap g between, each e × (c|d) with stub length k — at the −Z
+   end, offset h in Y and i in X (both negated, as in the .NET code). p24/p25 are
+   the crotch points where the divider meets the two side skins.
+
+   Ported face-for-face from the .NET app's licz_punkty()/paint "TR5a" region:
+   3 four-wall stubs + top/bottom skins + the crotch divider + the two 7-sided
+   side transition panels. The old React port guessed the connecting faces and
+   collapsed into a knot. */
 const TR5aMesh: React.FC<{
   a: number; b: number; c: number; d: number; e: number; L: number;
   h: number; g: number; i: number; j: number; k: number;
 }> = ({ a: aR, b: bR, c: cR, d: dR, e: eR, L: lR,
         h: hR, g: gR, i: iR, j: jR, k: kR }) => {
-  const geo = useMemo(() => {
+  const material = useMemo(() => makeStandardMetalMaterial(), []);
+
+  const geometry = useMemo(() => {
     const max = Math.max(aR, bR, cR, dR, eR, jR, kR, lR, Math.abs(hR), Math.abs(iR), gR, 1);
-    const a = aR/max, b = bR/max, c = cR/max, d = dR/max, e = eR/max;
-    const j = jR/max, k = kR/max, l = lR/max;
-    const h = -hR/max; // C# negates h
-    const i = -iR/max; // C# negates i
-    const g = gR/max;
+    const a = aR / max, b = bR / max, c = cR / max, d = dR / max, e = eR / max;
+    const j = jR / max, k = kR / max, l = lR / max, g = gR / max;
+    const h = -hR / max;   // .NET: h = -h
+    const i = -iR / max;   // .NET: i = -i
 
-    // Main duct: pts 0-3 front, 4-7 back (along z-axis)
-    const pts: [number, number, number][] = [];
-    pts[0] = [-(b+i)/2, -a/2, l/2];
-    pts[1] = [-(b+i)/2, a/2, l/2];
-    pts[2] = [-(b+i)/2 + b, a/2, l/2];
-    pts[3] = [-(b+i)/2 + b, -a/2, l/2];
-    pts[4] = [-(b+i)/2, -a/2, l/2 - j];
-    pts[5] = [-(b+i)/2, a/2, l/2 - j];
-    pts[6] = [-(b+i)/2 + b, a/2, l/2 - j];
-    pts[7] = [-(b+i)/2 + b, -a/2, l/2 - j];
+    type V3 = [number, number, number];
+    const p: V3[] = [];
 
-    // Lower port c: pts 8-11 top, 12-15 bottom
-    pts[8]  = [(b+i)/2 - e, -a/2 + h, -l/2 + k];
-    pts[9]  = [(b+i)/2 - e, -a/2 + h + c, -l/2 + k];
-    pts[10] = [(b+i)/2, -a/2 + h + c, -l/2 + k];
-    pts[11] = [(b+i)/2, -a/2 + h, -l/2 + k];
-    pts[12] = [(b+i)/2 - e, -a/2 + h, -l/2];
-    pts[13] = [(b+i)/2 - e, -a/2 + h + c, -l/2];
-    pts[14] = [(b+i)/2, -a/2 + h + c, -l/2];
-    pts[15] = [(b+i)/2, -a/2 + h, -l/2];
+    // Inlet stub (b × a), open at z = l/2 and z = l/2 − j
+    p[0] = [-(b + i) / 2,     -a / 2, l / 2];
+    p[1] = [-(b + i) / 2,      a / 2, l / 2];
+    p[2] = [-(b + i) / 2 + b,  a / 2, l / 2];
+    p[3] = [-(b + i) / 2 + b, -a / 2, l / 2];
+    p[4] = [p[0][0], p[0][1], l / 2 - j];
+    p[5] = [p[1][0], p[1][1], l / 2 - j];
+    p[6] = [p[2][0], p[2][1], l / 2 - j];
+    p[7] = [p[3][0], p[3][1], l / 2 - j];
 
-    // Upper port d: pts 16-19 top, 20-23 bottom
-    pts[16] = [(b+i)/2 - e, -a/2 + h + c + g, -l/2 + k];
-    pts[17] = [(b+i)/2 - e, -a/2 + h + c + g + d, -l/2 + k];
-    pts[18] = [(b+i)/2, -a/2 + h + c + g + d, -l/2 + k];
-    pts[19] = [(b+i)/2, -a/2 + h + c + g, -l/2 + k];
-    pts[20] = [(b+i)/2 - e, -a/2 + h + c + g, -l/2];
-    pts[21] = [(b+i)/2 - e, -a/2 + h + c + g + d, -l/2];
-    pts[22] = [(b+i)/2, -a/2 + h + c + g + d, -l/2];
-    pts[23] = [(b+i)/2, -a/2 + h + c + g, -l/2];
+    // Branch c stub (e × c), open at z = −l/2 and z = −l/2 + k
+    const bcx0 = (b + i) / 2 - e, bcx1 = (b + i) / 2;
+    const cy0 = -a / 2 + h, cy1 = -a / 2 + h + c;
+    p[8]  = [bcx0, cy0, -l / 2 + k];
+    p[9]  = [bcx0, cy1, -l / 2 + k];
+    p[10] = [bcx1, cy1, -l / 2 + k];
+    p[11] = [bcx1, cy0, -l / 2 + k];
+    p[12] = [bcx0, cy0, -l / 2];
+    p[13] = [bcx0, cy1, -l / 2];
+    p[14] = [bcx1, cy1, -l / 2];
+    p[15] = [bcx1, cy0, -l / 2];
 
-    // Junction connector pts
-    pts[24] = [pts[9][0] - (b+i-e)/2, pts[9][1] + g/2, pts[9][2] + (l-k-j)/2];
-    pts[25] = [pts[9][0] + e - i/2, pts[9][1] + g/2, pts[9][2] + (l-k-j)/2];
+    // Branch d stub (e × d), gap g above branch c
+    const dy0 = -a / 2 + h + c + g, dy1 = dy0 + d;
+    p[16] = [bcx0, dy0, -l / 2 + k];
+    p[17] = [bcx0, dy1, -l / 2 + k];
+    p[18] = [bcx1, dy1, -l / 2 + k];
+    p[19] = [bcx1, dy0, -l / 2 + k];
+    p[20] = [bcx0, dy0, -l / 2];
+    p[21] = [bcx0, dy1, -l / 2];
+    p[22] = [bcx1, dy1, -l / 2];
+    p[23] = [bcx1, dy0, -l / 2];
+
+    // Crotch points (divider meets the side skins)
+    p[24] = [p[9][0] - (b + i - e) / 2, p[9][1] + g / 2, p[9][2] + (l - k - j) / 2];
+    p[25] = [p[9][0] + e - i / 2,       p[9][1] + g / 2, p[9][2] + (l - k - j) / 2];
 
     const verts: number[] = [];
-    const tri = (a: [number,number,number], b: [number,number,number], c: [number,number,number]) => {
-      verts.push(...a, ...b, ...c);
+    const tri = (A: V3, B: V3, C: V3) => { verts.push(...A, ...B, ...C); };
+    const quad = (i0: number, i1: number, i2: number, i3: number) => {
+      tri(p[i0], p[i1], p[i2]); tri(p[i0], p[i2], p[i3]);
     };
-    const quad = (a: [number,number,number], b: [number,number,number], c: [number,number,number], d: [number,number,number]) => {
-      tri(a, b, c); tri(a, c, d);
+    const poly = (idx: number[]) => {
+      for (let n = 1; n < idx.length - 1; n++) tri(p[idx[0]], p[idx[n]], p[idx[n + 1]]);
     };
 
-    // Main duct walls
-    quad(pts[0], pts[1], pts[5], pts[4]);
-    quad(pts[1], pts[2], pts[6], pts[5]);
-    quad(pts[2], pts[3], pts[7], pts[6]);
-    quad(pts[3], pts[0], pts[4], pts[7]);
-
-    // Lower port c walls
-    quad(pts[8], pts[9], pts[13], pts[12]);
-    quad(pts[9], pts[10], pts[14], pts[13]);
-    quad(pts[10], pts[11], pts[15], pts[14]);
-    quad(pts[11], pts[8], pts[12], pts[15]);
-
-    // Upper port d walls
-    quad(pts[16], pts[17], pts[21], pts[20]);
-    quad(pts[17], pts[18], pts[22], pts[21]);
-    quad(pts[18], pts[19], pts[23], pts[22]);
-    quad(pts[19], pts[16], pts[20], pts[23]);
-
-    // Connecting panels
-    quad(pts[7], pts[4], pts[8], pts[11]);
-    quad(pts[5], pts[6], pts[18], pts[17]);
-    quad(pts[9], pts[24], pts[25], pts[10]);
-    quad(pts[24], pts[16], pts[19], pts[25]);
-
-    // Side polygons (front & back connecting faces)
-    // Front connector: 24→9→8→4→5→17→16
-    tri(pts[24], pts[9], pts[8]);
-    tri(pts[24], pts[8], pts[4]);
-    tri(pts[24], pts[4], pts[5]);
-    tri(pts[24], pts[5], pts[17]);
-    tri(pts[24], pts[17], pts[16]);
-    // Back connector: 25→10→11→7→6→18→19
-    tri(pts[25], pts[10], pts[11]);
-    tri(pts[25], pts[11], pts[7]);
-    tri(pts[25], pts[7], pts[6]);
-    tri(pts[25], pts[6], pts[18]);
-    tri(pts[25], pts[18], pts[19]);
+    // inlet stub — 4 walls
+    quad(0, 1, 5, 4); quad(1, 2, 6, 5); quad(2, 3, 7, 6); quad(3, 0, 4, 7);
+    // branch c stub — 4 walls
+    quad(8, 9, 13, 12); quad(9, 10, 14, 13); quad(10, 11, 15, 14); quad(11, 8, 12, 15);
+    // branch d stub — 4 walls
+    quad(16, 17, 21, 20); quad(17, 18, 22, 21); quad(18, 19, 23, 22); quad(19, 16, 20, 23);
+    // body — bottom skin, top skin, crotch divider (toward c, toward d)
+    quad(7, 4, 8, 11); quad(5, 6, 18, 17); quad(9, 24, 25, 10); quad(24, 16, 19, 25);
+    // 7-sided side transition panels (−X side, then +X side)
+    poly([24, 9, 8, 4, 5, 17, 16]);
+    poly([25, 10, 11, 7, 6, 18, 19]);
 
     const rawGeo = new THREE.BufferGeometry();
     rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone agrees with the triangle winding, which under
-    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
-    // convention. applyStandardShading welds, recomputes, and flips into it.
+    // applyStandardShading welds the shell, recomputes vertex normals and flips
+    // them into QBa's opposing convention so it reads as warm sheet metal.
     return applyStandardShading(rawGeo);
   }, [aR, bR, cR, dR, eR, lR, hR, gR, iR, jR, kR]);
 
-  const material = useMemo(() => makeStandardMetalMaterial(), []);
-
-  return <mesh geometry={geo} material={material} />;
+  return <mesh geometry={geometry} material={material} />;
 };
 
 /* TR5a dimension labels */
@@ -3975,9 +3963,12 @@ const QD1aMesh: React.FC<{
       verts.push(...allPts[q0], ...allPts[q1], ...allPts[q2], ...allPts[q0], ...allPts[q2], ...allPts[q3]);
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    // computeVertexNormals() alone agrees with the triangle winding, which under
+    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
+    // convention. applyStandardShading welds, recomputes, and flips into it.
+    const geo = applyStandardShading(rawGeo);
 
     // Edges
     const edgePts: number[] = [];
@@ -5183,22 +5174,26 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
             </>
           );
         }
-        // TR5a — port tee
+        // TR5a — breeches / port tee
         if (symbol === 'TR5a') {
-          const c_val = values[2] || 200;
-          const d_val = values[3] || 200;
-          const e_val = values[4] || 200;
-          const tL = values[5] || 500;
-          const h_val = values[6] || 50;
-          const g_val = values[7] || 50;
-          const i_val = values[8] || 50;
-          const j_val = values[9] || 100;
-          const k_val = values[10] || 100;
+          // Defaults mirror the .NET app's built-in TR5a sample (Form1.cs) —
+          // h and i are the raw (negative) textbox values; the mesh negates them.
+          const a_val = values[0] || 460;
+          const b_val = values[1] || 200;
+          const c_val = values[2] || 100;
+          const d_val = values[3] || 150;
+          const e_val = values[4] || 100;
+          const tL = values[5] || 300;
+          const h_val = values[6] || -50;
+          const g_val = values[7] || 100;
+          const i_val = values[8] || -100;
+          const j_val = values[9] || 50;
+          const k_val = values[10] || 50;
           return (
             <>
-              <TR5aMesh a={a} b={b} c={c_val} d={d_val} e={e_val} L={tL}
+              <TR5aMesh a={a_val} b={b_val} c={c_val} d={d_val} e={e_val} L={tL}
                 h={h_val} g={g_val} i={i_val} j={j_val} k={k_val} />
-              {showDimensions && <TR5aLabels a={a} b={b} c={c_val} d={d_val} e={e_val} L={tL}
+              {showDimensions && <TR5aLabels a={a_val} b={b_val} c={c_val} d={d_val} e={e_val} L={tL}
                 h={h_val} g={g_val} i={i_val} j={j_val} k={k_val} />}
             </>
           );
