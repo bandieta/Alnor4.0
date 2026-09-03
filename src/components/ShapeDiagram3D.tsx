@@ -4253,26 +4253,41 @@ const TR7aMesh: React.FC<{
     ];
 
     const verts: number[] = [];
+    const norms: number[] = [];
+    // Per-face flat normal in QBa's convention (opposes its own winding). This
+    // shell is mostly flat panels meeting at sharp folds; welding it and running
+    // computeVertexNormals() rounds those folds and flattens the big sheet faces.
+    const pushFace = (
+      A: [number,number,number], B: [number,number,number],
+      C: [number,number,number], D?: [number,number,number],
+    ) => {
+      const ux = B[0]-A[0], uy = B[1]-A[1], uz = B[2]-A[2];
+      const vx = C[0]-A[0], vy = C[1]-A[1], vz = C[2]-A[2];
+      const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const n = [-nx/nl, -ny/nl, -nz/nl];
+      verts.push(...A, ...B, ...C);
+      norms.push(...n, ...n, ...n);
+      if (D) { verts.push(...A, ...C, ...D); norms.push(...n, ...n, ...n); }
+    };
     const addQuad = (a0: number, a1: number, a2: number, a3: number) => {
-      verts.push(...pts[a0], ...pts[a1], ...pts[a2], ...pts[a0], ...pts[a2], ...pts[a3]);
+      pushFace(pts[a0], pts[a1], pts[a2], pts[a3]);
     };
     for (const [q0, q1, q2, q3] of quads) addQuad(q0, q1, q2, q3);
 
     // Fill quads at z=+a/2 (using pts with z=a/2 i.e. pts[33].z)
     for (const [q0, q1, q2, q3] of fillQuadsFront) {
-      const p0: [number,number,number] = [pts[q0][0], pts[q0][1], a/2];
-      const p1: [number,number,number] = [pts[q1][0], pts[q1][1], a/2];
-      const p2: [number,number,number] = [pts[q2][0], pts[q2][1], a/2];
-      const p3: [number,number,number] = [pts[q3][0], pts[q3][1], a/2];
-      verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
+      pushFace(
+        [pts[q0][0], pts[q0][1], a/2], [pts[q1][0], pts[q1][1], a/2],
+        [pts[q2][0], pts[q2][1], a/2], [pts[q3][0], pts[q3][1], a/2],
+      );
     }
     // Fill quads at z=-a/2
     for (const [q0, q1, q2, q3] of fillQuadsFront) {
-      const p0: [number,number,number] = [pts[q0][0], pts[q0][1], -a/2];
-      const p1: [number,number,number] = [pts[q1][0], pts[q1][1], -a/2];
-      const p2: [number,number,number] = [pts[q2][0], pts[q2][1], -a/2];
-      const p3: [number,number,number] = [pts[q3][0], pts[q3][1], -a/2];
-      verts.push(...p0, ...p1, ...p2, ...p0, ...p2, ...p3);
+      pushFace(
+        [pts[q0][0], pts[q0][1], -a/2], [pts[q1][0], pts[q1][1], -a/2],
+        [pts[q2][0], pts[q2][1], -a/2], [pts[q3][0], pts[q3][1], -a/2],
+      );
     }
 
     // Radius arc quads (r-radius: 7 segments between pt 7→18/6)
@@ -4290,7 +4305,7 @@ const TR7aMesh: React.FC<{
 
     // Triangle fans filling arc regions at z=±a/2
     const addTri = (v0: [number,number,number], v1: [number,number,number], v2: [number,number,number]) => {
-      verts.push(...v0, ...v1, ...v2);
+      pushFace(v0, v1, v2);
     };
     // R-arc fan at z=+a/2 (center=pt33, sequence: 7,40,41,42,43,44,18→6 mapped to back z)
     const rFanBack = [7, 40, 41, 42, 43, 44, 6];
@@ -4329,7 +4344,8 @@ const TR7aMesh: React.FC<{
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge lines
     const edgePts: number[] = [];
