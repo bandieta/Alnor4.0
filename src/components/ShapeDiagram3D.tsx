@@ -4503,7 +4503,6 @@ const TR9aMesh: React.FC<{
     const verts: number[] = [];
     const norms: number[] = [];
     type V3 = [number, number, number];
-    const sub = (u: V3, v: V3): V3 => [u[0] - v[0], u[1] - v[1], u[2] - v[2]];
     const cross = (u: V3, v: V3): V3 => [
       u[1] * v[2] - u[2] * v[1],
       u[2] * v[0] - u[0] * v[2],
@@ -4525,8 +4524,10 @@ const TR9aMesh: React.FC<{
       }
       return norm([nx, ny, nz]);
     };
+    const neg = (v: V3): V3 => [-v[0], -v[1], -v[2]];
+    // Flat panel: one negated Newell normal for the whole quad, kept crisp.
     const addFlat = (v0: V3, v1: V3, v2: V3, v3: V3) => {
-      const n = quadNormal(v0, v1, v2, v3);
+      const n = neg(quadNormal(v0, v1, v2, v3));
       verts.push(...v0, ...v1, ...v2, ...v0, ...v2, ...v3);
       for (let k = 0; k < 6; k++) norms.push(...n);
     };
@@ -4535,9 +4536,12 @@ const TR9aMesh: React.FC<{
       norms.push(...n0, ...n1, ...n2, ...n0, ...n2, ...n3);
     };
     const lerp3 = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-    // A large skew-tee panel is a warped (non-planar) quad. Subdivide it into a
-    // bilinear patch with exact analytic normals so it shades as one smooth sheet
-    // with no visible triangulation crease.
+    // A warped (non-planar) quad — a skew-tee panel or a sleeve segment — drawn as
+    // one triangle pair shows a hard diagonal crease and folds against its
+    // neighbours along a visible line. Subdivide it into a bilinear patch with
+    // exact analytic normals, negated into QBa's opposing convention, so it shades
+    // as one formed sheet. The cross-panel averaging pass below then blends the
+    // joins so the whole body reads as a single surface.
     const addPanel = (v0: V3, v1: V3, v2: V3, v3: V3, res = 8) => {
       const P = (s: number, t: number): V3 => lerp3(lerp3(v0, v1, s), lerp3(v3, v2, s), t);
       const N = (s: number, t: number): V3 => {
@@ -4551,7 +4555,7 @@ const TR9aMesh: React.FC<{
           (1 - s) * (v3[1] - v0[1]) + s * (v2[1] - v1[1]),
           (1 - s) * (v3[2] - v0[2]) + s * (v2[2] - v1[2]),
         ];
-        return norm(cross(ds, dt));
+        return neg(norm(cross(ds, dt)));
       };
       for (let si = 0; si < res; si++) {
         for (let ti = 0; ti < res; ti++) {
@@ -4573,18 +4577,6 @@ const TR9aMesh: React.FC<{
     addPanel(p[7], p[3], p[10], p[14]); // bottom-to-branch
     addPanel(p[4], p[7], p[14], p[13]); // back-to-branch
     addPanel(p[0], p[4], p[13], p[9]);  // left-to-branch
-
-    // Front flanges 0-3 → 16-19 (lines 547-566)
-    addFlat(p[0], p[1], p[17], p[16]);
-    addFlat(p[1], p[2], p[18], p[17]);
-    addFlat(p[2], p[3], p[19], p[18]);
-    addFlat(p[3], p[0], p[16], p[19]);
-
-    // Back flanges 4-7 → 20-23 (lines 568-596)
-    addFlat(p[5], p[4], p[20], p[21]);
-    addFlat(p[4], p[7], p[23], p[20]);
-    addFlat(p[7], p[6], p[22], p[23]);
-    addFlat(p[6], p[5], p[21], p[22]);
 
     // Smooth the legacy 24-sided branch profile into a 96-sided sleeve while
     // retaining its exact square-to-round transition at the connection ring.
@@ -4611,55 +4603,64 @@ const TR9aMesh: React.FC<{
         spline(previous[2], current[2], next[2], afterNext[2]),
       ];
     };
-    // Ring centre, for orienting the sleeve normals outward.
-    const ringCentre: V3 = [0, 0, 0];
-    for (let ii = 0; ii < 24; ii++) { ringCentre[0] += circ[ii][0]; ringCentre[1] += circ[ii][1]; ringCentre[2] += circ[ii][2]; }
-    ringCentre[0] /= 24; ringCentre[1] /= 24; ringCentre[2] /= 24;
-    const sleeveNormal = (pos: number): V3 => {
-      const a = interpolateRing(circ, pos);
-      const ahead = interpolateRing(circ, pos + 0.05);
-      const behind = interpolateRing(circ, pos - 0.05);
-      const axis = sub(interpolateRing(circ2, pos), a);
-      let n = norm(cross(sub(ahead, behind), axis));
-      if ((n[0] * (a[0] - ringCentre[0]) + n[1] * (a[1] - ringCentre[1]) + n[2] * (a[2] - ringCentre[2])) < 0) {
-        n = [-n[0], -n[1], -n[2]];
-      }
-      return n;
-    };
 
+    // Round branch sleeve — each segment is a bilinear patch, analytic normals in
+    // QBa's convention (addPanel), so it shades as a smooth tube.
     for (let ii = 0; ii < BRANCH_SEGMENTS; ii++) {
       const cur = ii * 24 / BRANCH_SEGMENTS;
       const nxt = (ii + 1) * 24 / BRANCH_SEGMENTS;
-      const nCur = sleeveNormal(cur);
-      const nNxt = sleeveNormal(nxt);
-      addSmooth(
+      addPanel(
         interpolateRing(circ, cur),
         interpolateRing(circ, nxt),
         interpolateRing(circ2, nxt),
         interpolateRing(circ2, cur),
-        nCur, nNxt, nNxt, nCur,
+        1,
       );
     }
 
-    // Square-to-circle transition (lines 615-632)
+    // Square-to-circle transition — warped quads, subdivided so the collar between
+    // the rectangular opening and the round sleeve reads as one formed surface.
     const at = [16, 17, 18, 19, 20, 21, 22, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
     for (let ii = 0; ii < 24; ii++) {
       const ac = at[ii] + 1;
       const ad = at[ii];
-      addFlat(circ[ii], circ[ii + 1], bridge[ac], bridge[ad]);
+      addPanel(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 3);
     }
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    // The panel/flange normals agreed with their winding while the branch sleeve
-    // (oriented outward from its ring centre) opposed its own — a 944/205 split
-    // that lit the skew-tee unevenly and, on the agreeing majority, flat and cold.
-    // Re-derive from the winding and flip into QBa's uniform opposing convention.
-    // The panels are subdivided 8×8 so the recomputed normals track the original
-    // bilinear-patch ones; the weld fuses each smooth run (panel interior, sleeve)
-    // but not the folds between walls or the flange edges.
-    const geo = applyStandardShading(rawGeo);
+    // Blend normals across every panel boundary by position, so the whole body —
+    // duct walls, branch collar, square-to-round transition and sleeve — resolves
+    // to one continuous surface with no seam lines. (Same pass as TR8a.)
+    {
+      const key = (x: number, y: number, z: number) =>
+        `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
+      const acc = new Map<string, V3>();
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const k = key(verts[vI], verts[vI + 1], verts[vI + 2]);
+        const eN = acc.get(k) ?? [0, 0, 0];
+        eN[0] += norms[vI]; eN[1] += norms[vI + 1]; eN[2] += norms[vI + 2];
+        acc.set(k, eN);
+      }
+      for (const eN of acc.values()) { const L = Math.hypot(eN[0], eN[1], eN[2]) || 1; eN[0] /= L; eN[1] /= L; eN[2] /= L; }
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const eN = acc.get(key(verts[vI], verts[vI + 1], verts[vI + 2]))!;
+        norms[vI] = eN[0]; norms[vI + 1] = eN[1]; norms[vI + 2] = eN[2];
+      }
+    }
+
+    // Flanges — appended AFTER the averaging pass so their folded lips stay crisp.
+    addFlat(p[0], p[1], p[17], p[16]);
+    addFlat(p[1], p[2], p[18], p[17]);
+    addFlat(p[2], p[3], p[19], p[18]);
+    addFlat(p[3], p[0], p[16], p[19]);
+    addFlat(p[5], p[4], p[20], p[21]);
+    addFlat(p[4], p[7], p[23], p[20]);
+    addFlat(p[7], p[6], p[22], p[23]);
+    addFlat(p[6], p[5], p[21], p[22]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // ── Edge lines ──
     const edgePts: number[] = [];
