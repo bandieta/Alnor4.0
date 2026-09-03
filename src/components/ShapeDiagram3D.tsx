@@ -1176,11 +1176,17 @@ const TR1aMesh: React.FC<{
     // Branch left (x=brLftX, facing -x)
     addQuad(p15, p12, p8,  p11, [-1, 0, 0]);
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    rawGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    // The hand-authored per-face normals here were an inconsistent mix — some
+    // agreeing with their triangle winding, some opposing — so the tee lit
+    // unevenly and, on the agreeing faces, flat and cold. Re-derive from the
+    // winding and flip into QBa's uniform opposing convention. The weld only
+    // fuses genuine duplicates (same position AND normal AND uv), so the box
+    // and branch edges stay crisp.
+    const geo = applyStandardShading(rawGeo);
 
     // ── Edge wireframe ────────────────────────────────────────────────────────
     const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) =>
