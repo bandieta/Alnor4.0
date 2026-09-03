@@ -4755,10 +4755,17 @@ const TR9aMesh: React.FC<{
       addFlat(circ[ii], circ[ii + 1], bridge[ac], bridge[ad]);
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
-    geo.userData.preserveNormals = true;
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    rawGeo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    // The panel/flange normals agreed with their winding while the branch sleeve
+    // (oriented outward from its ring centre) opposed its own — a 944/205 split
+    // that lit the skew-tee unevenly and, on the agreeing majority, flat and cold.
+    // Re-derive from the winding and flip into QBa's uniform opposing convention.
+    // The panels are subdivided 8×8 so the recomputed normals track the original
+    // bilinear-patch ones; the weld fuses each smooth run (panel interior, sleeve)
+    // but not the folds between walls or the flange edges.
+    const geo = applyStandardShading(rawGeo);
 
     // ── Edge lines ──
     const edgePts: number[] = [];
