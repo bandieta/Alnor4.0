@@ -733,15 +733,14 @@ body {
 }
 
 .btn-primary {
-  background: #ffffff;
-  color: #004290;
+  background: #004290;
+  color: #ffffff;
   border-color: #004290;
   font-weight: 700;
 }
 
 .btn-primary:hover {
-  background: #004290;
-  color: #ffffff;
+  background: #003570;
   border-color: #003570;
 }
 
@@ -878,8 +877,8 @@ body {
 }
 
 .btn-action {
-  background: #ffffff;
-  color: #004290;
+  background: #004290;
+  color: #ffffff;
   border-color: #004290;
 }
 
