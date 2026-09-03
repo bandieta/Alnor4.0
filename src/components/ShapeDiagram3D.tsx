@@ -205,22 +205,41 @@ class SheetShell {
     this.norms.push(...n0, ...n1, ...n2, ...n0, ...n2, ...n3);
   }
 
-  /* Blend the normals of coincident vertices added so far, so the panels resolve
-     to one continuous surface with no seam lines. */
-  blend(): void {
+  /* Crease-aware blend. At each coincident-vertex position the incoming normals
+     are clustered: two normals merge only if the angle between them is under
+     `creaseDeg`, so a run of panels across a gentle warp resolves to one
+     continuous surface with no seam lines, while a genuine fold (box corner,
+     flange lip, wall-to-wall edge) is left as two separate normals and stays a
+     crisp edge. Default 35° — anything sharper than that reads as an edge. */
+  blend(creaseDeg = 35): void {
+    const cosC = Math.cos(creaseDeg * Math.PI / 180);
     const key = (x: number, y: number, z: number) =>
       `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
-    const acc = new Map<string, Vec3>();
+    const groups = new Map<string, number[]>();
     for (let i = 0; i < this.verts.length; i += 3) {
       const k = key(this.verts[i], this.verts[i + 1], this.verts[i + 2]);
-      const e = acc.get(k) ?? [0, 0, 0];
-      e[0] += this.norms[i]; e[1] += this.norms[i + 1]; e[2] += this.norms[i + 2];
-      acc.set(k, e);
+      const g = groups.get(k);
+      if (g) g.push(i); else groups.set(k, [i]);
     }
-    for (const e of acc.values()) { const L = Math.hypot(e[0], e[1], e[2]) || 1; e[0] /= L; e[1] /= L; e[2] /= L; }
-    for (let i = 0; i < this.verts.length; i += 3) {
-      const e = acc.get(key(this.verts[i], this.verts[i + 1], this.verts[i + 2]))!;
-      this.norms[i] = e[0]; this.norms[i + 1] = e[1]; this.norms[i + 2] = e[2];
+    for (const idxs of groups.values()) {
+      if (idxs.length < 2) continue;
+      const clusters: { sum: Vec3; members: number[] }[] = [];
+      for (const i of idxs) {
+        const nx = this.norms[i], ny = this.norms[i + 1], nz = this.norms[i + 2];
+        let placed = false;
+        for (const c of clusters) {
+          const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+          if ((nx * c.sum[0] + ny * c.sum[1] + nz * c.sum[2]) / L > cosC) {
+            c.sum[0] += nx; c.sum[1] += ny; c.sum[2] += nz; c.members.push(i); placed = true; break;
+          }
+        }
+        if (!placed) clusters.push({ sum: [nx, ny, nz], members: [i] });
+      }
+      for (const c of clusters) {
+        const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+        const nx = c.sum[0] / L, ny = c.sum[1] / L, nz = c.sum[2] / L;
+        for (const i of c.members) { this.norms[i] = nx; this.norms[i + 1] = ny; this.norms[i + 2] = nz; }
+      }
     }
   }
 
@@ -2883,21 +2902,38 @@ const TR5aMesh: React.FC<{
     panel(24, 9, 8, 4); panel(24, 4, 5, 17); face(24, 17, 16);
     panel(25, 10, 11, 7); panel(25, 7, 6, 18); face(25, 18, 19);
 
-    // Blend normals across every panel boundary by position so the whole shell —
-    // stubs, skins and transitions — resolves to one continuous surface with no
-    // seam lines (same pass as TR8a/TR9a).
+    // Crease-aware blend: at each coincident vertex the normals are clustered and
+    // merged only when within 35° of each other, so the stubs, skins and
+    // transitions resolve to one continuous surface with no seam lines while the
+    // sharp folds (stub-wall corners, the branch openings) stay crisp.
     {
+      const cosC = Math.cos(35 * Math.PI / 180);
       const key = (x: number, y: number, z: number) => `${Math.round(x*4e3)},${Math.round(y*4e3)},${Math.round(z*4e3)}`;
-      const acc = new Map<string, V3>();
+      const groups = new Map<string, number[]>();
       for (let vI = 0; vI < verts.length; vI += 3) {
         const k = key(verts[vI], verts[vI+1], verts[vI+2]);
-        const e = acc.get(k) ?? [0,0,0];
-        e[0]+=norms[vI]; e[1]+=norms[vI+1]; e[2]+=norms[vI+2]; acc.set(k, e);
+        const g = groups.get(k);
+        if (g) g.push(vI); else groups.set(k, [vI]);
       }
-      for (const e of acc.values()) { const L = Math.hypot(e[0],e[1],e[2])||1; e[0]/=L; e[1]/=L; e[2]/=L; }
-      for (let vI = 0; vI < verts.length; vI += 3) {
-        const e = acc.get(key(verts[vI], verts[vI+1], verts[vI+2]))!;
-        norms[vI]=e[0]; norms[vI+1]=e[1]; norms[vI+2]=e[2];
+      for (const idxs of groups.values()) {
+        if (idxs.length < 2) continue;
+        const clusters: { sum: V3; members: number[] }[] = [];
+        for (const vI of idxs) {
+          const nx = norms[vI], ny = norms[vI+1], nz = norms[vI+2];
+          let placed = false;
+          for (const c of clusters) {
+            const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+            if ((nx*c.sum[0] + ny*c.sum[1] + nz*c.sum[2]) / L > cosC) {
+              c.sum[0]+=nx; c.sum[1]+=ny; c.sum[2]+=nz; c.members.push(vI); placed = true; break;
+            }
+          }
+          if (!placed) clusters.push({ sum: [nx, ny, nz], members: [vI] });
+        }
+        for (const c of clusters) {
+          const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+          const nx = c.sum[0]/L, ny = c.sum[1]/L, nz = c.sum[2]/L;
+          for (const vI of c.members) { norms[vI]=nx; norms[vI+1]=ny; norms[vI+2]=nz; }
+        }
       }
     }
 
@@ -4779,23 +4815,40 @@ const TR9aMesh: React.FC<{
       addPanel(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 3);
     }
 
-    // Blend normals across every panel boundary by position, so the whole body —
-    // duct walls, branch collar, square-to-round transition and sleeve — resolves
-    // to one continuous surface with no seam lines. (Same pass as TR8a.)
+    // Crease-aware blend across every panel boundary: at each coincident vertex
+    // the normals are clustered and only merged when they are within 35° of each
+    // other, so the duct walls, branch collar, square-to-round transition and
+    // sleeve resolve to one continuous surface with no seam lines while genuine
+    // folds (wall-to-wall edges, the mouth of the tunnel) stay crisp.
     {
+      const cosC = Math.cos(35 * Math.PI / 180);
       const key = (x: number, y: number, z: number) =>
         `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
-      const acc = new Map<string, V3>();
+      const groups = new Map<string, number[]>();
       for (let vI = 0; vI < verts.length; vI += 3) {
         const k = key(verts[vI], verts[vI + 1], verts[vI + 2]);
-        const eN = acc.get(k) ?? [0, 0, 0];
-        eN[0] += norms[vI]; eN[1] += norms[vI + 1]; eN[2] += norms[vI + 2];
-        acc.set(k, eN);
+        const g = groups.get(k);
+        if (g) g.push(vI); else groups.set(k, [vI]);
       }
-      for (const eN of acc.values()) { const L = Math.hypot(eN[0], eN[1], eN[2]) || 1; eN[0] /= L; eN[1] /= L; eN[2] /= L; }
-      for (let vI = 0; vI < verts.length; vI += 3) {
-        const eN = acc.get(key(verts[vI], verts[vI + 1], verts[vI + 2]))!;
-        norms[vI] = eN[0]; norms[vI + 1] = eN[1]; norms[vI + 2] = eN[2];
+      for (const idxs of groups.values()) {
+        if (idxs.length < 2) continue;
+        const clusters: { sum: V3; members: number[] }[] = [];
+        for (const vI of idxs) {
+          const nx = norms[vI], ny = norms[vI + 1], nz = norms[vI + 2];
+          let placed = false;
+          for (const c of clusters) {
+            const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+            if ((nx * c.sum[0] + ny * c.sum[1] + nz * c.sum[2]) / L > cosC) {
+              c.sum[0] += nx; c.sum[1] += ny; c.sum[2] += nz; c.members.push(vI); placed = true; break;
+            }
+          }
+          if (!placed) clusters.push({ sum: [nx, ny, nz], members: [vI] });
+        }
+        for (const c of clusters) {
+          const L = Math.hypot(c.sum[0], c.sum[1], c.sum[2]) || 1;
+          const nx = c.sum[0] / L, ny = c.sum[1] / L, nz = c.sum[2] / L;
+          for (const vI of c.members) { norms[vI] = nx; norms[vI + 1] = ny; norms[vI + 2] = nz; }
+        }
       }
     }
 
