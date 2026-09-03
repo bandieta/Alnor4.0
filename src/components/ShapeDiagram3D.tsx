@@ -1922,9 +1922,13 @@ const QPR4aMesh: React.FC<{
     addQuad(p[6], p[5], p[13], p[14]);
     addQuad(p[5], p[4], p[12], p[13]);
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    geo.computeVertexNormals();
+    const rawGeo = new THREE.BufferGeometry();
+    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    // computeVertexNormals() alone agrees with the triangle winding, which under
+    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
+    // convention. applyStandardShading welds, recomputes, and flips into it so
+    // the offset shades as warm sheet metal (same fix as QPR3a).
+    const geo = applyStandardShading(rawGeo);
 
     // Edge wireframe
     seg(p[0], p[1]); seg(p[1], p[2]); seg(p[2], p[3]);
