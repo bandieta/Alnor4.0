@@ -1056,6 +1056,14 @@ const ReductionElbowMesh: React.FC<{
       );
     }
 
+    // These per-face normals were authored pointing out of the sheet, which means
+    // they AGREE with their triangle's winding. QBa's BendMesh authors the opposite
+    // convention, and under side:DoubleSide it is that winding-agreement (not the
+    // normal's own direction) that picks the shading normal — so an agreeing shell
+    // samples the environment from the wrong hemisphere and reads flat and cold.
+    // Negate to land in QBa's family: warm sheet metal with real HDRI reflection.
+    for (let i = 0; i < norms.length; i++) norms[i] = -norms[i];
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
