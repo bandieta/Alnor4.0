@@ -648,6 +648,13 @@ const ReductionBendMesh: React.FC<{
     geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    // These normals are authored exactly as BendMesh (QBa) authors its own:
+    // per-face on the flat walls, per-vertex radial on the curve, all in the
+    // convention that opposes the triangle winding. Without preserveNormals the
+    // normalize pass would run computeVertexNormals() over them and collapse
+    // everything to the winding-agreeing direction, which under side:DoubleSide
+    // is what made QBRa read colder and flatter than QBa.
+    geo.userData.preserveNormals = true;
 
     const eGeo = new THREE.BufferGeometry();
     eGeo.setAttribute('position', new THREE.Float32BufferAttribute(edgePts, 3));
