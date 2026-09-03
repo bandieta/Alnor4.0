@@ -2729,31 +2729,79 @@ const TR5aMesh: React.FC<{
     p[25] = [p[9][0] + e - i / 2,       p[9][1] + g / 2, p[9][2] + (l - k - j) / 2];
 
     const verts: number[] = [];
-    const tri = (A: V3, B: V3, C: V3) => { verts.push(...A, ...B, ...C); };
-    const quad = (i0: number, i1: number, i2: number, i3: number) => {
-      tri(p[i0], p[i1], p[i2]); tri(p[i0], p[i2], p[i3]);
+    const norms: number[] = [];
+    const nrm = (v: V3): V3 => { const L = Math.hypot(v[0],v[1],v[2])||1; return [v[0]/L,v[1]/L,v[2]/L]; };
+    const crs = (u: V3, v: V3): V3 => [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    // A warped quad drawn as one triangle pair creases along its diagonal and
+    // folds against its neighbours along a visible line. Subdivide into a
+    // bilinear patch with exact analytic normals, negated into QBa's convention.
+    const panel = (i0: number, i1: number, i2: number, i3: number, res = 6) => {
+      const v0 = p[i0], v1 = p[i1], v2 = p[i2], v3 = p[i3];
+      const P = (s: number, t: number): V3 => [
+        (1-t)*((1-s)*v0[0]+s*v1[0]) + t*((1-s)*v3[0]+s*v2[0]),
+        (1-t)*((1-s)*v0[1]+s*v1[1]) + t*((1-s)*v3[1]+s*v2[1]),
+        (1-t)*((1-s)*v0[2]+s*v1[2]) + t*((1-s)*v3[2]+s*v2[2]),
+      ];
+      const N = (s: number, t: number): V3 => {
+        const ds: V3 = [(1-t)*(v1[0]-v0[0])+t*(v2[0]-v3[0]), (1-t)*(v1[1]-v0[1])+t*(v2[1]-v3[1]), (1-t)*(v1[2]-v0[2])+t*(v2[2]-v3[2])];
+        const dt: V3 = [(1-s)*(v3[0]-v0[0])+s*(v2[0]-v1[0]), (1-s)*(v3[1]-v0[1])+s*(v2[1]-v1[1]), (1-s)*(v3[2]-v0[2])+s*(v2[2]-v1[2])];
+        const n = nrm(crs(ds, dt));
+        return [-n[0], -n[1], -n[2]];
+      };
+      for (let si = 0; si < res; si++) for (let ti = 0; ti < res; ti++) {
+        const s0 = si/res, s1 = (si+1)/res, t0 = ti/res, t1 = (ti+1)/res;
+        verts.push(...P(s0,t0),...P(s1,t0),...P(s1,t1), ...P(s0,t0),...P(s1,t1),...P(s0,t1));
+        norms.push(...N(s0,t0),...N(s1,t0),...N(s1,t1), ...N(s0,t0),...N(s1,t1),...N(s0,t1));
+      }
     };
-    const poly = (idx: number[]) => {
-      for (let n = 1; n < idx.length - 1; n++) tri(p[idx[0]], p[idx[n]], p[idx[n + 1]]);
+    const face = (...idx: number[]) => {
+      // fan triangulation with one negated face normal per triangle
+      for (let n = 1; n < idx.length - 1; n++) {
+        const A = p[idx[0]], B = p[idx[n]], C = p[idx[n+1]];
+        const fn = nrm(crs([B[0]-A[0],B[1]-A[1],B[2]-A[2]], [C[0]-A[0],C[1]-A[1],C[2]-A[2]]));
+        const nn: V3 = [-fn[0], -fn[1], -fn[2]];
+        verts.push(...A, ...B, ...C);
+        norms.push(...nn, ...nn, ...nn);
+      }
     };
 
-    // inlet stub — 4 walls
-    quad(0, 1, 5, 4); quad(1, 2, 6, 5); quad(2, 3, 7, 6); quad(3, 0, 4, 7);
-    // branch c stub — 4 walls
-    quad(8, 9, 13, 12); quad(9, 10, 14, 13); quad(10, 11, 15, 14); quad(11, 8, 12, 15);
-    // branch d stub — 4 walls
-    quad(16, 17, 21, 20); quad(17, 18, 22, 21); quad(18, 19, 23, 22); quad(19, 16, 20, 23);
-    // body — bottom skin, top skin, crotch divider (toward c, toward d)
-    quad(7, 4, 8, 11); quad(5, 6, 18, 17); quad(9, 24, 25, 10); quad(24, 16, 19, 25);
-    // 7-sided side transition panels (−X side, then +X side)
-    poly([24, 9, 8, 4, 5, 17, 16]);
-    poly([25, 10, 11, 7, 6, 18, 19]);
+    // inlet stub — 4 walls (flat)
+    face(0, 1, 5, 4); face(1, 2, 6, 5); face(2, 3, 7, 6); face(3, 0, 4, 7);
+    // branch c stub — 4 walls (flat)
+    face(8, 9, 13, 12); face(9, 10, 14, 13); face(10, 11, 15, 14); face(11, 8, 12, 15);
+    // branch d stub — 4 walls (flat)
+    face(16, 17, 21, 20); face(17, 18, 22, 21); face(18, 19, 23, 22); face(19, 16, 20, 23);
+    // body — bottom/top skins and the crotch divider: warped, so subdivide.
+    panel(7, 4, 8, 11); panel(5, 6, 18, 17); panel(9, 24, 25, 10); panel(24, 16, 19, 25);
+    // The two 7-sided side transition skins — split watertight into two bilinear
+    // patches plus one corner triangle so they read as one formed surface rather
+    // than a fan of flats. (−X side [24,9,8,4,5,17,16], then +X side.)
+    panel(24, 9, 8, 4); panel(24, 4, 5, 17); face(24, 17, 16);
+    panel(25, 10, 11, 7); panel(25, 7, 6, 18); face(25, 18, 19);
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // applyStandardShading welds the shell, recomputes vertex normals and flips
-    // them into QBa's opposing convention so it reads as warm sheet metal.
-    return applyStandardShading(rawGeo);
+    // Blend normals across every panel boundary by position so the whole shell —
+    // stubs, skins and transitions — resolves to one continuous surface with no
+    // seam lines (same pass as TR8a/TR9a).
+    {
+      const key = (x: number, y: number, z: number) => `${Math.round(x*4e3)},${Math.round(y*4e3)},${Math.round(z*4e3)}`;
+      const acc = new Map<string, V3>();
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const k = key(verts[vI], verts[vI+1], verts[vI+2]);
+        const e = acc.get(k) ?? [0,0,0];
+        e[0]+=norms[vI]; e[1]+=norms[vI+1]; e[2]+=norms[vI+2]; acc.set(k, e);
+      }
+      for (const e of acc.values()) { const L = Math.hypot(e[0],e[1],e[2])||1; e[0]/=L; e[1]/=L; e[2]/=L; }
+      for (let vI = 0; vI < verts.length; vI += 3) {
+        const e = acc.get(key(verts[vI], verts[vI+1], verts[vI+2]))!;
+        norms[vI]=e[0]; norms[vI+1]=e[1]; norms[vI+2]=e[2];
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
+    return geo;
   }, [aR, bR, cR, dR, eR, lR, hR, gR, iR, jR, kR]);
 
   return <mesh geometry={geometry} material={material} />;
