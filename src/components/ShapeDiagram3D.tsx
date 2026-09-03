@@ -3958,17 +3958,29 @@ const QD1aMesh: React.FC<{
       [7, 4, 8, 11],
     ];
 
+    // Per-quad flat normals in QBa's convention (each opposes its own winding).
+    // These panels only share the four opening-edge corners, and the mounting
+    // plate meets the angled duct there at a sharp fold — welding those verts and
+    // running computeVertexNormals() averages the plate's ±z with the duct-wall
+    // direction and turns half the shell inside-out. Authoring per-face and
+    // marking preserveNormals keeps every panel crisp and correctly lit.
     const verts: number[] = [];
+    const norms: number[] = [];
     for (const [q0, q1, q2, q3] of quads) {
-      verts.push(...allPts[q0], ...allPts[q1], ...allPts[q2], ...allPts[q0], ...allPts[q2], ...allPts[q3]);
+      const A = allPts[q0], B = allPts[q1], C = allPts[q2], D = allPts[q3];
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2];
+      const vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const n: [number, number, number] = [-nx / nl, -ny / nl, -nz / nl];
+      verts.push(...A, ...B, ...C, ...A, ...C, ...D);
+      for (let k = 0; k < 6; k++) norms.push(...n);
     }
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone agrees with the triangle winding, which under
-    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
-    // convention. applyStandardShading welds, recomputes, and flips into it.
-    const geo = applyStandardShading(rawGeo);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edges
     const edgePts: number[] = [];
