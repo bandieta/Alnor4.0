@@ -1769,9 +1769,16 @@ const TRaMesh: React.FC<{
       profile.map(([x, y]) => new THREE.Vector2(x, y)),
       [],
     );
+    // triangulateShape always emits CCW triangles, so the reversed front tri winds
+    // CW (winding-normal −z) and the un-reversed back tri winds CCW (winding-normal
+    // +z). The side walls above are authored to OPPOSE their winding — QBa's
+    // convention — so author these to oppose theirs too ([0,0,+1] front, [0,0,−1]
+    // back). Otherwise the two big sheet faces sample the environment from the
+    // wrong hemisphere and read flat and cold-blue while the walls stay warm; this
+    // puts the whole tee in the same reflective family as TR2a.
     for (const [i0, i1, i2] of faceTriangles) {
-      addTri(frontPts[i2], frontPts[i1], frontPts[i0], [0, 0, -1]);
-      addTri(backPts[i0], backPts[i1], backPts[i2], [0, 0, 1]);
+      addTri(frontPts[i2], frontPts[i1], frontPts[i0], [0, 0, 1]);
+      addTri(backPts[i0], backPts[i1], backPts[i2], [0, 0, -1]);
     }
 
     const geo = new THREE.BufferGeometry();
@@ -1883,47 +1890,58 @@ const QPR3aMesh: React.FC<{
     ];
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
-      verts.push(...a, ...b, ...c);
-    };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    // Author one flat, geometrically-outward normal per face — the same scheme
+    // the QPR2a / QPR6a reducers use. QPR3a's raw triangle winding isn't
+    // globally consistent (the side walls wind one way, the top/bottom walls
+    // the other), so computeVertexNormals()+global-flip used to smear cold,
+    // half-cancelled normals across the section seams. Orienting each face
+    // outward by hand instead lands it in the same warm sheet-metal family
+    // as QPR2a.
+    const addQuad = (
+      q0: number[], q1: number[], q2: number[], q3: number[],
+      n: readonly [number, number, number],
+    ) => {
+      verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+      for (let i = 0; i < 6; i++) norms.push(n[0], n[1], n[2]);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
-    // Left face walls (3 sections)
-    addQuad(p[0], p[1], p[6], p[7]);   // upper straight
-    addQuad(p[1], p[2], p[5], p[6]);   // diagonal
-    addQuad(p[2], p[3], p[4], p[5]);   // lower straight
+    // Diagonal (offset) section — the wall normal tilts with the ramp.
+    const dz = sl - sh - sm - m1;
+    const dLen = Math.hypot(dz, se) || 1;
+    const nDiagTop = [0, dz / dLen, se / dLen] as const;
+    const nDiagBot = [0, -dz / dLen, -se / dLen] as const;
 
-    // Right face walls (3 sections)
-    addQuad(p[15], p[14], p[9], p[8]);  // upper straight
-    addQuad(p[14], p[13], p[10], p[9]); // diagonal
-    addQuad(p[13], p[12], p[11], p[10]); // lower straight
+    // Left face walls (x = -ha, outward -x)
+    addQuad(p[0], p[1], p[6], p[7], [-1, 0, 0]);   // upper straight
+    addQuad(p[1], p[2], p[5], p[6], [-1, 0, 0]);   // diagonal
+    addQuad(p[2], p[3], p[4], p[5], [-1, 0, 0]);   // lower straight
 
-    // Top walls (connecting left to right)
-    addQuad(p[0], p[1], p[9], p[8]);   // upper straight top
-    addQuad(p[1], p[2], p[10], p[9]);  // diagonal top
-    addQuad(p[2], p[3], p[11], p[10]); // lower straight top
+    // Right face walls (x = +ha, outward +x)
+    addQuad(p[15], p[14], p[9], p[8], [1, 0, 0]);   // upper straight
+    addQuad(p[14], p[13], p[10], p[9], [1, 0, 0]);  // diagonal
+    addQuad(p[13], p[12], p[11], p[10], [1, 0, 0]); // lower straight
 
-    // Bottom walls (connecting left to right)
-    addQuad(p[7], p[6], p[14], p[15]); // upper straight bottom
-    addQuad(p[6], p[5], p[13], p[14]); // diagonal bottom
-    addQuad(p[5], p[4], p[12], p[13]); // lower straight bottom
+    // Top walls (outward +y; the diagonal tilts toward +z)
+    addQuad(p[0], p[1], p[9], p[8], [0, 1, 0]);   // upper straight top
+    addQuad(p[1], p[2], p[10], p[9], nDiagTop);   // diagonal top
+    addQuad(p[2], p[3], p[11], p[10], [0, 1, 0]); // lower straight top
+
+    // Bottom walls (outward -y; the diagonal tilts toward -z)
+    addQuad(p[7], p[6], p[14], p[15], [0, -1, 0]); // upper straight bottom
+    addQuad(p[6], p[5], p[13], p[14], nDiagBot);   // diagonal bottom
+    addQuad(p[5], p[4], p[12], p[13], [0, -1, 0]); // lower straight bottom
 
     // NO end caps (open inlet and outlet)
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone yields normals that agree with the triangle
-    // winding, which under side:DoubleSide reads flat and cold — QBa's BendMesh
-    // authors the opposing convention. applyStandardShading welds, recomputes,
-    // and flips into that convention so the offset shades as warm sheet metal.
-    const geo = applyStandardShading(rawGeo);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     // Left face outline
@@ -2024,45 +2042,60 @@ const QPR4aMesh: React.FC<{
     ];
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
-      verts.push(...a, ...b, ...c);
-    };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    // Author one flat, geometrically-outward normal per face — the same scheme
+    // the QPR2a / QPR6a reducers (and now QPR3a) use. QPR4a's raw triangle
+    // winding isn't globally consistent (the side walls wind one way, the
+    // top/bottom walls the other), so computeVertexNormals()+global-flip used
+    // to smear cold, half-cancelled normals across the section seams. Orienting
+    // each face outward by hand instead lands it in the same warm sheet-metal
+    // family as QPR2a.
+    const addQuad = (
+      q0: number[], q1: number[], q2: number[], q3: number[],
+      n: readonly [number, number, number],
+    ) => {
+      verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+      for (let i = 0; i < 6; i++) norms.push(n[0], n[1], n[2]);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
-    // Left face walls (3 sections)
-    addQuad(p[0], p[1], p[6], p[7]);   // inlet straight
-    addQuad(p[1], p[2], p[5], p[6]);   // diagonal
-    addQuad(p[2], p[3], p[4], p[5]);   // outlet straight
+    // Diagonal (offset) section — each wall normal tilts with the ramp. The
+    // inlet is d tall and the outlet b tall, so the top ramp's rise differs
+    // from the bottom ramp's.
+    const dz = sl - sh - sm - m1;
+    const tRise = se + sd - sb;                 // -(p2.y - p1.y), the top ramp
+    const tLen = Math.hypot(dz, tRise) || 1;
+    const bLen = Math.hypot(dz, se) || 1;
+    const nDiagTop = [0, dz / tLen, tRise / tLen] as const;
+    const nDiagBot = [0, -dz / bLen, -se / bLen] as const;
 
-    // Right face walls (3 sections)
-    addQuad(p[15], p[14], p[9], p[8]);
-    addQuad(p[14], p[13], p[10], p[9]);
-    addQuad(p[13], p[12], p[11], p[10]);
+    // Left face walls (x = -ha, outward -x)
+    addQuad(p[0], p[1], p[6], p[7], [-1, 0, 0]);   // inlet straight
+    addQuad(p[1], p[2], p[5], p[6], [-1, 0, 0]);   // diagonal
+    addQuad(p[2], p[3], p[4], p[5], [-1, 0, 0]);   // outlet straight
 
-    // Top walls
-    addQuad(p[0], p[1], p[9], p[8]);
-    addQuad(p[1], p[2], p[10], p[9]);
-    addQuad(p[2], p[3], p[11], p[10]);
+    // Right face walls (x = +ha, outward +x)
+    addQuad(p[15], p[14], p[9], p[8], [1, 0, 0]);
+    addQuad(p[14], p[13], p[10], p[9], [1, 0, 0]);
+    addQuad(p[13], p[12], p[11], p[10], [1, 0, 0]);
 
-    // Bottom walls
-    addQuad(p[7], p[6], p[14], p[15]);
-    addQuad(p[6], p[5], p[13], p[14]);
-    addQuad(p[5], p[4], p[12], p[13]);
+    // Top walls (outward +y; the diagonal tilts with tRise)
+    addQuad(p[0], p[1], p[9], p[8], [0, 1, 0]);
+    addQuad(p[1], p[2], p[10], p[9], nDiagTop);
+    addQuad(p[2], p[3], p[11], p[10], [0, 1, 0]);
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone agrees with the triangle winding, which under
-    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
-    // convention. applyStandardShading welds, recomputes, and flips into it so
-    // the offset shades as warm sheet metal (same fix as QPR3a).
-    const geo = applyStandardShading(rawGeo);
+    // Bottom walls (outward -y; the diagonal tilts toward -z)
+    addQuad(p[7], p[6], p[14], p[15], [0, -1, 0]);
+    addQuad(p[6], p[5], p[13], p[14], nDiagBot);
+    addQuad(p[5], p[4], p[12], p[13], [0, -1, 0]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     seg(p[0], p[1]); seg(p[1], p[2]); seg(p[2], p[3]);
