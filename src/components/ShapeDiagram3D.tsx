@@ -4713,32 +4713,25 @@ const TR9aMesh: React.FC<{
     const ddx_l3 = Math.cos(alfa) * l3;
     const ddy_l3 = Math.sin(alfa) * l3;
 
-    const calcDX = (y0: number, y1: number, alf: number) => (y0 - y1) * Math.tan(alf);
-
     // Near ring: circ[0..24], Far ring: circ2[0..24]
     const circ: [number, number, number][] = new Array(25);
     const circ2: [number, number, number][] = new Array(25);
 
+    // A true circle (radius d1/2) in Y–Z, sheared in X so it lies flat in the
+    // branch's own tilted plane: x is a linear function of z at rate tan(alfa).
+    // The legacy C# built x from a mis-indexed second point ((ii+18) % 25 — note
+    // the 25, not 24) then patched the resulting non-closure with a half-circle
+    // "mirror fix"; that left a hard tangent break running down the sleeve (the
+    // visible seam) and a kinked collar. Computing x straight from z closes the
+    // ring cleanly and makes the sleeve one smooth tube.
+    const tanA = Math.tan(alfa);
     for (let ii = 0; ii < 25; ii++) {
-      const alf = 15 * ii;
-      let cx = dx;
-      const cy = dy + Math.sin(alf * Math.PI / 180) * (d1 / 2);
-      const cz = dz - Math.cos(alf * Math.PI / 180) * (d1 / 2);
-
-      // C# uses punkty[1, 30 + aaa] with deferred initialization
-      // For correctness, precompute the Y value for aaa
-      const aaa = (ii + 18) % 25;
-      const cy_aaa = dy + Math.sin(15 * aaa * Math.PI / 180) * (d1 / 2);
-      cx -= calcDX(p[9][1], cy_aaa, -alfa);
-
+      const ang = 15 * ii * Math.PI / 180;
+      const cy = dy + Math.sin(ang) * (d1 / 2);
+      const cz = dz - Math.cos(ang) * (d1 / 2);
+      const cx = dx + (p[9][1] - dy - (cz - dz)) * tanA;
       circ[ii] = [cx, cy, cz];
       circ2[ii] = [cx - ddx_l3, cy, cz - ddy_l3];
-    }
-
-    // C# mirror fix for first 12 points (line 5207-5211)
-    for (let ii = 0; ii < 12; ii++) {
-      circ[ii][0] = circ[24 - ii][0];
-      circ2[ii][0] = circ[24 - ii][0] - ddx_l3;
     }
 
     // ── Bridge vertices (square-to-circle transition, lines 5213-5242) ──
