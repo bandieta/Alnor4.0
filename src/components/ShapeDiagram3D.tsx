@@ -2909,7 +2909,9 @@ const TR5aMesh: React.FC<{
     // A warped quad drawn as one triangle pair creases along its diagonal and
     // folds against its neighbours along a visible line. Subdivide into a
     // bilinear patch with exact analytic normals, negated into QBa's convention.
-    const panel = (i0: number, i1: number, i2: number, i3: number, res = 6) => {
+    // res is high: the metal is near-mirror (roughness 0.18), so a coarse grid
+    // shows the environment reflection kinking at every subdivision line.
+    const panel = (i0: number, i1: number, i2: number, i3: number, res = 20) => {
       const v0 = p[i0], v1 = p[i1], v2 = p[i2], v3 = p[i3];
       const P = (s: number, t: number): V3 => [
         (1-t)*((1-s)*v0[0]+s*v1[0]) + t*((1-s)*v3[0]+s*v2[0]),
@@ -2938,6 +2940,28 @@ const TR5aMesh: React.FC<{
         norms.push(...nn, ...nn, ...nn);
       }
     };
+    // A flat triangle subdivided res× along each edge, so its boundary vertices
+    // have coincident partners for the crease-blend (a bare face() triangle only
+    // shares its 3 corners, leaving a seam against a subdivided panel neighbour).
+    const tri = (i0: number, i1: number, i2: number, res = 20) => {
+      const A = p[i0], B = p[i1], C = p[i2];
+      const fn = nrm(crs([B[0]-A[0],B[1]-A[1],B[2]-A[2]], [C[0]-A[0],C[1]-A[1],C[2]-A[2]]));
+      const nn: V3 = [-fn[0], -fn[1], -fn[2]];
+      const Q = (u: number, v: number): V3 => [
+        A[0] + u*(B[0]-A[0]) + v*(C[0]-A[0]),
+        A[1] + u*(B[1]-A[1]) + v*(C[1]-A[1]),
+        A[2] + u*(B[2]-A[2]) + v*(C[2]-A[2]),
+      ];
+      for (let iu = 0; iu < res; iu++) for (let iv = 0; iv < res - iu; iv++) {
+        const u0 = iu/res, u1 = (iu+1)/res, v0 = iv/res, v1 = (iv+1)/res;
+        verts.push(...Q(u0,v0), ...Q(u1,v0), ...Q(u0,v1));
+        norms.push(...nn, ...nn, ...nn);
+        if (iv < res - iu - 1) {
+          verts.push(...Q(u1,v0), ...Q(u1,v1), ...Q(u0,v1));
+          norms.push(...nn, ...nn, ...nn);
+        }
+      }
+    };
 
     // inlet stub — 4 walls (flat)
     face(0, 1, 5, 4); face(1, 2, 6, 5); face(2, 3, 7, 6); face(3, 0, 4, 7);
@@ -2945,20 +2969,25 @@ const TR5aMesh: React.FC<{
     face(8, 9, 13, 12); face(9, 10, 14, 13); face(10, 11, 15, 14); face(11, 8, 12, 15);
     // branch d stub — 4 walls (flat)
     face(16, 17, 21, 20); face(17, 18, 22, 21); face(18, 19, 23, 22); face(19, 16, 20, 23);
-    // body — bottom/top skins and the crotch divider: warped, so subdivide.
+    // body — bottom/top skins and the crotch divider. The skins are planar but
+    // are still subdivided at the shared res so every panel-seam vertex has a
+    // coincident partner for the blend below (no T-junctions).
     panel(7, 4, 8, 11); panel(5, 6, 18, 17); panel(9, 24, 25, 10); panel(24, 16, 19, 25);
-    // The two 7-sided side transition skins — split watertight into two bilinear
-    // patches plus one corner triangle so they read as one formed surface rather
-    // than a fan of flats. (−X side [24,9,8,4,5,17,16], then +X side.)
-    panel(24, 9, 8, 4); panel(24, 4, 5, 17); face(24, 17, 16);
-    panel(25, 10, 11, 7); panel(25, 7, 6, 18); face(25, 18, 19);
+    // The two 7-sided side transition skins are genuinely doubly-curved. Split
+    // watertight into two bilinear patches plus one corner triangle and
+    // subdivide finely so each reads as one formed surface, not a fan of flats
+    // or a stack of reflection bands. (−X side [24,9,8,4,5,17,16], then +X side.)
+    panel(24, 9, 8, 4); panel(24, 4, 5, 17); tri(24, 17, 16);
+    panel(25, 10, 11, 7); panel(25, 7, 6, 18); tri(25, 18, 19);
 
     // Crease-aware blend: at each coincident vertex the normals are clustered and
-    // merged only when within 35° of each other, so the stubs, skins and
+    // merged only when within 70° of each other, so the stubs, skins and
     // transitions resolve to one continuous surface with no seam lines while the
-    // sharp folds (stub-wall corners, the branch openings) stay crisp.
+    // sharp folds (stub-wall corners, the branch openings — all ~90°) stay crisp.
+    // The threshold has to clear the internal fan lines of the side-transition
+    // skins (p24→p4, p25→p7), which are ~40–60° and must NOT read as creases.
     {
-      const cosC = Math.cos(35 * Math.PI / 180);
+      const cosC = Math.cos(70 * Math.PI / 180);
       const key = (x: number, y: number, z: number) => `${Math.round(x*4e3)},${Math.round(y*4e3)},${Math.round(z*4e3)}`;
       const groups = new Map<string, number[]>();
       for (let vI = 0; vI < verts.length; vI += 3) {
