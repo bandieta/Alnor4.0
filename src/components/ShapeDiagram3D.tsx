@@ -1235,15 +1235,20 @@ const ReductionElbowMesh: React.FC<{
 };
 
 /* ===== TR1a Tee — rectangular branch off bottom of main duct ===== */
-// Params: a (main z-depth), b (main y-height), d (branch z-depth), w (branch x-width),
-//         L (main x-length), e (branch x-offset from left), f (branch z-offset from front), l3 (branch y-length)
+// Params follow the .NET form's UI labels: a (main y-height), b (main z-depth),
+//         d (branch z-depth), w (branch x-width), L (main x-length),
+//         e (branch x-offset from left), f (branch z-offset from front), l3 (branch y-length)
+// NB the .NET 3D code swaps a/b internally (its `var a` reads textBox "b", `var b` reads
+// textBox "a"), so its punkty put `a` on Z. Here we keep the label meaning — "a" is the
+// duct height — and map it onto the Y axis, matching what the .NET preview actually draws.
 const TR1aMesh: React.FC<{
   a: number; b: number; d: number; w: number; L: number;
   e: number; f: number; l3: number;
 }> = ({ a, b, d, w, L, e, f, l3 }) => {
   const maxDim = Math.max(a, b, d, w, L, e, f, l3, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sb = b * scale, sd = d * scale;
+  // sa = depth half-basis (Z, from label "b"); sb = height (Y, from label "a").
+  const sa = b * scale, sb = a * scale, sd = d * scale;
   const sw = w * scale, sl = L * scale;
   const se = e * scale, sf = f * scale, sl3 = l3 * scale;
 
@@ -1399,7 +1404,8 @@ const TR1aLabels: React.FC<{
 }> = ({ a, b, d, w, L, e, f, l3 }) => {
   const maxDim = Math.max(a, b, d, w, L, e, l3, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sb = b * scale, sd = d * scale, sl = L * scale, sw = w * scale, sl3 = l3 * scale;
+  // sa = depth basis (Z, label "b"); sb = height (Y, label "a") — see TR1aMesh note.
+  const sa = b * scale, sb = a * scale, sd = d * scale, sl = L * scale, sw = w * scale, sl3 = l3 * scale;
   const hb = sb / 2, hL = sl / 2;
 
   const swSafe = Math.min(sw, Math.max(0.001, sl * 0.98));
@@ -1418,9 +1424,9 @@ const TR1aLabels: React.FC<{
       <Billboard position={[0, hb + 0.2, 0]}>
         <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="bottom">{`L = ${Math.round(L)}`}</Text>
       </Billboard>
-      {/* b — main duct height */}
+      {/* a — main duct height */}
       <Billboard position={[hL + 0.2, 0, 0]}>
-        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`a = ${Math.round(a)}`}</Text>
       </Billboard>
       {/* w — branch width */}
       <Billboard position={[brDX, brBotY - 0.18, 0]}>
@@ -1438,24 +1444,28 @@ const TR1aLabels: React.FC<{
       <Billboard position={[-hL - 0.16, brTopY - 0.02, branchCenterZ]}>
         <Text fontSize={0.10} color="#666666" anchorX="right" anchorY="middle">{`f = ${Math.round(f)}`}</Text>
       </Billboard>
-      {/* a label */}
+      {/* b — main duct depth */}
       <Billboard position={[0, -hb - sl3 / 2, 0]}>
-        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`a=${Math.round(a)}`}</Text>
+        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
       </Billboard>
     </>
   );
 };
 
 /* ===== TR2a Tee — rectangular main duct with round branch ===== */
-// Params: a (main z-depth), b (main y-height), d (branch diameter),
-//         L (main x-length), l3 (branch y-length), e (branch x-offset from left), f (branch z-offset from front)
+// Params follow the .NET form's UI labels: a (main y-height), b (main z-depth),
+//         d (branch diameter), L (main x-length), l3 (branch y-length),
+//         e (branch x-offset from left), f (branch z-offset from front)
+// Same a/b label-vs-var swap as TR1aMesh: the .NET 3D code reads `var a` from textBox
+// "b" and `var b` from "a". Here "a" keeps its label meaning (duct height → Y).
 const TR2aMesh: React.FC<{
   a: number; b: number; d: number; L: number;
   l3: number; e: number; f: number;
 }> = ({ a, b, d, L, l3, e, f }) => {
   const maxDim = Math.max(a, b, d, L, l3, e, f, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sb = b * scale, sd = d * scale;
+  // sa = depth half-basis (Z, from label "b"); sb = height (Y, from label "a").
+  const sa = b * scale, sb = a * scale, sd = d * scale;
   const sl = L * scale, sl3 = l3 * scale;
   const se = e * scale, sf = f * scale;
 
@@ -1607,7 +1617,8 @@ const TR2aLabels: React.FC<{
 }> = ({ a, b, d, L, l3, e, f }) => {
   const maxDim = Math.max(a, b, d, L, l3, e, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sd = d * scale, sb = b * scale, sl = L * scale, sl3 = l3 * scale;
+  // sa = depth basis (Z, label "b"); sb = height (Y, label "a") — see TR2aMesh note.
+  const sa = b * scale, sd = d * scale, sb = a * scale, sl = L * scale, sl3 = l3 * scale;
   const hb = sb / 2, hL = sl / 2;
 
   const sdSafe = Math.min(sd, Math.max(0.001, sa * 0.98));
@@ -1626,7 +1637,7 @@ const TR2aLabels: React.FC<{
         <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="bottom">{`L = ${Math.round(L)}`}</Text>
       </Billboard>
       <Billboard position={[hL + 0.2, 0, 0]}>
-        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`a = ${Math.round(a)}`}</Text>
       </Billboard>
       <Billboard position={[brDX, brBotY - 0.18, 0]}>
         <Text fontSize={0.11} color="#004290" anchorX="center" anchorY="top">{`d = ${Math.round(d)}`}</Text>
@@ -1638,7 +1649,7 @@ const TR2aLabels: React.FC<{
         <Text fontSize={0.10} color="#666666" anchorX="right" anchorY="middle">{`f = ${Math.round(f)}`}</Text>
       </Billboard>
       <Billboard position={[0, -hb - sl3 / 2, 0]}>
-        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`a=${Math.round(a)}`}</Text>
+        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
       </Billboard>
     </>
   );
@@ -1758,9 +1769,16 @@ const TRaMesh: React.FC<{
       profile.map(([x, y]) => new THREE.Vector2(x, y)),
       [],
     );
+    // triangulateShape always emits CCW triangles, so the reversed front tri winds
+    // CW (winding-normal −z) and the un-reversed back tri winds CCW (winding-normal
+    // +z). The side walls above are authored to OPPOSE their winding — QBa's
+    // convention — so author these to oppose theirs too ([0,0,+1] front, [0,0,−1]
+    // back). Otherwise the two big sheet faces sample the environment from the
+    // wrong hemisphere and read flat and cold-blue while the walls stay warm; this
+    // puts the whole tee in the same reflective family as TR2a.
     for (const [i0, i1, i2] of faceTriangles) {
-      addTri(frontPts[i2], frontPts[i1], frontPts[i0], [0, 0, -1]);
-      addTri(backPts[i0], backPts[i1], backPts[i2], [0, 0, 1]);
+      addTri(frontPts[i2], frontPts[i1], frontPts[i0], [0, 0, 1]);
+      addTri(backPts[i0], backPts[i1], backPts[i2], [0, 0, -1]);
     }
 
     const geo = new THREE.BufferGeometry();
@@ -1872,47 +1890,58 @@ const QPR3aMesh: React.FC<{
     ];
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
-      verts.push(...a, ...b, ...c);
-    };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    // Author one flat, geometrically-outward normal per face — the same scheme
+    // the QPR2a / QPR6a reducers use. QPR3a's raw triangle winding isn't
+    // globally consistent (the side walls wind one way, the top/bottom walls
+    // the other), so computeVertexNormals()+global-flip used to smear cold,
+    // half-cancelled normals across the section seams. Orienting each face
+    // outward by hand instead lands it in the same warm sheet-metal family
+    // as QPR2a.
+    const addQuad = (
+      q0: number[], q1: number[], q2: number[], q3: number[],
+      n: readonly [number, number, number],
+    ) => {
+      verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+      for (let i = 0; i < 6; i++) norms.push(n[0], n[1], n[2]);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
-    // Left face walls (3 sections)
-    addQuad(p[0], p[1], p[6], p[7]);   // upper straight
-    addQuad(p[1], p[2], p[5], p[6]);   // diagonal
-    addQuad(p[2], p[3], p[4], p[5]);   // lower straight
+    // Diagonal (offset) section — the wall normal tilts with the ramp.
+    const dz = sl - sh - sm - m1;
+    const dLen = Math.hypot(dz, se) || 1;
+    const nDiagTop = [0, dz / dLen, se / dLen] as const;
+    const nDiagBot = [0, -dz / dLen, -se / dLen] as const;
 
-    // Right face walls (3 sections)
-    addQuad(p[15], p[14], p[9], p[8]);  // upper straight
-    addQuad(p[14], p[13], p[10], p[9]); // diagonal
-    addQuad(p[13], p[12], p[11], p[10]); // lower straight
+    // Left face walls (x = -ha, outward -x)
+    addQuad(p[0], p[1], p[6], p[7], [-1, 0, 0]);   // upper straight
+    addQuad(p[1], p[2], p[5], p[6], [-1, 0, 0]);   // diagonal
+    addQuad(p[2], p[3], p[4], p[5], [-1, 0, 0]);   // lower straight
 
-    // Top walls (connecting left to right)
-    addQuad(p[0], p[1], p[9], p[8]);   // upper straight top
-    addQuad(p[1], p[2], p[10], p[9]);  // diagonal top
-    addQuad(p[2], p[3], p[11], p[10]); // lower straight top
+    // Right face walls (x = +ha, outward +x)
+    addQuad(p[15], p[14], p[9], p[8], [1, 0, 0]);   // upper straight
+    addQuad(p[14], p[13], p[10], p[9], [1, 0, 0]);  // diagonal
+    addQuad(p[13], p[12], p[11], p[10], [1, 0, 0]); // lower straight
 
-    // Bottom walls (connecting left to right)
-    addQuad(p[7], p[6], p[14], p[15]); // upper straight bottom
-    addQuad(p[6], p[5], p[13], p[14]); // diagonal bottom
-    addQuad(p[5], p[4], p[12], p[13]); // lower straight bottom
+    // Top walls (outward +y; the diagonal tilts toward +z)
+    addQuad(p[0], p[1], p[9], p[8], [0, 1, 0]);   // upper straight top
+    addQuad(p[1], p[2], p[10], p[9], nDiagTop);   // diagonal top
+    addQuad(p[2], p[3], p[11], p[10], [0, 1, 0]); // lower straight top
+
+    // Bottom walls (outward -y; the diagonal tilts toward -z)
+    addQuad(p[7], p[6], p[14], p[15], [0, -1, 0]); // upper straight bottom
+    addQuad(p[6], p[5], p[13], p[14], nDiagBot);   // diagonal bottom
+    addQuad(p[5], p[4], p[12], p[13], [0, -1, 0]); // lower straight bottom
 
     // NO end caps (open inlet and outlet)
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone yields normals that agree with the triangle
-    // winding, which under side:DoubleSide reads flat and cold — QBa's BendMesh
-    // authors the opposing convention. applyStandardShading welds, recomputes,
-    // and flips into that convention so the offset shades as warm sheet metal.
-    const geo = applyStandardShading(rawGeo);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     // Left face outline
@@ -2013,45 +2042,60 @@ const QPR4aMesh: React.FC<{
     ];
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
-      verts.push(...a, ...b, ...c);
-    };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    // Author one flat, geometrically-outward normal per face — the same scheme
+    // the QPR2a / QPR6a reducers (and now QPR3a) use. QPR4a's raw triangle
+    // winding isn't globally consistent (the side walls wind one way, the
+    // top/bottom walls the other), so computeVertexNormals()+global-flip used
+    // to smear cold, half-cancelled normals across the section seams. Orienting
+    // each face outward by hand instead lands it in the same warm sheet-metal
+    // family as QPR2a.
+    const addQuad = (
+      q0: number[], q1: number[], q2: number[], q3: number[],
+      n: readonly [number, number, number],
+    ) => {
+      verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+      for (let i = 0; i < 6; i++) norms.push(n[0], n[1], n[2]);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
-    // Left face walls (3 sections)
-    addQuad(p[0], p[1], p[6], p[7]);   // inlet straight
-    addQuad(p[1], p[2], p[5], p[6]);   // diagonal
-    addQuad(p[2], p[3], p[4], p[5]);   // outlet straight
+    // Diagonal (offset) section — each wall normal tilts with the ramp. The
+    // inlet is d tall and the outlet b tall, so the top ramp's rise differs
+    // from the bottom ramp's.
+    const dz = sl - sh - sm - m1;
+    const tRise = se + sd - sb;                 // -(p2.y - p1.y), the top ramp
+    const tLen = Math.hypot(dz, tRise) || 1;
+    const bLen = Math.hypot(dz, se) || 1;
+    const nDiagTop = [0, dz / tLen, tRise / tLen] as const;
+    const nDiagBot = [0, -dz / bLen, -se / bLen] as const;
 
-    // Right face walls (3 sections)
-    addQuad(p[15], p[14], p[9], p[8]);
-    addQuad(p[14], p[13], p[10], p[9]);
-    addQuad(p[13], p[12], p[11], p[10]);
+    // Left face walls (x = -ha, outward -x)
+    addQuad(p[0], p[1], p[6], p[7], [-1, 0, 0]);   // inlet straight
+    addQuad(p[1], p[2], p[5], p[6], [-1, 0, 0]);   // diagonal
+    addQuad(p[2], p[3], p[4], p[5], [-1, 0, 0]);   // outlet straight
 
-    // Top walls
-    addQuad(p[0], p[1], p[9], p[8]);
-    addQuad(p[1], p[2], p[10], p[9]);
-    addQuad(p[2], p[3], p[11], p[10]);
+    // Right face walls (x = +ha, outward +x)
+    addQuad(p[15], p[14], p[9], p[8], [1, 0, 0]);
+    addQuad(p[14], p[13], p[10], p[9], [1, 0, 0]);
+    addQuad(p[13], p[12], p[11], p[10], [1, 0, 0]);
 
-    // Bottom walls
-    addQuad(p[7], p[6], p[14], p[15]);
-    addQuad(p[6], p[5], p[13], p[14]);
-    addQuad(p[5], p[4], p[12], p[13]);
+    // Top walls (outward +y; the diagonal tilts with tRise)
+    addQuad(p[0], p[1], p[9], p[8], [0, 1, 0]);
+    addQuad(p[1], p[2], p[10], p[9], nDiagTop);
+    addQuad(p[2], p[3], p[11], p[10], [0, 1, 0]);
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone agrees with the triangle winding, which under
-    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
-    // convention. applyStandardShading welds, recomputes, and flips into it so
-    // the offset shades as warm sheet metal (same fix as QPR3a).
-    const geo = applyStandardShading(rawGeo);
+    // Bottom walls (outward -y; the diagonal tilts toward -z)
+    addQuad(p[7], p[6], p[14], p[15], [0, -1, 0]);
+    addQuad(p[6], p[5], p[13], p[14], nDiagBot);
+    addQuad(p[5], p[4], p[12], p[13], [0, -1, 0]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     seg(p[0], p[1]); seg(p[1], p[2]); seg(p[2], p[3]);
@@ -2159,41 +2203,48 @@ const TR6aMesh: React.FC<{
     }
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
-      verts.push(...a, ...b, ...c);
-    };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    // Author one flat normal per face, in QBa's convention: it OPPOSES the
+    // face's triangle winding (what `applyStandardShading` produced globally,
+    // just without its weld). TR6a's shell is four planar plates — two side
+    // walls, two end caps — and the weld averaged their shared corner normals,
+    // which rounded off the shading at every edge. Flat per-face normals keep
+    // the plates crisp and land the shell in the same warm sheet-metal family
+    // as QPR2a. The plates aren't wound consistently (side walls wind CW seen
+    // from outside, caps CCW), so "oppose winding" is -x/+x on the walls but
+    // +z/-z (i.e. inward) on the caps — matching what the old global flip did.
+    const addQuad = (
+      q0: number[], q1: number[], q2: number[], q3: number[],
+      n: readonly [number, number, number],
+    ) => {
+      verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+      for (let i = 0; i < 6; i++) norms.push(n[0], n[1], n[2]);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
-    // Left face: 8 quads from top[i]→top[i+1] to bot[i+1]→bot[i]
+    // Left face: 8 quads from top[i]→top[i+1] to bot[i+1]→bot[i] (winds +x, so -x)
     for (let i = 0; i < N - 1; i++) {
-      addQuad(leftTop[i], leftTop[i + 1], leftBot[i + 1], leftBot[i]);
+      addQuad(leftTop[i], leftTop[i + 1], leftBot[i + 1], leftBot[i], [-1, 0, 0]);
     }
-    // Right face: 8 quads
+    // Right face: 8 quads (winds -x, so +x)
     for (let i = 0; i < N - 1; i++) {
-      addQuad(rightTop[i + 1], rightTop[i], rightBot[i], rightBot[i + 1]);
+      addQuad(rightTop[i + 1], rightTop[i], rightBot[i], rightBot[i + 1], [1, 0, 0]);
     }
-    // Front side (z=-sf/2): left[0] to right[0], top to bottom
-    addQuad(leftTop[0], rightTop[0], rightBot[0], leftBot[0]);
-    // Back side (z=+sf/2): left[N-1] to right[N-1], top to bottom
-    addQuad(rightTop[N - 1], leftTop[N - 1], leftBot[N - 1], rightBot[N - 1]);
+    // Front side (z=-sf/2): left[0] to right[0], top to bottom (winds -z, so +z)
+    addQuad(leftTop[0], rightTop[0], rightBot[0], leftBot[0], [0, 0, 1]);
+    // Back side (z=+sf/2): left[N-1] to right[N-1], top to bottom (winds +z, so -z)
+    addQuad(rightTop[N - 1], leftTop[N - 1], leftBot[N - 1], rightBot[N - 1], [0, 0, -1]);
 
     // Intentionally keep top and bottom open: this matches legacy TR6a,
     // which is modeled as a saddle shell (side walls + two end caps).
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone agrees with the triangle winding, which under
-    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
-    // convention. applyStandardShading welds (keeping the saddle curve smooth),
-    // recomputes, and flips into it so the shell shades as warm sheet metal.
-    const geo = applyStandardShading(rawGeo);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     // Left face outline (top curve + bottom + verticals)
@@ -2858,7 +2909,9 @@ const TR5aMesh: React.FC<{
     // A warped quad drawn as one triangle pair creases along its diagonal and
     // folds against its neighbours along a visible line. Subdivide into a
     // bilinear patch with exact analytic normals, negated into QBa's convention.
-    const panel = (i0: number, i1: number, i2: number, i3: number, res = 6) => {
+    // res is high: the metal is near-mirror (roughness 0.18), so a coarse grid
+    // shows the environment reflection kinking at every subdivision line.
+    const panel = (i0: number, i1: number, i2: number, i3: number, res = 20) => {
       const v0 = p[i0], v1 = p[i1], v2 = p[i2], v3 = p[i3];
       const P = (s: number, t: number): V3 => [
         (1-t)*((1-s)*v0[0]+s*v1[0]) + t*((1-s)*v3[0]+s*v2[0]),
@@ -2887,6 +2940,28 @@ const TR5aMesh: React.FC<{
         norms.push(...nn, ...nn, ...nn);
       }
     };
+    // A flat triangle subdivided res× along each edge, so its boundary vertices
+    // have coincident partners for the crease-blend (a bare face() triangle only
+    // shares its 3 corners, leaving a seam against a subdivided panel neighbour).
+    const tri = (i0: number, i1: number, i2: number, res = 20) => {
+      const A = p[i0], B = p[i1], C = p[i2];
+      const fn = nrm(crs([B[0]-A[0],B[1]-A[1],B[2]-A[2]], [C[0]-A[0],C[1]-A[1],C[2]-A[2]]));
+      const nn: V3 = [-fn[0], -fn[1], -fn[2]];
+      const Q = (u: number, v: number): V3 => [
+        A[0] + u*(B[0]-A[0]) + v*(C[0]-A[0]),
+        A[1] + u*(B[1]-A[1]) + v*(C[1]-A[1]),
+        A[2] + u*(B[2]-A[2]) + v*(C[2]-A[2]),
+      ];
+      for (let iu = 0; iu < res; iu++) for (let iv = 0; iv < res - iu; iv++) {
+        const u0 = iu/res, u1 = (iu+1)/res, v0 = iv/res, v1 = (iv+1)/res;
+        verts.push(...Q(u0,v0), ...Q(u1,v0), ...Q(u0,v1));
+        norms.push(...nn, ...nn, ...nn);
+        if (iv < res - iu - 1) {
+          verts.push(...Q(u1,v0), ...Q(u1,v1), ...Q(u0,v1));
+          norms.push(...nn, ...nn, ...nn);
+        }
+      }
+    };
 
     // inlet stub — 4 walls (flat)
     face(0, 1, 5, 4); face(1, 2, 6, 5); face(2, 3, 7, 6); face(3, 0, 4, 7);
@@ -2894,20 +2969,25 @@ const TR5aMesh: React.FC<{
     face(8, 9, 13, 12); face(9, 10, 14, 13); face(10, 11, 15, 14); face(11, 8, 12, 15);
     // branch d stub — 4 walls (flat)
     face(16, 17, 21, 20); face(17, 18, 22, 21); face(18, 19, 23, 22); face(19, 16, 20, 23);
-    // body — bottom/top skins and the crotch divider: warped, so subdivide.
+    // body — bottom/top skins and the crotch divider. The skins are planar but
+    // are still subdivided at the shared res so every panel-seam vertex has a
+    // coincident partner for the blend below (no T-junctions).
     panel(7, 4, 8, 11); panel(5, 6, 18, 17); panel(9, 24, 25, 10); panel(24, 16, 19, 25);
-    // The two 7-sided side transition skins — split watertight into two bilinear
-    // patches plus one corner triangle so they read as one formed surface rather
-    // than a fan of flats. (−X side [24,9,8,4,5,17,16], then +X side.)
-    panel(24, 9, 8, 4); panel(24, 4, 5, 17); face(24, 17, 16);
-    panel(25, 10, 11, 7); panel(25, 7, 6, 18); face(25, 18, 19);
+    // The two 7-sided side transition skins are genuinely doubly-curved. Split
+    // watertight into two bilinear patches plus one corner triangle and
+    // subdivide finely so each reads as one formed surface, not a fan of flats
+    // or a stack of reflection bands. (−X side [24,9,8,4,5,17,16], then +X side.)
+    panel(24, 9, 8, 4); panel(24, 4, 5, 17); tri(24, 17, 16);
+    panel(25, 10, 11, 7); panel(25, 7, 6, 18); tri(25, 18, 19);
 
     // Crease-aware blend: at each coincident vertex the normals are clustered and
-    // merged only when within 35° of each other, so the stubs, skins and
+    // merged only when within 70° of each other, so the stubs, skins and
     // transitions resolve to one continuous surface with no seam lines while the
-    // sharp folds (stub-wall corners, the branch openings) stay crisp.
+    // sharp folds (stub-wall corners, the branch openings — all ~90°) stay crisp.
+    // The threshold has to clear the internal fan lines of the side-transition
+    // skins (p24→p4, p25→p7), which are ~40–60° and must NOT read as creases.
     {
-      const cosC = Math.cos(35 * Math.PI / 180);
+      const cosC = Math.cos(70 * Math.PI / 180);
       const key = (x: number, y: number, z: number) => `${Math.round(x*4e3)},${Math.round(y*4e3)},${Math.round(z*4e3)}`;
       const groups = new Map<string, number[]>();
       for (let vI = 0; vI < verts.length; vI += 3) {
@@ -4633,32 +4713,25 @@ const TR9aMesh: React.FC<{
     const ddx_l3 = Math.cos(alfa) * l3;
     const ddy_l3 = Math.sin(alfa) * l3;
 
-    const calcDX = (y0: number, y1: number, alf: number) => (y0 - y1) * Math.tan(alf);
-
     // Near ring: circ[0..24], Far ring: circ2[0..24]
     const circ: [number, number, number][] = new Array(25);
     const circ2: [number, number, number][] = new Array(25);
 
+    // A true circle (radius d1/2) in Y–Z, sheared in X so it lies flat in the
+    // branch's own tilted plane: x is a linear function of z at rate tan(alfa).
+    // The legacy C# built x from a mis-indexed second point ((ii+18) % 25 — note
+    // the 25, not 24) then patched the resulting non-closure with a half-circle
+    // "mirror fix"; that left a hard tangent break running down the sleeve (the
+    // visible seam) and a kinked collar. Computing x straight from z closes the
+    // ring cleanly and makes the sleeve one smooth tube.
+    const tanA = Math.tan(alfa);
     for (let ii = 0; ii < 25; ii++) {
-      const alf = 15 * ii;
-      let cx = dx;
-      const cy = dy + Math.sin(alf * Math.PI / 180) * (d1 / 2);
-      const cz = dz - Math.cos(alf * Math.PI / 180) * (d1 / 2);
-
-      // C# uses punkty[1, 30 + aaa] with deferred initialization
-      // For correctness, precompute the Y value for aaa
-      const aaa = (ii + 18) % 25;
-      const cy_aaa = dy + Math.sin(15 * aaa * Math.PI / 180) * (d1 / 2);
-      cx -= calcDX(p[9][1], cy_aaa, -alfa);
-
+      const ang = 15 * ii * Math.PI / 180;
+      const cy = dy + Math.sin(ang) * (d1 / 2);
+      const cz = dz - Math.cos(ang) * (d1 / 2);
+      const cx = dx + (p[9][1] - dy - (cz - dz)) * tanA;
       circ[ii] = [cx, cy, cz];
       circ2[ii] = [cx - ddx_l3, cy, cz - ddy_l3];
-    }
-
-    // C# mirror fix for first 12 points (line 5207-5211)
-    for (let ii = 0; ii < 12; ii++) {
-      circ[ii][0] = circ[24 - ii][0];
-      circ2[ii][0] = circ[24 - ii][0] - ddx_l3;
     }
 
     // ── Bridge vertices (square-to-circle transition, lines 5213-5242) ──
@@ -4730,7 +4803,7 @@ const TR9aMesh: React.FC<{
     // exact analytic normals, negated into QBa's opposing convention, so it shades
     // as one formed sheet. The cross-panel averaging pass below then blends the
     // joins so the whole body reads as a single surface.
-    const addPanel = (v0: V3, v1: V3, v2: V3, v3: V3, res = 8) => {
+    const addPanel = (v0: V3, v1: V3, v2: V3, v3: V3, res = 12) => {
       const P = (s: number, t: number): V3 => lerp3(lerp3(v0, v1, s), lerp3(v3, v2, s), t);
       const N = (s: number, t: number): V3 => {
         const ds: V3 = [
@@ -4755,16 +4828,73 @@ const TR9aMesh: React.FC<{
         }
       }
     };
+    // The whole left wall — the four skewed frame panels around the branch
+    // opening PLUS the square-to-round collar — is planar to within a few
+    // degrees: it all lies in the branch's tilted plane, `wallN`. (The collar's
+    // bilinear analytic normal blows up on the near-degenerate sliver patches at
+    // the four points where the round mouth all but touches the rectangle — that
+    // is what made the region read as a fan of facets.) Shade it as one smooth
+    // surface with `wallNormalAt`: `wallN`, tilted a few degrees radially outward
+    // as it approaches the tunnel so it flares into the sleeve like a formed
+    // collar and catches light instead of reading as one dead-flat mirror.
+    // Sign matches what addPanel authors for these panels (bridge[6]-bridge[0]
+    // ✕ bridge[18]-bridge[0], NOT negated) so the wall reads the same warm tone
+    // as the duct's other walls rather than sampling the cold hemisphere.
+    const wallN: V3 = norm(cross(
+      [bridge[6][0] - bridge[0][0], bridge[6][1] - bridge[0][1], bridge[6][2] - bridge[0][2]],
+      [bridge[18][0] - bridge[0][0], bridge[18][1] - bridge[0][1], bridge[18][2] - bridge[0][2]],
+    ));
+    const circCenter: V3 = [
+      circ.reduce((s, v) => s + v[0], 0) / circ.length,
+      circ.reduce((s, v) => s + v[1], 0) / circ.length,
+      circ.reduce((s, v) => s + v[2], 0) / circ.length,
+    ];
+    const rTube = Math.hypot(
+      circ[0][0] - circCenter[0], circ[0][1] - circCenter[1], circ[0][2] - circCenter[2],
+    ) || 1;
+    const wallNormalAt = (pos: V3): V3 => {
+      let rx = pos[0] - circCenter[0], ry = pos[1] - circCenter[1], rz = pos[2] - circCenter[2];
+      const along = rx * wallN[0] + ry * wallN[1] + rz * wallN[2];
+      rx -= along * wallN[0]; ry -= along * wallN[1]; rz -= along * wallN[2];
+      const d = Math.hypot(rx, ry, rz);
+      if (d < 1e-6) return wallN;
+      const k = 0.13 * Math.max(0, 1 - Math.max(0, d - rTube) / (rTube * 1.2));
+      return norm([wallN[0] + k * rx / d, wallN[1] + k * ry / d, wallN[2] + k * rz / d]);
+    };
+    // Subdivide a quad; every vertex gets `wallNormalAt`, so the frame and the
+    // collar are one continuous formed surface with no facets or tonal seam.
+    const addWallGrid = (v0: V3, v1: V3, v2: V3, v3: V3, res: number) => {
+      for (let si = 0; si < res; si++) {
+        for (let ti = 0; ti < res; ti++) {
+          const s0 = si / res, s1 = (si + 1) / res, t0 = ti / res, t1 = (ti + 1) / res;
+          const P = (s: number, t: number): V3 => lerp3(lerp3(v0, v1, s), lerp3(v3, v2, s), t);
+          addSmooth(
+            P(s0, t0), P(s1, t0), P(s1, t1), P(s0, t1),
+            wallNormalAt(P(s0, t0)), wallNormalAt(P(s1, t0)),
+            wallNormalAt(P(s1, t1)), wallNormalAt(P(s0, t1)),
+          );
+        }
+      }
+    };
+    // Loft a straight outer edge (oa→ob) onto one side of the `bridge` polyline,
+    // sampled at the SAME points the collar uses so the two share every seam
+    // vertex and the whole wall welds into one surface.
+    const addStrip = (oa: V3, ob: V3, inner: V3[], res = 12) => {
+      const M = inner.length - 1;
+      for (let si = 0; si < M; si++) {
+        addWallGrid(lerp3(oa, ob, si / M), lerp3(oa, ob, (si + 1) / M), inner[si + 1], inner[si], res);
+      }
+    };
 
     // Main duct walls (C# GL quads lines 489-544)
     addPanel(p[0], p[4], p[5], p[1]);   // top wall
     addPanel(p[1], p[5], p[6], p[2]);   // right wall
     addPanel(p[2], p[6], p[7], p[3]);   // bottom wall
-    // End cap walls with branch opening (lines 531-544)
-    addPanel(p[3], p[0], p[9], p[10]);  // front-to-branch top
-    addPanel(p[7], p[3], p[10], p[14]); // bottom-to-branch
-    addPanel(p[4], p[7], p[14], p[13]); // back-to-branch
-    addPanel(p[0], p[4], p[13], p[9]);  // left-to-branch
+    // Left wall: four frame panels around the branch opening, one flat surface.
+    addStrip(p[3], p[0], bridge.slice(0, 7).reverse());   // front-to-branch top
+    addStrip(p[7], p[3], bridge.slice(6, 13).reverse());  // bottom-to-branch
+    addStrip(p[4], p[7], bridge.slice(12, 19).reverse()); // back-to-branch
+    addStrip(p[0], p[4], bridge.slice(18, 25).reverse()); // left-to-branch
 
     // Smooth the legacy 24-sided branch profile into a 96-sided sleeve while
     // retaining its exact square-to-round transition at the connection ring.
@@ -4808,20 +4938,28 @@ const TR9aMesh: React.FC<{
 
     // Square-to-circle transition — warped quads, subdivided so the collar between
     // the rectangular opening and the round sleeve reads as one formed surface.
-    const at = [16, 17, 18, 19, 20, 21, 22, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+    // circ segment ii ↔ bridge segment (ii+16)%24, a clean bijection over all 24.
+    // (The literal C# table skipped bridge seg 23→24 and double-covered 16→17,
+    // leaving a hole + a pinch at the bottom of the tunnel mouth.)
     for (let ii = 0; ii < 24; ii++) {
-      const ac = at[ii] + 1;
-      const ad = at[ii];
-      addPanel(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 3);
+      const ad = (ii + 16) % 24;
+      const ac = ad + 1;
+      // Same wallNormalAt treatment as the frame, so the collar and frame weld
+      // into one formed surface around the tunnel mouth with no facet fan from
+      // the near-degenerate sliver patches at the tangent points.
+      addWallGrid(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 12);
     }
 
     // Crease-aware blend across every panel boundary: at each coincident vertex
-    // the normals are clustered and only merged when they are within 35° of each
-    // other, so the duct walls, branch collar, square-to-round transition and
-    // sleeve resolve to one continuous surface with no seam lines while genuine
-    // folds (wall-to-wall edges, the mouth of the tunnel) stay crisp.
+    // the normals are clustered and only merged when they are within 82° of each
+    // other. The whole left-wall funnel — the four skewed frame panels, the
+    // square-to-round collar and the join between them at the opening rim — turns
+    // through shallow angles, so all of it resolves to one continuous formed
+    // surface. The one fold that must stay crisp is the tunnel mouth itself,
+    // where the collar (normal ≈ branch axis) meets the sleeve (normal ⊥ axis)
+    // at ~90°; 82° keeps that.
     {
-      const cosC = Math.cos(35 * Math.PI / 180);
+      const cosC = Math.cos(82 * Math.PI / 180);
       const key = (x: number, y: number, z: number) =>
         `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
       const groups = new Map<string, number[]>();
@@ -5156,32 +5294,42 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
 
   // Render scene objects based on shape
   const renderShapeMesh = () => {
-        // TR1a — rectangular branch tee
+        // TR1a — rectangular branch tee. Defaults mirror the .NET app's built-in TR1a
+        // sample (Form1.cs ~L13310): a=200 b=250 d=140 w=180 L=500 e=250 f=110 l3=80.
+        // The old fallbacks were invented — a square 200×200 duct with a branch as deep
+        // as the duct (d=a, clamped) hanging 200 mm down and shoved off-centre.
         if (symbol === 'TR1a') {
-          const d   = values[2] || 200;
-          const w   = values[3] || 200;
+          const ta  = values[0] || 200;
+          const tb  = values[1] || 250;
+          const d   = values[2] || 140;
+          const w   = values[3] || 180;
           const tL  = values[4] || 500;
-          const te  = values[5] || 150;
-          const tf  = values[6] || (a / 2);
-          const tl3 = values[7] || 200;
+          const te  = values[5] || 250;
+          const tf  = values[6] || 110;
+          const tl3 = values[7] || 80;
           return (
             <>
-              <TR1aMesh a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />
-              {showDimensions && <TR1aLabels a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />}
+              <TR1aMesh a={ta} b={tb} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />
+              {showDimensions && <TR1aLabels a={ta} b={tb} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />}
             </>
           );
         }
-        // TR2a — tee with round branch
+        // TR2a — tee with round branch. Defaults mirror the .NET app's built-in TR2a
+        // sample (Form1.cs ~L13415): a=200 b=250 d=140 L=500 l3=80 e=250 f=100. Old
+        // fallbacks were invented (square 200 duct, l3=200 branch, e off-centre) and
+        // rendered "a" as the depth — same a/b label-vs-var swap fixed for TR1a.
         if (symbol === 'TR2a') {
-          const d   = values[2] || 200;
+          const ta  = values[0] || 200;
+          const tb  = values[1] || 250;
+          const d   = values[2] || 140;
           const tL  = values[3] || 500;
-          const tl3 = values[4] || 200;
-          const te  = values[5] || 150;
-          const tf  = values[6] || (a / 2);
+          const tl3 = values[4] || 80;
+          const te  = values[5] || 250;
+          const tf  = values[6] || 100;
           return (
             <>
-              <TR2aMesh a={a} b={b} d={d} L={tL} l3={tl3} e={te} f={tf} />
-              {showDimensions && <TR2aLabels a={a} b={b} d={d} L={tL} l3={tl3} e={te} f={tf} />}
+              <TR2aMesh a={ta} b={tb} d={d} L={tL} l3={tl3} e={te} f={tf} />
+              {showDimensions && <TR2aLabels a={ta} b={tb} d={d} L={tL} l3={tl3} e={te} f={tf} />}
             </>
           );
         }
