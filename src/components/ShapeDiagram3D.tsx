@@ -4828,17 +4828,58 @@ const TR9aMesh: React.FC<{
         }
       }
     };
-    // Loft a straight outer edge (oa→ob) onto an inner polyline. Used for the
-    // four end-cap panels around the branch opening: the inner edge is one side
-    // of the square-to-round `bridge` polyline, sampled at the SAME points the
-    // collar uses, so the collar blends into the flat wall with no seam ring
-    // around the tunnel mouth. `res` must match the collar's.
+    // The whole left wall — the four skewed frame panels around the branch
+    // opening PLUS the square-to-round collar — is planar to within a few
+    // degrees: it all lies in the branch's tilted plane, `wallN`. (The collar's
+    // bilinear analytic normal blows up on the near-degenerate sliver patches at
+    // the four points where the round mouth all but touches the rectangle — that
+    // is what made the region read as a fan of facets.) Shade it as one smooth
+    // surface with `wallNormalAt`: `wallN`, tilted a few degrees radially outward
+    // as it approaches the tunnel so it flares into the sleeve like a formed
+    // collar and catches light instead of reading as one dead-flat mirror.
+    const wallN: V3 = neg(norm(cross(
+      [bridge[6][0] - bridge[0][0], bridge[6][1] - bridge[0][1], bridge[6][2] - bridge[0][2]],
+      [bridge[18][0] - bridge[0][0], bridge[18][1] - bridge[0][1], bridge[18][2] - bridge[0][2]],
+    )));
+    const circCenter: V3 = [
+      circ.reduce((s, v) => s + v[0], 0) / circ.length,
+      circ.reduce((s, v) => s + v[1], 0) / circ.length,
+      circ.reduce((s, v) => s + v[2], 0) / circ.length,
+    ];
+    const rTube = Math.hypot(
+      circ[0][0] - circCenter[0], circ[0][1] - circCenter[1], circ[0][2] - circCenter[2],
+    ) || 1;
+    const wallNormalAt = (pos: V3): V3 => {
+      let rx = pos[0] - circCenter[0], ry = pos[1] - circCenter[1], rz = pos[2] - circCenter[2];
+      const along = rx * wallN[0] + ry * wallN[1] + rz * wallN[2];
+      rx -= along * wallN[0]; ry -= along * wallN[1]; rz -= along * wallN[2];
+      const d = Math.hypot(rx, ry, rz);
+      if (d < 1e-6) return wallN;
+      const k = 0.13 * Math.max(0, 1 - Math.max(0, d - rTube) / (rTube * 1.2));
+      return norm([wallN[0] + k * rx / d, wallN[1] + k * ry / d, wallN[2] + k * rz / d]);
+    };
+    // Subdivide a quad; every vertex gets `wallNormalAt`, so the frame and the
+    // collar are one continuous formed surface with no facets or tonal seam.
+    const addWallGrid = (v0: V3, v1: V3, v2: V3, v3: V3, res: number) => {
+      for (let si = 0; si < res; si++) {
+        for (let ti = 0; ti < res; ti++) {
+          const s0 = si / res, s1 = (si + 1) / res, t0 = ti / res, t1 = (ti + 1) / res;
+          const P = (s: number, t: number): V3 => lerp3(lerp3(v0, v1, s), lerp3(v3, v2, s), t);
+          addSmooth(
+            P(s0, t0), P(s1, t0), P(s1, t1), P(s0, t1),
+            wallNormalAt(P(s0, t0)), wallNormalAt(P(s1, t0)),
+            wallNormalAt(P(s1, t1)), wallNormalAt(P(s0, t1)),
+          );
+        }
+      }
+    };
+    // Loft a straight outer edge (oa→ob) onto one side of the `bridge` polyline,
+    // sampled at the SAME points the collar uses so the two share every seam
+    // vertex and the whole wall welds into one surface.
     const addStrip = (oa: V3, ob: V3, inner: V3[], res = 12) => {
       const M = inner.length - 1;
       for (let si = 0; si < M; si++) {
-        const o0 = lerp3(oa, ob, si / M);
-        const o1 = lerp3(oa, ob, (si + 1) / M);
-        addPanel(o0, o1, inner[si + 1], inner[si], res);
+        addWallGrid(lerp3(oa, ob, si / M), lerp3(oa, ob, (si + 1) / M), inner[si + 1], inner[si], res);
       }
     };
 
@@ -4846,9 +4887,7 @@ const TR9aMesh: React.FC<{
     addPanel(p[0], p[4], p[5], p[1]);   // top wall
     addPanel(p[1], p[5], p[6], p[2]);   // right wall
     addPanel(p[2], p[6], p[7], p[3]);   // bottom wall
-    // End-cap walls around the branch opening. Their inner edge is lofted onto
-    // the square-to-round `bridge` polyline (same points the collar uses), so the
-    // round tunnel blends into the flat cap instead of leaving a seam ring.
+    // Left wall: four frame panels around the branch opening, one flat surface.
     addStrip(p[3], p[0], bridge.slice(0, 7).reverse());   // front-to-branch top
     addStrip(p[7], p[3], bridge.slice(6, 13).reverse());  // bottom-to-branch
     addStrip(p[4], p[7], bridge.slice(12, 19).reverse()); // back-to-branch
@@ -4902,20 +4941,22 @@ const TR9aMesh: React.FC<{
     for (let ii = 0; ii < 24; ii++) {
       const ad = (ii + 16) % 24;
       const ac = ad + 1;
-      // res 12 (matches addStrip) — a coarser grid faceted the collar and the
-      // reflection banded at every subdivision line on the near-mirror metal.
-      addPanel(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 12);
+      // Same wallNormalAt treatment as the frame, so the collar and frame weld
+      // into one formed surface around the tunnel mouth with no facet fan from
+      // the near-degenerate sliver patches at the tangent points.
+      addWallGrid(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 12);
     }
 
     // Crease-aware blend across every panel boundary: at each coincident vertex
-    // the normals are clustered and only merged when they are within 68° of each
-    // other, so the duct walls, branch collar, square-to-round transition and
-    // sleeve resolve to one continuous surface with no seam lines while genuine
-    // folds (wall-to-wall corners ~90°, the mouth of the tunnel) stay crisp. The
-    // threshold has to clear the square-to-round collar, where the surface turns
-    // through ~60° from the flat cap to the sleeve over a short span.
+    // the normals are clustered and only merged when they are within 82° of each
+    // other. The whole left-wall funnel — the four skewed frame panels, the
+    // square-to-round collar and the join between them at the opening rim — turns
+    // through shallow angles, so all of it resolves to one continuous formed
+    // surface. The one fold that must stay crisp is the tunnel mouth itself,
+    // where the collar (normal ≈ branch axis) meets the sleeve (normal ⊥ axis)
+    // at ~90°; 82° keeps that.
     {
-      const cosC = Math.cos(68 * Math.PI / 180);
+      const cosC = Math.cos(82 * Math.PI / 180);
       const key = (x: number, y: number, z: number) =>
         `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
       const groups = new Map<string, number[]>();
