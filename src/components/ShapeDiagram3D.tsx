@@ -5612,8 +5612,9 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
       const td1 = values[4] || 200;
       const tl = values[5] || 600;
       const tl3 = values[6] || 100;
-      const tm = values[7] || 0;
-      const tn = values[8] || 0;
+      // Empty-form preview: .NET sample values (Form1.cs ~L12180), matching TR8a and the 2D
+      const tm = values[7] || -100;
+      const tn = values[8] || -150;
       const te = values[9] || Math.trunc(tl / 2);
       const tf = values[10] || Math.trunc(td_cs / 2);
       const ti = Math.max(values[11] || 30, 30);

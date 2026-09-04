@@ -5277,8 +5277,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     let d1 = values[4] || 200;
     let l = values[5] || 600;
     let l3 = values[6] || 100;
-    let m = values[7] || 0;
-    let n = values[8] || 0;
+    // Empty-form preview: .NET sample values (Form1.cs ~L12180) — m/n are the skew
+    // offsets and are negative in the reference; 0 collapses the m/n dimension lines.
+    let m = values[7] || -100;
+    let n = values[8] || -150;
     let ee = values[9] || Math.trunc(l / 2);
     let f = values[10] || Math.trunc(b / 2);
     let i = Math.max(values[11] || 30, 30);
