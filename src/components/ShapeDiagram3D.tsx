@@ -4837,10 +4837,13 @@ const TR9aMesh: React.FC<{
     // surface with `wallNormalAt`: `wallN`, tilted a few degrees radially outward
     // as it approaches the tunnel so it flares into the sleeve like a formed
     // collar and catches light instead of reading as one dead-flat mirror.
-    const wallN: V3 = neg(norm(cross(
+    // Sign matches what addPanel authors for these panels (bridge[6]-bridge[0]
+    // ✕ bridge[18]-bridge[0], NOT negated) so the wall reads the same warm tone
+    // as the duct's other walls rather than sampling the cold hemisphere.
+    const wallN: V3 = norm(cross(
       [bridge[6][0] - bridge[0][0], bridge[6][1] - bridge[0][1], bridge[6][2] - bridge[0][2]],
       [bridge[18][0] - bridge[0][0], bridge[18][1] - bridge[0][1], bridge[18][2] - bridge[0][2]],
-    )));
+    ));
     const circCenter: V3 = [
       circ.reduce((s, v) => s + v[0], 0) / circ.length,
       circ.reduce((s, v) => s + v[1], 0) / circ.length,
