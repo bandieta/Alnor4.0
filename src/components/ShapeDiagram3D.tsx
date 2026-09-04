@@ -2203,41 +2203,48 @@ const TR6aMesh: React.FC<{
     }
 
     const verts: number[] = [];
+    const norms: number[] = [];
     const edgePts: number[] = [];
 
-    const addTri = (a: number[], b: number[], c: number[]) => {
-      verts.push(...a, ...b, ...c);
-    };
-    const addQuad = (q0: number[], q1: number[], q2: number[], q3: number[]) => {
-      addTri(q0, q1, q2);
-      addTri(q0, q2, q3);
+    // Author one flat normal per face, in QBa's convention: it OPPOSES the
+    // face's triangle winding (what `applyStandardShading` produced globally,
+    // just without its weld). TR6a's shell is four planar plates — two side
+    // walls, two end caps — and the weld averaged their shared corner normals,
+    // which rounded off the shading at every edge. Flat per-face normals keep
+    // the plates crisp and land the shell in the same warm sheet-metal family
+    // as QPR2a. The plates aren't wound consistently (side walls wind CW seen
+    // from outside, caps CCW), so "oppose winding" is -x/+x on the walls but
+    // +z/-z (i.e. inward) on the caps — matching what the old global flip did.
+    const addQuad = (
+      q0: number[], q1: number[], q2: number[], q3: number[],
+      n: readonly [number, number, number],
+    ) => {
+      verts.push(...q0, ...q1, ...q2, ...q0, ...q2, ...q3);
+      for (let i = 0; i < 6; i++) norms.push(n[0], n[1], n[2]);
     };
     const seg = (A: number[], B: number[]) =>
       edgePts.push(A[0], A[1], A[2], B[0], B[1], B[2]);
 
-    // Left face: 8 quads from top[i]→top[i+1] to bot[i+1]→bot[i]
+    // Left face: 8 quads from top[i]→top[i+1] to bot[i+1]→bot[i] (winds +x, so -x)
     for (let i = 0; i < N - 1; i++) {
-      addQuad(leftTop[i], leftTop[i + 1], leftBot[i + 1], leftBot[i]);
+      addQuad(leftTop[i], leftTop[i + 1], leftBot[i + 1], leftBot[i], [-1, 0, 0]);
     }
-    // Right face: 8 quads
+    // Right face: 8 quads (winds -x, so +x)
     for (let i = 0; i < N - 1; i++) {
-      addQuad(rightTop[i + 1], rightTop[i], rightBot[i], rightBot[i + 1]);
+      addQuad(rightTop[i + 1], rightTop[i], rightBot[i], rightBot[i + 1], [1, 0, 0]);
     }
-    // Front side (z=-sf/2): left[0] to right[0], top to bottom
-    addQuad(leftTop[0], rightTop[0], rightBot[0], leftBot[0]);
-    // Back side (z=+sf/2): left[N-1] to right[N-1], top to bottom
-    addQuad(rightTop[N - 1], leftTop[N - 1], leftBot[N - 1], rightBot[N - 1]);
+    // Front side (z=-sf/2): left[0] to right[0], top to bottom (winds -z, so +z)
+    addQuad(leftTop[0], rightTop[0], rightBot[0], leftBot[0], [0, 0, 1]);
+    // Back side (z=+sf/2): left[N-1] to right[N-1], top to bottom (winds +z, so -z)
+    addQuad(rightTop[N - 1], leftTop[N - 1], leftBot[N - 1], rightBot[N - 1], [0, 0, -1]);
 
     // Intentionally keep top and bottom open: this matches legacy TR6a,
     // which is modeled as a saddle shell (side walls + two end caps).
 
-    const rawGeo = new THREE.BufferGeometry();
-    rawGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    // computeVertexNormals() alone agrees with the triangle winding, which under
-    // side:DoubleSide reads flat and cold; QBa's BendMesh authors the opposing
-    // convention. applyStandardShading welds (keeping the saddle curve smooth),
-    // recomputes, and flips into it so the shell shades as warm sheet metal.
-    const geo = applyStandardShading(rawGeo);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(norms, 3));
+    geo.userData.preserveNormals = true;
 
     // Edge wireframe
     // Left face outline (top curve + bottom + verticals)
