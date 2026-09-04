@@ -2002,21 +2002,23 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   const renderTR1a = () => {
     // TR1a: rectangular branch tee
     // values: a, b, d, w, L, e, f, l3
-    const a   = values[0] || 200;
-    const b   = values[1] || 200;
-    const d   = values[2] || 120;  // branch z-depth (cross-section)
-    const w   = values[3] || 200;  // branch x-width
+    // Defaults mirror the .NET app's built-in TR1a sample (Form1.cs ~L13310).
+    // "a" is the duct height, "b" the depth — matching the .NET UI labels.
+    const a   = values[0] || 200;  // main duct height (vertical in front view)
+    const b   = values[1] || 250;  // main duct depth (horizontal in cross-section)
+    const d   = values[2] || 140;  // branch z-depth (cross-section)
+    const w   = values[3] || 180;  // branch x-width (along duct length)
     const L   = values[4] || 500;  // main duct length
-    const e   = values[5] || 150;  // branch x-offset from left
-    const f   = values[6] || (a / 2); // branch center offset in z-depth
-    const l3  = values[7] || 200;  // branch y-length (downward)
+    const e   = values[5] || 250;  // branch x-offset from left
+    const f   = values[6] || 110;  // branch center offset across the depth
+    const l3  = values[7] || 80;   // branch y-length (downward)
 
     // Left panel (~60%): front view showing main duct + branch
     const sideW = width * 0.60;
-    const totalH = b + l3;
+    const totalH = a + l3;
     const sc = Math.min((height - 44) / totalH, (sideW - 44) / L);
     const sL = Math.max(L * sc, 20);
-    const sb = Math.max(b * sc, 8);
+    const sb = Math.max(a * sc, 8);  // scaled main duct height in the front view (label "a")
     const sw = Math.max(w * sc, 8);
     const sl3 = Math.max(l3 * sc, 8);
     const se = e * sc;
@@ -2029,8 +2031,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const crossAreaX = sideW + 6;
     const crossAreaW = width - crossAreaX - 8;
     const csc = Math.min(crossAreaW * 0.7, (height - 44) * 0.7) / Math.max(a, b, 1);
-    const ca = Math.max(a * csc, 12);
-    const cb = Math.max(b * csc, 12);
+    const ca = Math.max(b * csc, 12);  // cross-section width  = duct depth  (label "b")
+    const cb = Math.max(a * csc, 12);  // cross-section height = duct height (label "a")
     const cd = Math.max(d * csc, 8);
     const cp = Math.min(6, Math.max(3, ca * 0.08));
     const crossX = crossAreaX + (crossAreaW - ca) / 2;
@@ -2071,12 +2073,12 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={ox + sL / 2} y={oy - fp - 17}
           textAnchor="middle" fontSize={10} fill="#555555">L</text>
 
-        {/* b dimension (main duct height) */}
+        {/* a dimension (main duct height) */}
         <line x1={ox + sL + 12} y1={oy} x2={ox + sL + 12} y2={oy + sb}
           stroke="#9b9b9b" strokeWidth={0.8}
           markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
         <text x={ox + sL + 22} y={oy + sb / 2 + 4}
-          textAnchor="start" fontSize={10} fill="#555555">b</text>
+          textAnchor="start" fontSize={10} fill="#555555">a</text>
 
         {/* w dimension (branch width) */}
         {sw > 8 && (
@@ -2128,12 +2130,12 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           stroke="#9b9b9b" strokeWidth={0.8}
           markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
         <text x={crossX + ca / 2} y={crossY - cp - 14}
-          textAnchor="middle" fontSize={10} fill="#555555">a</text>
+          textAnchor="middle" fontSize={10} fill="#555555">b</text>
         <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
           stroke="#9b9b9b" strokeWidth={0.8}
           markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
         <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
-          textAnchor="start" fontSize={10} fill="#555555">b</text>
+          textAnchor="start" fontSize={10} fill="#555555">a</text>
 
         {/* d dimension (branch depth in cross-section) */}
         <line x1={branchLeftX} y1={crossY + cb + cp + 10} x2={branchRightX} y2={crossY + cb + cp + 10}
@@ -2154,15 +2156,17 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
   const renderTeeJunction = () => {
     // TR2a: tee junction with round branch (matching C# Form1.cs)
-    // Left: front view — horizontal main duct l×a, branch d×l3 going UP from top
-    // Right: cross-section — a×b rectangle with branch d×l3 above
-    const a  = values[0] || 200;
-    const b  = values[1] || 200;
-    const d  = values[2] || 150;
-    const L  = values[3] || 500;
-    const l3 = values[4] || 200;
-    const e  = values[5] || 250;
-    const f  = values[6] || (a / 2);
+    // Left: front view — horizontal main duct L×a, branch d×l3 going UP from top
+    // Right: cross-section — b(depth)×a(height) rectangle with the round branch
+    // Defaults mirror the .NET app's built-in TR2a sample (Form1.cs ~L13415).
+    // "a" is the duct height, "b" the depth — matching the .NET UI labels.
+    const a  = values[0] || 200;  // duct height
+    const b  = values[1] || 250;  // duct depth
+    const d  = values[2] || 140;  // branch diameter
+    const L  = values[3] || 500;  // main duct length
+    const l3 = values[4] || 80;   // branch length
+    const e  = values[5] || 250;  // branch centre offset from left
+    const f  = values[6] || 100;  // branch offset across the depth
 
     const sideW = width * 0.6;
     const sc = Math.min((sideW - 60) / L, (height - 60) / (a + l3));
@@ -2190,8 +2194,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const crossAreaX = sideW + 10;
     const crossAreaW = width - crossAreaX - 10;
     const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / Math.max(a, b, d);
-    const ca = Math.max(a * crossScale, 14);
-    const cb = Math.max(b * crossScale, 14);
+    const ca = Math.max(b * crossScale, 14);  // cross-section width  = duct depth  (label "b")
+    const cb = Math.max(a * crossScale, 14);  // cross-section height = duct height (label "a")
     const cp = Math.min(6, Math.max(3, ca * 0.08));
     const crossX = crossAreaX + (crossAreaW - ca) / 2;
     const crossY = (height - cb) / 2 + 4;

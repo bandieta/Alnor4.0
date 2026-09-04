@@ -1235,15 +1235,20 @@ const ReductionElbowMesh: React.FC<{
 };
 
 /* ===== TR1a Tee — rectangular branch off bottom of main duct ===== */
-// Params: a (main z-depth), b (main y-height), d (branch z-depth), w (branch x-width),
-//         L (main x-length), e (branch x-offset from left), f (branch z-offset from front), l3 (branch y-length)
+// Params follow the .NET form's UI labels: a (main y-height), b (main z-depth),
+//         d (branch z-depth), w (branch x-width), L (main x-length),
+//         e (branch x-offset from left), f (branch z-offset from front), l3 (branch y-length)
+// NB the .NET 3D code swaps a/b internally (its `var a` reads textBox "b", `var b` reads
+// textBox "a"), so its punkty put `a` on Z. Here we keep the label meaning — "a" is the
+// duct height — and map it onto the Y axis, matching what the .NET preview actually draws.
 const TR1aMesh: React.FC<{
   a: number; b: number; d: number; w: number; L: number;
   e: number; f: number; l3: number;
 }> = ({ a, b, d, w, L, e, f, l3 }) => {
   const maxDim = Math.max(a, b, d, w, L, e, f, l3, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sb = b * scale, sd = d * scale;
+  // sa = depth half-basis (Z, from label "b"); sb = height (Y, from label "a").
+  const sa = b * scale, sb = a * scale, sd = d * scale;
   const sw = w * scale, sl = L * scale;
   const se = e * scale, sf = f * scale, sl3 = l3 * scale;
 
@@ -1399,7 +1404,8 @@ const TR1aLabels: React.FC<{
 }> = ({ a, b, d, w, L, e, f, l3 }) => {
   const maxDim = Math.max(a, b, d, w, L, e, l3, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sb = b * scale, sd = d * scale, sl = L * scale, sw = w * scale, sl3 = l3 * scale;
+  // sa = depth basis (Z, label "b"); sb = height (Y, label "a") — see TR1aMesh note.
+  const sa = b * scale, sb = a * scale, sd = d * scale, sl = L * scale, sw = w * scale, sl3 = l3 * scale;
   const hb = sb / 2, hL = sl / 2;
 
   const swSafe = Math.min(sw, Math.max(0.001, sl * 0.98));
@@ -1418,9 +1424,9 @@ const TR1aLabels: React.FC<{
       <Billboard position={[0, hb + 0.2, 0]}>
         <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="bottom">{`L = ${Math.round(L)}`}</Text>
       </Billboard>
-      {/* b — main duct height */}
+      {/* a — main duct height */}
       <Billboard position={[hL + 0.2, 0, 0]}>
-        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`a = ${Math.round(a)}`}</Text>
       </Billboard>
       {/* w — branch width */}
       <Billboard position={[brDX, brBotY - 0.18, 0]}>
@@ -1438,24 +1444,28 @@ const TR1aLabels: React.FC<{
       <Billboard position={[-hL - 0.16, brTopY - 0.02, branchCenterZ]}>
         <Text fontSize={0.10} color="#666666" anchorX="right" anchorY="middle">{`f = ${Math.round(f)}`}</Text>
       </Billboard>
-      {/* a label */}
+      {/* b — main duct depth */}
       <Billboard position={[0, -hb - sl3 / 2, 0]}>
-        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`a=${Math.round(a)}`}</Text>
+        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
       </Billboard>
     </>
   );
 };
 
 /* ===== TR2a Tee — rectangular main duct with round branch ===== */
-// Params: a (main z-depth), b (main y-height), d (branch diameter),
-//         L (main x-length), l3 (branch y-length), e (branch x-offset from left), f (branch z-offset from front)
+// Params follow the .NET form's UI labels: a (main y-height), b (main z-depth),
+//         d (branch diameter), L (main x-length), l3 (branch y-length),
+//         e (branch x-offset from left), f (branch z-offset from front)
+// Same a/b label-vs-var swap as TR1aMesh: the .NET 3D code reads `var a` from textBox
+// "b" and `var b` from "a". Here "a" keeps its label meaning (duct height → Y).
 const TR2aMesh: React.FC<{
   a: number; b: number; d: number; L: number;
   l3: number; e: number; f: number;
 }> = ({ a, b, d, L, l3, e, f }) => {
   const maxDim = Math.max(a, b, d, L, l3, e, f, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sb = b * scale, sd = d * scale;
+  // sa = depth half-basis (Z, from label "b"); sb = height (Y, from label "a").
+  const sa = b * scale, sb = a * scale, sd = d * scale;
   const sl = L * scale, sl3 = l3 * scale;
   const se = e * scale, sf = f * scale;
 
@@ -1607,7 +1617,8 @@ const TR2aLabels: React.FC<{
 }> = ({ a, b, d, L, l3, e, f }) => {
   const maxDim = Math.max(a, b, d, L, l3, e, 1);
   const scale = 2 / maxDim;
-  const sa = a * scale, sd = d * scale, sb = b * scale, sl = L * scale, sl3 = l3 * scale;
+  // sa = depth basis (Z, label "b"); sb = height (Y, label "a") — see TR2aMesh note.
+  const sa = b * scale, sd = d * scale, sb = a * scale, sl = L * scale, sl3 = l3 * scale;
   const hb = sb / 2, hL = sl / 2;
 
   const sdSafe = Math.min(sd, Math.max(0.001, sa * 0.98));
@@ -1626,7 +1637,7 @@ const TR2aLabels: React.FC<{
         <Text fontSize={0.12} color="#004290" anchorX="center" anchorY="bottom">{`L = ${Math.round(L)}`}</Text>
       </Billboard>
       <Billboard position={[hL + 0.2, 0, 0]}>
-        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
+        <Text fontSize={0.12} color="#004290" anchorX="left" anchorY="middle">{`a = ${Math.round(a)}`}</Text>
       </Billboard>
       <Billboard position={[brDX, brBotY - 0.18, 0]}>
         <Text fontSize={0.11} color="#004290" anchorX="center" anchorY="top">{`d = ${Math.round(d)}`}</Text>
@@ -1638,7 +1649,7 @@ const TR2aLabels: React.FC<{
         <Text fontSize={0.10} color="#666666" anchorX="right" anchorY="middle">{`f = ${Math.round(f)}`}</Text>
       </Billboard>
       <Billboard position={[0, -hb - sl3 / 2, 0]}>
-        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`a=${Math.round(a)}`}</Text>
+        <Text fontSize={0.10} color="#888888" anchorX="center" anchorY="middle">{`b = ${Math.round(b)}`}</Text>
       </Billboard>
     </>
   );
@@ -5156,32 +5167,42 @@ const ShapeDiagram3D: React.FC<ShapeDiagram3DProps> = ({ symbol, values, t = (te
 
   // Render scene objects based on shape
   const renderShapeMesh = () => {
-        // TR1a — rectangular branch tee
+        // TR1a — rectangular branch tee. Defaults mirror the .NET app's built-in TR1a
+        // sample (Form1.cs ~L13310): a=200 b=250 d=140 w=180 L=500 e=250 f=110 l3=80.
+        // The old fallbacks were invented — a square 200×200 duct with a branch as deep
+        // as the duct (d=a, clamped) hanging 200 mm down and shoved off-centre.
         if (symbol === 'TR1a') {
-          const d   = values[2] || 200;
-          const w   = values[3] || 200;
+          const ta  = values[0] || 200;
+          const tb  = values[1] || 250;
+          const d   = values[2] || 140;
+          const w   = values[3] || 180;
           const tL  = values[4] || 500;
-          const te  = values[5] || 150;
-          const tf  = values[6] || (a / 2);
-          const tl3 = values[7] || 200;
+          const te  = values[5] || 250;
+          const tf  = values[6] || 110;
+          const tl3 = values[7] || 80;
           return (
             <>
-              <TR1aMesh a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />
-              {showDimensions && <TR1aLabels a={a} b={b} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />}
+              <TR1aMesh a={ta} b={tb} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />
+              {showDimensions && <TR1aLabels a={ta} b={tb} d={d} w={w} L={tL} e={te} f={tf} l3={tl3} />}
             </>
           );
         }
-        // TR2a — tee with round branch
+        // TR2a — tee with round branch. Defaults mirror the .NET app's built-in TR2a
+        // sample (Form1.cs ~L13415): a=200 b=250 d=140 L=500 l3=80 e=250 f=100. Old
+        // fallbacks were invented (square 200 duct, l3=200 branch, e off-centre) and
+        // rendered "a" as the depth — same a/b label-vs-var swap fixed for TR1a.
         if (symbol === 'TR2a') {
-          const d   = values[2] || 200;
+          const ta  = values[0] || 200;
+          const tb  = values[1] || 250;
+          const d   = values[2] || 140;
           const tL  = values[3] || 500;
-          const tl3 = values[4] || 200;
-          const te  = values[5] || 150;
-          const tf  = values[6] || (a / 2);
+          const tl3 = values[4] || 80;
+          const te  = values[5] || 250;
+          const tf  = values[6] || 100;
           return (
             <>
-              <TR2aMesh a={a} b={b} d={d} L={tL} l3={tl3} e={te} f={tf} />
-              {showDimensions && <TR2aLabels a={a} b={b} d={d} L={tL} l3={tl3} e={te} f={tf} />}
+              <TR2aMesh a={ta} b={tb} d={d} L={tL} l3={tl3} e={te} f={tf} />
+              {showDimensions && <TR2aLabels a={ta} b={tb} d={d} L={tL} l3={tl3} e={te} f={tf} />}
             </>
           );
         }
