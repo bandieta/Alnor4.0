@@ -4810,7 +4810,7 @@ const TR9aMesh: React.FC<{
     // exact analytic normals, negated into QBa's opposing convention, so it shades
     // as one formed sheet. The cross-panel averaging pass below then blends the
     // joins so the whole body reads as a single surface.
-    const addPanel = (v0: V3, v1: V3, v2: V3, v3: V3, res = 8) => {
+    const addPanel = (v0: V3, v1: V3, v2: V3, v3: V3, res = 12) => {
       const P = (s: number, t: number): V3 => lerp3(lerp3(v0, v1, s), lerp3(v3, v2, s), t);
       const N = (s: number, t: number): V3 => {
         const ds: V3 = [
@@ -4835,16 +4835,31 @@ const TR9aMesh: React.FC<{
         }
       }
     };
+    // Loft a straight outer edge (oa→ob) onto an inner polyline. Used for the
+    // four end-cap panels around the branch opening: the inner edge is one side
+    // of the square-to-round `bridge` polyline, sampled at the SAME points the
+    // collar uses, so the collar blends into the flat wall with no seam ring
+    // around the tunnel mouth. `res` must match the collar's.
+    const addStrip = (oa: V3, ob: V3, inner: V3[], res = 12) => {
+      const M = inner.length - 1;
+      for (let si = 0; si < M; si++) {
+        const o0 = lerp3(oa, ob, si / M);
+        const o1 = lerp3(oa, ob, (si + 1) / M);
+        addPanel(o0, o1, inner[si + 1], inner[si], res);
+      }
+    };
 
     // Main duct walls (C# GL quads lines 489-544)
     addPanel(p[0], p[4], p[5], p[1]);   // top wall
     addPanel(p[1], p[5], p[6], p[2]);   // right wall
     addPanel(p[2], p[6], p[7], p[3]);   // bottom wall
-    // End cap walls with branch opening (lines 531-544)
-    addPanel(p[3], p[0], p[9], p[10]);  // front-to-branch top
-    addPanel(p[7], p[3], p[10], p[14]); // bottom-to-branch
-    addPanel(p[4], p[7], p[14], p[13]); // back-to-branch
-    addPanel(p[0], p[4], p[13], p[9]);  // left-to-branch
+    // End-cap walls around the branch opening. Their inner edge is lofted onto
+    // the square-to-round `bridge` polyline (same points the collar uses), so the
+    // round tunnel blends into the flat cap instead of leaving a seam ring.
+    addStrip(p[3], p[0], bridge.slice(0, 7).reverse());   // front-to-branch top
+    addStrip(p[7], p[3], bridge.slice(6, 13).reverse());  // bottom-to-branch
+    addStrip(p[4], p[7], bridge.slice(12, 19).reverse()); // back-to-branch
+    addStrip(p[0], p[4], bridge.slice(18, 25).reverse()); // left-to-branch
 
     // Smooth the legacy 24-sided branch profile into a 96-sided sleeve while
     // retaining its exact square-to-round transition at the connection ring.
@@ -4888,20 +4903,26 @@ const TR9aMesh: React.FC<{
 
     // Square-to-circle transition — warped quads, subdivided so the collar between
     // the rectangular opening and the round sleeve reads as one formed surface.
-    const at = [16, 17, 18, 19, 20, 21, 22, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+    // circ segment ii ↔ bridge segment (ii+16)%24, a clean bijection over all 24.
+    // (The literal C# table skipped bridge seg 23→24 and double-covered 16→17,
+    // leaving a hole + a pinch at the bottom of the tunnel mouth.)
     for (let ii = 0; ii < 24; ii++) {
-      const ac = at[ii] + 1;
-      const ad = at[ii];
-      addPanel(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 3);
+      const ad = (ii + 16) % 24;
+      const ac = ad + 1;
+      // res 12 (matches addStrip) — a coarser grid faceted the collar and the
+      // reflection banded at every subdivision line on the near-mirror metal.
+      addPanel(circ[ii], circ[ii + 1], bridge[ac], bridge[ad], 12);
     }
 
     // Crease-aware blend across every panel boundary: at each coincident vertex
-    // the normals are clustered and only merged when they are within 35° of each
+    // the normals are clustered and only merged when they are within 68° of each
     // other, so the duct walls, branch collar, square-to-round transition and
     // sleeve resolve to one continuous surface with no seam lines while genuine
-    // folds (wall-to-wall edges, the mouth of the tunnel) stay crisp.
+    // folds (wall-to-wall corners ~90°, the mouth of the tunnel) stay crisp. The
+    // threshold has to clear the square-to-round collar, where the surface turns
+    // through ~60° from the flat cap to the sleeve over a short span.
     {
-      const cosC = Math.cos(35 * Math.PI / 180);
+      const cosC = Math.cos(68 * Math.PI / 180);
       const key = (x: number, y: number, z: number) =>
         `${Math.round(x * 4e3)},${Math.round(y * 4e3)},${Math.round(z * 4e3)}`;
       const groups = new Map<string, number[]>();
