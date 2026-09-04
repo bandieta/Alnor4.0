@@ -71,9 +71,9 @@ body {
 }
 
 .lang-dropdown {
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: #ffffff;
+  color: #004290;
   min-width: 108px;
   height: 22px;
   border-radius: 5px;
@@ -87,8 +87,8 @@ body {
 }
 
 .lang-dropdown:hover {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.6);
+  background: #eef3f9;
+  border-color: #ffffff;
 }
 
 .lang-dropdown option {
