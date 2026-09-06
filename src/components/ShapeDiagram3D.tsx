@@ -1926,10 +1926,16 @@ const QPR3aMesh: React.FC<{
     addQuad(p[14], p[13], p[10], p[9], [1, 0, 0]);  // diagonal
     addQuad(p[13], p[12], p[11], p[10], [1, 0, 0]); // lower straight
 
-    // Top walls (outward +y; the diagonal tilts toward +z)
-    addQuad(p[0], p[1], p[9], p[8], [0, 1, 0]);   // upper straight top
-    addQuad(p[1], p[2], p[10], p[9], nDiagTop);   // diagonal top
-    addQuad(p[2], p[3], p[11], p[10], [0, 1, 0]); // lower straight top
+    // Top walls (outward +y; the diagonal tilts toward +z). Vertex order is
+    // reversed relative to the "natural" p0→p1→p9→p8 so the winding points the
+    // same way (inward) as the side and bottom walls — the shared convention is
+    // one geometrically-outward normal per face that OPPOSES its winding. Wound
+    // the natural way the top-wall normals would instead AGREE with the winding
+    // and, under side:DoubleSide, shade flat and cold-blue while the rest of the
+    // fitting stays warm.
+    addQuad(p[8], p[9], p[1], p[0], [0, 1, 0]);   // upper straight top
+    addQuad(p[9], p[10], p[2], p[1], nDiagTop);   // diagonal top
+    addQuad(p[10], p[11], p[3], p[2], [0, 1, 0]); // lower straight top
 
     // Bottom walls (outward -y; the diagonal tilts toward -z)
     addQuad(p[7], p[6], p[14], p[15], [0, -1, 0]); // upper straight bottom
@@ -2082,10 +2088,16 @@ const QPR4aMesh: React.FC<{
     addQuad(p[14], p[13], p[10], p[9], [1, 0, 0]);
     addQuad(p[13], p[12], p[11], p[10], [1, 0, 0]);
 
-    // Top walls (outward +y; the diagonal tilts with tRise)
-    addQuad(p[0], p[1], p[9], p[8], [0, 1, 0]);
-    addQuad(p[1], p[2], p[10], p[9], nDiagTop);
-    addQuad(p[2], p[3], p[11], p[10], [0, 1, 0]);
+    // Top walls (outward +y; the diagonal tilts with tRise). Vertex order is
+    // reversed relative to the "natural" p0→p1→p9→p8 so the winding points the
+    // same way (inward) as the side and bottom walls — the shared convention is
+    // one geometrically-outward normal per face that OPPOSES its winding. Wound
+    // the natural way the top-wall normals would instead AGREE with the winding
+    // and, under side:DoubleSide, shade flat and cold-blue while the rest of the
+    // fitting stays warm.
+    addQuad(p[8], p[9], p[1], p[0], [0, 1, 0]);
+    addQuad(p[9], p[10], p[2], p[1], nDiagTop);
+    addQuad(p[10], p[11], p[3], p[2], [0, 1, 0]);
 
     // Bottom walls (outward -y; the diagonal tilts toward -z)
     addQuad(p[7], p[6], p[14], p[15], [0, -1, 0]);
