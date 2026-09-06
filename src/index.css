@@ -21,22 +21,6 @@ body {
   background: #ffffff;
 }
 
-/* Safety net: force light rendering on any element that doesn't
-   already set its own colors, so nothing falls back to the OS/browser
-   dark theme. More specific rules in App.css still win over this. */
-div,
-section,
-header,
-footer,
-nav,
-aside,
-main,
-form,
-fieldset {
-  background-color: #ffffff;
-  color-scheme: light only;
-}
-
 input,
 textarea,
 select,
