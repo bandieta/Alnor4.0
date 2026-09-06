@@ -134,19 +134,17 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     if (pushX < 0) pushX = -pushX;
     const pushY = ((90 - b) / 2) + 5;
 
-    const rightViewOffset = 20;
-
     const small = {
-      x0: 190 + pushX + rightViewOffset,
+      x0: 190 + pushX,
       y0: 20 + pushY,
-      x1: 190 + pushX + rightViewOffset + a,
+      x1: 190 + pushX + a,
       y1: 20 + pushY + b,
     };
 
     const big = {
-      x0: 190 - p + pushX + rightViewOffset,
+      x0: 190 - p + pushX,
       y0: 20 - p + pushY,
-      x1: 190 + p + a + pushX + rightViewOffset,
+      x1: 190 + p + a + pushX,
       y1: 20 + p + b + pushY,
     };
 
@@ -190,7 +188,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       y2: side.y1 + p,
     };
 
-    const aDimY = small.y0 - 15;
+    // Keep the "a" callout clear of the flange (big) rect's top edge — for small
+    // ducts p is large relative to a/b/L, so the flange can otherwise poke above
+    // the dimension line's nominal position and collide with its label.
+    const aDimY = Math.min(small.y0 - 15, big.y0 - 8);
     const lDimY = sidePoly.y1 + 15;
     const bDimX = side.x1 + 15;
     const bDimY2 = side.y1;
@@ -225,12 +226,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <line x1={sidePoly.x0} y1={lDimY - 3} x2={sidePoly.x0} y2={lDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
         <text x={(sidePoly.x0 + sidePoly.x1) / 2} y={lDimY + 16} textAnchor="middle" fontSize={10} fill="#555555">L</text>
 
-        {/* b dimension (right of side view) */}
+        {/* b dimension (right of side view). Label sits on the side-view side of the
+            tick marks, not between them and the cross-section view: that gap is only
+            ~15 units wide (independent of a/b/L), too narrow to fit the glyph next to
+            the neighboring flange rect without the two colliding. */}
         <line x1={bDimX} y1={side.y0} x2={bDimX} y2={bDimY2}
           stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
         <line x1={bDimX - 3} y1={side.y0} x2={bDimX + 3} y2={side.y0} stroke="#9b9b9b" strokeWidth={0.9} />
         <line x1={bDimX - 3} y1={bDimY2} x2={bDimX + 3} y2={bDimY2} stroke="#9b9b9b" strokeWidth={0.9} />
-        <text x={bDimX + 5} y={(side.y0 + bDimY2) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        <text x={bDimX - 6} y={(side.y0 + bDimY2) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">b</text>
       </g>
     );
   };
@@ -364,7 +368,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         <line x1={left.x1} y1={lower.y0} x2={left.x1 + r} y2={left.y1}
           stroke="#9b9b9b" strokeWidth={0.9} />
-        <text x={left.x1 + r + 5} y={left.y1 + 3} fontSize={10} fill="#555555">r</text>
+        {/* Label sits further out along the same 45° leader direction than either the
+            outer arc's radius (r+b) or the leader line's own endpoint (r*sqrt(2) from
+            the arc center) — whichever reaches further. b tiny relative to r means the
+            line's endpoint is the further of the two, so the arc radius alone isn't a
+            safe clearance distance. */}
+        <text
+          x={left.x1 + (Math.max(r * Math.SQRT2, r + b) + 10) * Math.SQRT1_2}
+          y={lower.y0 - (Math.max(r * Math.SQRT2, r + b) + 10) * Math.SQRT1_2}
+          fontSize={10} fill="#555555">r</text>
 
         <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
           fill="none" stroke="#004290" strokeWidth={1.2} />
@@ -381,7 +393,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         <line x1={lower.x0 - 15} y1={lower.y0} x2={lower.x0 - 15} y2={lower.y1}
           stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={lower.x0 - 7} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+        <text x={lower.x0 - 24} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
 
         <line x1={small.x0} y1={small.y0 - 15} x2={small.x1} y2={small.y0 - 15}
           stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
