@@ -127,13 +127,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
                     const parsed = label.match(/^(Iz\.\s+)?(Ocynk|Kwasówka|Aluminium)\s+([0-9,]+)\s+(kan|ksz)$/);
                     if (parsed) {
-                      const prefix = parsed[1] ? 'Iz.' : '';
+                      // The "Izolowane" prefix is redundant here — these rows
+                      // already sit under an "Izolowane:" section header — and it
+                      // pushed the material name out of its column.
                       const material = parsed[2];
                       const thick = parsed[3];
                       const typ = parsed[4];
                       return (
                         <tr key={idx} className="suma-data-row">
-                          <td className="suma-row-label">{prefix ? `${t('Izolowane')} ${t(material)}` : t(material)}</td>
+                          <td className="suma-row-label">{t(material)}</td>
                           <td className="suma-row-label">{thick}</td>
                           <td className="suma-row-label">{translateSumaType(typ)}</td>
                           <td className="suma-row-value">{value}</td>

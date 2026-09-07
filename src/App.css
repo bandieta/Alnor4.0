@@ -68,13 +68,19 @@ body {
   display: flex;
   align-items: center;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .lang-dropdown {
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: #ffffff;
   color: #004290;
-  min-width: 108px;
+  /* Fixed width so long option labels (e.g. the "(demo)" suffix) don't
+     stretch the control past the sidebar and clip the dropdown arrow. */
+  width: 118px;
+  min-width: 118px;
+  max-width: 118px;
+  box-sizing: border-box;
   height: 22px;
   border-radius: 5px;
   font-size: 11px;
@@ -843,15 +849,15 @@ body {
 }
 
 .suma-col-material {
-  width: 45%;
+  width: 33%;
 }
 
 .suma-col-gr {
-  width: 14%;
+  width: 25%;
 }
 
 .suma-col-typ {
-  width: 14%;
+  width: 15%;
 }
 
 .suma-col-value {
@@ -859,19 +865,28 @@ body {
 }
 
 .suma-head-row th {
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 800;
   color: #5a6a7a;
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0;
   text-align: left;
   padding: 0 0 4px;
   border: none;
+  /* Headers must never spill into the neighbouring column. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .suma-head-row .suma-head-gr {
   text-align: left;
-  padding-left: 8px;
+}
+
+/* Small gap so the "Typ" column never touches the thickness header. */
+.suma-head-row th:nth-child(3),
+.suma-data-row td:nth-child(3) {
+  padding-left: 4px;
 }
 
 .suma-head-row .suma-head-value {
@@ -888,7 +903,7 @@ body {
 }
 
 .suma-data-row td:nth-child(2) {
-  padding-left: 8px;
+  padding-left: 2px;
 }
 
 .suma-row-value {
