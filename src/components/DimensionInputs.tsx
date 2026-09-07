@@ -15,6 +15,17 @@ interface DimensionInputsProps {
 
 const SCROLL_STEP = 10;
 
+// Keep only digits and a single decimal separator — no letters, signs or
+// exponents. A typed comma is treated as the decimal point (PL keyboards).
+const sanitizeNumeric = (raw: string): string => {
+  let s = raw.replace(/,/g, '.').replace(/[^\d.]/g, '');
+  const dot = s.indexOf('.');
+  if (dot !== -1) {
+    s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
+  }
+  return s;
+};
+
 const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onChange, errors = [], showErrors = false }) => {
   const leftLabels = labels.slice(0, 8);
   const rightLabels = labels.slice(8);
@@ -32,10 +43,16 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
   }, [values, onChange]);
 
   const handleChange = useCallback((index: number, value: string) => {
-    const num = parseFloat(value);
-    if (value !== '' && !isNaN(num) && num < 0) return;
-    onChange(index, value);
+    onChange(index, sanitizeNumeric(value));
   }, [onChange]);
+
+  // Reject non-numeric characters before they reach the field, so the caret
+  // never jumps. sanitizeNumeric() in handleChange still covers paste / autofill.
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length > 1) return;
+    if (/[0-9]/.test(e.key) || e.key === '.' || e.key === ',') return;
+    e.preventDefault();
+  }, []);
 
   const step = useCallback((index: number, direction: 1 | -1) => {
     const current = parseFloat(values[index]) || 0;
@@ -53,11 +70,13 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
           <div className="dimension-input-wrapper">
             <div className="number-stepper">
               <input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 className={`dimension-value${hasVisibleError ? ' dimension-error' : ''}`}
                 value={values[index] || ''}
                 onChange={(e) => handleChange(index, e.target.value)}
+                onKeyDown={handleKeyDown}
                 onWheel={(e) => handleWheel(e, index)}
               />
               <span className="number-stepper-buttons">
