@@ -28,6 +28,10 @@ import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
 import { LANGUAGE_OPTIONS, parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
 
+// Demo build: only these fittings can be selected. Every other shape in the
+// list is shown with a "demo" stamp and cannot be chosen.
+const DEMO_ENABLED_SYMBOLS = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'PR1a'];
+
 function buildSumaBlachyReport(gridRows: GridRow[]): string {
   const ocynkIdx: Record<string, number> = {
     '0,6': 0,
@@ -518,6 +522,7 @@ function App() {
 
   // Handle shape selection
   const handleSelectShape = useCallback((symbol: string) => {
+    if (!DEMO_ENABLED_SYMBOLS.includes(symbol)) return;
     setSelectedSymbol(symbol);
     setDimensionValues(Array(17).fill(''));
   }, []);
@@ -975,6 +980,7 @@ function App() {
             selectedSymbol={selectedSymbol}
             onSelect={handleSelectShape}
             disabled={isUserElement}
+            enabledSymbols={DEMO_ENABLED_SYMBOLS}
             t={t}
           />
         </div>
