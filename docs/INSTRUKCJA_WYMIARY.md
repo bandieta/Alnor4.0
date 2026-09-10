@@ -282,7 +282,11 @@ przewody i kształtki wentylacyjne z blachy stalowej ocynkowanej).
   - *Dobór grubości blachy* — największy bok, długość `L` oraz grubości
     dopuszczone przez KOT dla tego wymiaru (np. `0,6 / 0,7 mm`) i grubość aktualnie
     wybraną;
-  - podsumowanie: czy dobór spełnia wymagania KOT (popraw pozycje oznaczone ✗).
+  - podsumowanie: czy dobór spełnia wymagania KOT (popraw pozycje oznaczone ✗);
+  - przycisk **„Ustaw parametry zgodne z KOT"** — jednym kliknięciem ustawia
+    materiał (Ocynk), wykonanie (Średniociśnieniowe), klasę szczelności (B) oraz
+    grubość blachy dopuszczoną dla danego boku. Jeśli największy bok wykracza poza
+    zakres tabeli KOT (100–2000 mm), trzeba go jeszcze poprawić ręcznie.
 - **Pozostałe kształtki** — okno informuje, że walidacja KOT w tej aplikacji
   dotyczy wyłącznie kanału prostokątnego (QDa) i dla danej kształtki nie jest
   przeprowadzana.

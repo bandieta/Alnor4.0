@@ -5,6 +5,8 @@ interface KotInfoProps {
   report: KotReport;
   /** translated shape name, for the "out of scope" message */
   shapeName: string;
+  /** set the properties (material / execution / class / thickness) to a KOT-compliant combo */
+  onMakeCompliant?: () => void;
   t: (text: string) => string;
 }
 
@@ -13,7 +15,7 @@ interface KotInfoProps {
  * standard requires and whether the current shape / settings meet it. Shapes
  * outside KOT scope get a short note instead.
  */
-const KotInfo: React.FC<KotInfoProps> = ({ report, shapeName, t }) => {
+const KotInfo: React.FC<KotInfoProps> = ({ report, shapeName, onMakeCompliant, t }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -112,6 +114,24 @@ const KotInfo: React.FC<KotInfoProps> = ({ report, shapeName, t }) => {
                   ? t('Dobór spełnia wymagania KOT.')
                   : t('Dobór nie spełnia wszystkich wymagań KOT — popraw pozycje oznaczone ✗.')}
               </p>
+
+              {!report.compliant && onMakeCompliant && (
+                <>
+                  <button
+                    type="button"
+                    className="kot-fix-btn"
+                    data-testid="kot-fix"
+                    onClick={onMakeCompliant}
+                  >
+                    {t('Ustaw parametry zgodne z KOT')}
+                  </button>
+                  {!report.bokWithinTable && report.bok > 0 && (
+                    <p className="kot-muted kot-fix-note">
+                      {t('Największy bok trzeba skorygować ręcznie do zakresu 100–2000 mm.')}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
 

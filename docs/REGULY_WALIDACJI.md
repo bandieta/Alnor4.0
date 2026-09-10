@@ -369,6 +369,11 @@ Wymiary: `a, b, c, d, d1, l, l3, m, n, e, f, i, j`
   (przy `L ≤ 1500` obowiązuje dodatkowo wariant QDS — w tym porcie tożsamy z QFS).
 - `KotReport.compliant = inScope && calculateKot(...)`. Przycisk KOT jest zielony
   tylko przy `compliant === true`.
+- **„Ustaw parametry zgodne z KOT"** (`KotInfo` → `onMakeCompliant`, w `App.tsx`
+  `handleMakeKotCompliant`): ustawia `materialType='blacha'`, `material='Ocynk'`,
+  `wykonanie='Średniociśnieniowe'`, `klasaSzczelnosci='B'` oraz `blacha =
+  allowedGrubosc[0]`. Boku (wymiaru) nie zmienia — jeśli jest poza tabelą,
+  pokazywana jest notka o ręcznej korekcie.
 
 ---
 

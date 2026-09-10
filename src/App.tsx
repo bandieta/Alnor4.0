@@ -485,6 +485,17 @@ function App() {
     [selectedSymbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci],
   );
 
+  // "Ustaw parametry zgodne z KOT" — force the four prerequisites and pick a
+  // thickness the KOT table allows for the current largest side.
+  const handleMakeKotCompliant = useCallback(() => {
+    setMaterialType('blacha');
+    setMaterial('Ocynk');
+    setWykonanie('Średniociśnieniowe');
+    setKlasaSzczelnosci('B');
+    const g = kotStatus.allowedGrubosc[0];
+    if (g) setBlacha(g);
+  }, [kotStatus.allowedGrubosc]);
+
   // Generate full symbol
   const fullSymbol = useMemo(() => {
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
@@ -1217,7 +1228,12 @@ function App() {
               <button className="btn" onClick={() => setEditingRowId(null)}>{t('Anuluj')}</button>
             )}
             <button className="btn btn-action" onClick={handleInsertAfter}>{t('Wstaw za')} ...</button>
-            <KotInfo report={kotStatus} shapeName={t(currentShape.name)} t={t} />
+            <KotInfo
+              report={kotStatus}
+              shapeName={t(currentShape.name)}
+              onMakeCompliant={handleMakeKotCompliant}
+              t={t}
+            />
           </div>
 
           {/* Data grid */}

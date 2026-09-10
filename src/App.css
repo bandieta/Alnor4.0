@@ -1076,6 +1076,31 @@ body {
   font-weight: 700;
 }
 
+.kot-fix-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #388e3c;
+  border-radius: 6px;
+  background: #4caf50;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.kot-fix-btn:hover,
+.kot-fix-btn:focus-visible {
+  background: #3d9140;
+  outline: none;
+}
+
+.kot-fix-note {
+  margin-top: 6px !important;
+  font-size: 10px;
+}
+
 .kot-footnote {
   margin-top: 10px;
   padding-top: 8px;

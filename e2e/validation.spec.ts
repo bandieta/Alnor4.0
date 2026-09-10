@@ -136,6 +136,22 @@ test('KOT popover: in-scope shape shows prerequisites and thickness rule', async
   await expect(pop).toBeHidden();
 });
 
+test('KOT popover: "make compliant" button sets the properties', async ({ page }) => {
+  await selectShape(page, 'QDa');
+  await fillDims(page, [400, 300, 1000]);
+
+  await page.getByTestId('btn-kot').click();
+  const pop = page.getByTestId('kot-popover');
+  await expect(pop.locator('.kot-status')).toHaveText('Niezgodne z KOT');
+
+  await page.getByTestId('kot-fix').click();
+
+  // popover re-renders as compliant, the KOT button goes green, no more fix button
+  await expect(pop.locator('.kot-status')).toHaveText('Zgodne z KOT');
+  await expect(page.getByTestId('btn-kot')).toHaveClass(/btn-kot-green/);
+  await expect(page.getByTestId('kot-fix')).toHaveCount(0);
+});
+
 test('KOT popover: out-of-scope shape says so', async ({ page }) => {
   await selectShape(page, 'QBa');
 
