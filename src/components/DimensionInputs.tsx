@@ -166,7 +166,7 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({
                 />
               </span>
             </div>
-            {hasVisibleError ? (
+            {hasVisibleError && (
               <span className="dimension-error-msg" role="alert">
                 {error!.message}
                 {hasSuggest && (
@@ -196,12 +196,6 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({
                   </span>
                 )}
               </span>
-            ) : (
-              rangeText && (
-                <span className="dimension-range-hint" data-testid={`dim-range-${index}`}>
-                  {rangeText}
-                </span>
-              )
             )}
           </div>
         ) : (

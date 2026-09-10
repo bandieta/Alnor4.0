@@ -27,9 +27,8 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByTestId('btn-add')).toBeVisible();
 });
 
-test('static range: field snaps into [min, max] on blur and shows the range hint', async ({ page }) => {
+test('static range: field snaps into [min, max] on blur', async ({ page }) => {
   await selectShape(page, 'QDa');
-  await expect(page.getByTestId('dim-range-0')).toHaveText('100–4000');
 
   const a = page.getByTestId('dim-0');
   await a.fill('50');
@@ -118,6 +117,34 @@ test('ramka: hint under the frame field explains the rule and applies the minimu
 
   await page.getByTestId('btn-add').click();
   await expect(dataRows(page)).toHaveCount(1);
+});
+
+test('KOT popover: in-scope shape shows prerequisites and thickness rule', async ({ page }) => {
+  await selectShape(page, 'QDa');
+  await fillDims(page, [400, 300, 1000]);
+
+  await page.getByTestId('btn-kot').click();
+  const pop = page.getByTestId('kot-popover');
+  await expect(pop).toBeVisible();
+  await expect(pop).toContainText('Warunki wstępne');
+  await expect(pop).toContainText('Ocynk');
+  await expect(pop).toContainText('Dobór grubości blachy');
+  await expect(pop).toContainText('Największy bok');
+
+  // click the toggle again to close
+  await page.getByTestId('btn-kot').click();
+  await expect(pop).toBeHidden();
+});
+
+test('KOT popover: out-of-scope shape says so', async ({ page }) => {
+  await selectShape(page, 'QBa');
+
+  await page.getByTestId('btn-kot').click();
+  const pop = page.getByTestId('kot-popover');
+  await expect(pop).toBeVisible();
+  await expect(pop).toContainText('wyłącznie kanał prostokątny (QDa)');
+  await expect(pop).toContainText('nie jest sprawdzana');
+  await expect(pop).not.toContainText('Warunki wstępne');
 });
 
 test('valid dimensions add straight away with no errors', async ({ page }) => {

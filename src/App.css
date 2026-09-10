@@ -968,14 +968,120 @@ body {
   color: #333;
   border-color: #d4a930;
   font-weight: 900;
-  cursor: default;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .btn-kot-green {
   background: #4caf50;
   color: #fff;
   border-color: #388e3c;
+}
+
+/* ===== KOT info popover ===== */
+.kot-info {
+  position: relative;
+  display: inline-block;
+}
+
+.kot-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 50;
+  width: 340px;
+  max-width: 90vw;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #2a2a2a;
+  text-align: left;
+  cursor: default;
+}
+
+.kot-popover::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  top: 100%;
+  border: 7px solid transparent;
+  border-top-color: #fff;
+  filter: drop-shadow(0 1px 0 #d9d9d9);
+}
+
+.kot-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
+}
+
+.kot-popover-title {
+  font-weight: 800;
+  color: #004290;
+}
+
+.kot-status {
+  font-weight: 800;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.kot-status-ok { background: #e6f4ea; color: #1e7e34; }
+.kot-status-bad { background: #fdecea; color: #b3261e; }
+.kot-status-na { background: #eef1f4; color: #55606b; }
+
+.kot-popover-body p { margin: 4px 0; }
+
+.kot-section-label {
+  font-weight: 700;
+  margin-top: 10px !important;
+  color: #333;
+}
+
+.kot-muted { color: #6a6a6a; }
+
+.kot-check-list {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+}
+
+.kot-check-list li {
+  padding: 1px 0;
+}
+
+.kot-mark {
+  display: inline-block;
+  width: 14px;
+  font-weight: 900;
+}
+
+.kot-ok { color: #1e7e34; }
+.kot-ok strong,
+.kot-bad strong { color: inherit; }
+.kot-bad { color: #b3261e; }
+
+.kot-verdict {
+  margin-top: 10px !important;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+  font-weight: 700;
+}
+
+.kot-footnote {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+  font-size: 10px;
+  color: #8a8a8a;
 }
 
 /* ===== DATA GRID ===== */
@@ -1232,15 +1338,6 @@ select:focus {
   line-height: 1.1;
   white-space: nowrap;
   font-weight: 700;
-}
-
-/* Always-visible allowed-range hint under a dimension field */
-.dimension-range-hint {
-  font-size: 9px;
-  font-weight: 600;
-  color: #8a8a8a;
-  line-height: 1;
-  letter-spacing: 0.02em;
 }
 
 /* Click-to-apply suggested range chips shown under an invalid dimension field */

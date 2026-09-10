@@ -5,6 +5,7 @@ import DimensionInputs from './components/DimensionInputs';
 import type { ValidationError } from './components/DimensionInputs';
 import { validateShape, fieldConstraints } from './validation';
 import PropertiesPanel from './components/PropertiesPanel';
+import KotInfo from './components/KotInfo';
 import ShapeDiagram from './components/ShapeDiagram';
 import ShapeDiagram3D from './components/ShapeDiagram3D';
 import DataGrid from './components/DataGrid';
@@ -24,7 +25,7 @@ import {
   PLASZCZ_OPTIONS,
   GRUBOSC_IZOLACJI_OPTIONS,
 } from './data';
-import { calculateArea, generateSymbol, generatePrzekroj, calculateKot } from './calculations';
+import { calculateArea, generateSymbol, generatePrzekroj, kotReport } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
 import { LANGUAGE_OPTIONS, parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
@@ -469,31 +470,20 @@ function App() {
     return errors;
   }, [validation, t]);
 
-  // KOT compliance check
-  const kotCompliant = useMemo(() => {
-    return calculateKot({
-      symbol: selectedSymbol,
-      dimensionValues,
-      materialType,
-      material,
-      blacha,
-      wykonanie,
-      klasaSzczelnosci,
-    });
-  }, [selectedSymbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci]);
-
-  // KOT tooltip — show what's missing
-  const kotTooltip = useMemo(() => {
-    if (kotCompliant) return t('Zgodne z KOT');
-    const missing: string[] = [];
-    if (materialType !== 'blacha') missing.push(t('Typ') + ': ' + t('Blacha') + ' (B)');
-    if (material !== 'Ocynk') missing.push(t('Materiał') + ': ' + t('Ocynk'));
-    if (wykonanie !== 'Średniociśnieniowe') missing.push(t('Wykonanie') + ': ' + t('Średniociśnieniowe'));
-    if (klasaSzczelnosci !== 'B') missing.push(t('Kl.szczel.') + ': B');
-    if (!['0,6', '0,7', '0,9'].includes(blacha)) missing.push(t('Grubość izolacji') + ': 0,6 / 0,7 / 0,9');
-    if (missing.length > 0) return t('Niezgodne z KOT') + '. ' + t('Wymagane') + ':\n' + missing.join('\n');
-    return t('Niezgodne z KOT') + ' (' + t('wymiary poza zakresem') + ')';
-  }, [kotCompliant, materialType, material, wykonanie, klasaSzczelnosci, blacha, t]);
+  // KOT compliance — structured report for the info popover (see KotInfo).
+  const kotStatus = useMemo(
+    () =>
+      kotReport({
+        symbol: selectedSymbol,
+        dimensionValues,
+        materialType,
+        material,
+        blacha,
+        wykonanie,
+        klasaSzczelnosci,
+      }),
+    [selectedSymbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci],
+  );
 
   // Generate full symbol
   const fullSymbol = useMemo(() => {
@@ -1227,10 +1217,7 @@ function App() {
               <button className="btn" onClick={() => setEditingRowId(null)}>{t('Anuluj')}</button>
             )}
             <button className="btn btn-action" onClick={handleInsertAfter}>{t('Wstaw za')} ...</button>
-            <span
-              className={`btn btn-kot ${kotCompliant ? 'btn-kot-green' : ''}`}
-              title={kotTooltip}
-            >KOT</span>
+            <KotInfo report={kotStatus} shapeName={t(currentShape.name)} t={t} />
           </div>
 
           {/* Data grid */}

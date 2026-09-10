@@ -9,18 +9,17 @@ komunikaty i jak je szybko poprawić.
 
 ## 1. Ograniczenie zakresu w polach
 
-Pod każdym polem wymiaru, które ma określony zakres, widać szary podpis
-z dozwolonymi wartościami, np. **`100–4000`**, **`≥ 30`** lub **`≤ 440`**.
+Każde pole wymiaru, które ma określony zakres, pilnuje go automatycznie:
 
-- **Wartość spoza zakresu jest automatycznie korygowana** po opuszczeniu pola
-  (klawisz Tab lub kliknięcie w inne miejsce): za mała wartość „podskakuje” do
-  minimum, za duża „spada” do maksimum. Nie da się więc zostawić w polu wartości
-  spoza zakresu.
+- **Wartość spoza zakresu jest korygowana** po opuszczeniu pola (klawisz Tab lub
+  kliknięcie w inne miejsce): za mała wartość „podskakuje” do minimum, za duża
+  „spada” do maksimum. Nie da się więc zostawić w polu wartości spoza zakresu.
 - **Strzałki i przewijanie kółkiem myszy** też zatrzymują się na granicach
   zakresu.
+- Po najechaniu kursorem na pole pojawia się dymek **„Dozwolony zakres: …”**.
 - Zakresy **zależne od innych wymiarów** (np. `d ≤ b`, `w ≤ L − 60`,
-  `L ≥ h + q + r + i + 30`) pojawiają się dopiero po wpisaniu tych wymiarów i są
-  przeliczane na bieżąco.
+  `L ≥ h + q + r + i + 30`) zaczynają obowiązywać po wpisaniu tych wymiarów
+  i są przeliczane na bieżąco.
 
 Reguły, których nie da się zapisać jako prosty zakres (promień „0 lub ≥ 100”,
 minimalne `L` liczone z odejść, zależności `b`/`d`), nadal są sprawdzane przy
@@ -271,7 +270,27 @@ inaczej.
 
 ---
 
-## 5. Najczęstsze pytania
+## 5. Przycisk KOT
+
+Kliknięcie przycisku **KOT** (obok „Wstaw za …”) otwiera okienko z informacją,
+czy dobrane parametry są zgodne z **Krajową Oceną Techniczną** (prostokątne
+przewody i kształtki wentylacyjne z blachy stalowej ocynkowanej).
+
+- **Kanał prostokątny (QDa)** — okno pokazuje:
+  - *Warunki wstępne* z zaznaczeniem ✓/✗: Typ = Blacha, Materiał = Ocynk,
+    Wykonanie = Średniociśnieniowe, Klasa szczelności = B;
+  - *Dobór grubości blachy* — największy bok, długość `L` oraz grubości
+    dopuszczone przez KOT dla tego wymiaru (np. `0,6 / 0,7 mm`) i grubość aktualnie
+    wybraną;
+  - podsumowanie: czy dobór spełnia wymagania KOT (popraw pozycje oznaczone ✗).
+- **Pozostałe kształtki** — okno informuje, że walidacja KOT w tej aplikacji
+  dotyczy wyłącznie kanału prostokątnego (QDa) i dla danej kształtki nie jest
+  przeprowadzana.
+
+Przycisk KOT zmienia kolor na zielony, gdy dobór jest zgodny z KOT. Okno zamyka
+się ponownym kliknięciem przycisku, klawiszem Esc lub kliknięciem poza nim.
+
+## 6. Najczęstsze pytania
 
 **Wpisuję poprawny wymiar, a pole dalej jest czerwone.**
 Sprawdzenie odświeża się po każdej zmianie. Jeśli błąd nie znika, upewnij się,

@@ -43,10 +43,10 @@ src/validation/
 każdego pola przy bieżących wartościach pozostałych pól. `App.tsx` przekazuje to
 do `DimensionInputs` jako `ranges`:
 
-- pole pokazuje zakres jako szary podpis (`.dimension-range-hint`),
 - wartość spoza zakresu jest przycinana do granicy w `onBlur`
   (`handleBlur` czyta żywą wartość z DOM, nie z propsów),
-- strzałki i kółko myszy również respektują `min`/`max`.
+- strzałki i kółko myszy również respektują `min`/`max`,
+- zakres jest pokazywany w atrybucie `title` pola (dymek po najechaniu).
 
 Reguły bez sensownego zakresu liczbowego (`radiusRule` „0 lub ≥ 100”, relacje bez
 `suggest`) nie wystawiają `bounds` — pozostają wyłącznie jako komunikat przy
@@ -341,7 +341,38 @@ Wymiary: `a, b, c, d, d1, l, l3, m, n, e, f, i, j`
 
 ---
 
-## 4. Rozszerzanie modułu
+## 4. Walidacja KOT
+
+`src/calculations.ts`: `kotReport(params)` → `KotReport` napędza okienko
+`KotInfo` (kliknięcie przycisku **KOT**). Port `calculateKot()` z `Form1.cs`
+(`#region` ~L14884).
+
+- **Zakres:** `KOT_SHAPES = ['QDa']`. W kodzie .NET tylko dla `QDa` wyliczane są
+  `bok`/`l`; pozostałe symbole trafiają do pustego `case … break;`. Dla kształtek
+  spoza listy `kotReport` zwraca `inScope: false`, a `KotInfo` pokazuje notkę
+  „walidacja KOT dotyczy wyłącznie QDa”.
+- **Warunki wstępne (QDa):** tryb Blacha, `Materiał = Ocynk`,
+  `Wykonanie = Średniociśnieniowe`, `Kl.szczel. = B`.
+- **Dobór grubości** (`kotAllowsThickness(bok, l, g)` — wierny port reguł QDS/QFS):
+
+  | Największy bok | Dozwolone grubości (KOT) |
+  |---|---|
+  | < 100 mm | 0,6 |
+  | 100–299 mm | 0,6 · 0,7 |
+  | 300 mm | 0,7 |
+  | 301–499 mm | 0,6 · 0,7 |
+  | 500 mm | 0,7 |
+  | 501–800 mm | 0,7 · 0,9 |
+  | 801–2000 mm | 0,7 |
+  | > 2000 mm | poza tabelą KOT |
+
+  (przy `L ≤ 1500` obowiązuje dodatkowo wariant QDS — w tym porcie tożsamy z QFS).
+- `KotReport.compliant = inScope && calculateKot(...)`. Przycisk KOT jest zielony
+  tylko przy `compliant === true`.
+
+---
+
+## 5. Rozszerzanie modułu
 
 Nowa reguła wspólna → fabryka w `src/validation/factories.ts`.
 Nowa reguła kształtki → dopisanie do listy w `BUILDERS` w
