@@ -28,14 +28,6 @@ import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
 import { LANGUAGE_OPTIONS, parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
 
-// Demo build: only these fittings can be selected. Every other shape in the
-// list is shown with a "demo" stamp and cannot be chosen.
-const DEMO_ENABLED_SYMBOLS = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'PR1a'];
-
-// Demo build: only these UI languages can be selected. Every other language is
-// marked "(demo)" in the picker and disabled.
-const DEMO_ENABLED_LANGUAGES: AppLanguage[] = ['pl', 'en'];
-
 function buildSumaBlachyReport(gridRows: GridRow[]): string {
   const ocynkIdx: Record<string, number> = {
     '0,6': 0,
@@ -234,7 +226,7 @@ function App() {
   const [language, setLanguage] = useState<AppLanguage>(() => {
     try {
       const saved = localStorage.getItem('alnor-cam-language');
-      if (isAppLanguage(saved) && DEMO_ENABLED_LANGUAGES.includes(saved)) {
+      if (isAppLanguage(saved)) {
         return saved;
       }
       return 'pl';
@@ -526,7 +518,6 @@ function App() {
 
   // Handle shape selection
   const handleSelectShape = useCallback((symbol: string) => {
-    if (!DEMO_ENABLED_SYMBOLS.includes(symbol)) return;
     setSelectedSymbol(symbol);
     setDimensionValues(Array(17).fill(''));
   }, []);
@@ -959,20 +950,14 @@ function App() {
               <select
                 className="lang-dropdown"
                 value={language}
-                onChange={(e) => {
-                  const next = e.target.value as AppLanguage;
-                  if (DEMO_ENABLED_LANGUAGES.includes(next)) setLanguage(next);
-                }}
+                onChange={(e) => setLanguage(e.target.value as AppLanguage)}
                 aria-label={t('Język')}
               >
-                {LANGUAGE_OPTIONS.map((option) => {
-                  const isDemo = !DEMO_ENABLED_LANGUAGES.includes(option.value);
-                  return (
-                    <option key={option.value} value={option.value} disabled={isDemo}>
-                      {t(option.label)}{isDemo ? ' (demo)' : ''}
-                    </option>
-                  );
-                })}
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.label)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -990,7 +975,6 @@ function App() {
             selectedSymbol={selectedSymbol}
             onSelect={handleSelectShape}
             disabled={isUserElement}
-            enabledSymbols={DEMO_ENABLED_SYMBOLS}
             t={t}
           />
         </div>
