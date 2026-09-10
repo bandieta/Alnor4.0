@@ -329,3 +329,89 @@ export function calculateKot(params: {
 
   return false;
 }
+
+/**
+ * Shapes whose dimensions are actually evaluated against the KOT thickness
+ * table. In the legacy app `calculateKot()` only computes `bok`/`l` for QDa —
+ * every other symbol hits an empty `case … break;`. So KOT validation here is
+ * defined for the straight rectangular duct only.
+ */
+export const KOT_SHAPES = ['QDa'];
+
+/** Does the KOT table permit thickness `g` for a duct of side `bok` / length `l`? Mirrors calculateKot(). */
+export function kotAllowsThickness(bok: number, l: number, g: string): boolean {
+  if (l > 0 && l <= 1500) {
+    if (bok < 300 && g === '0,6') return true;
+    if (bok > 300 && bok < 500 && g === '0,6') return true;
+    if (501 <= bok && bok <= 801 && g === '0,9') return true;
+    if (100 <= bok && bok <= 800 && g === '0,7') return true;
+    if (801 <= bok && bok <= 2000 && g === '0,7') return true;
+  }
+  if (bok < 300 && g === '0,6') return true;
+  if (300 < bok && bok < 500 && g === '0,6') return true;
+  if (801 <= bok && bok <= 2000 && g === '0,7') return true;
+  if (100 <= bok && bok <= 800 && g === '0,7') return true;
+  if (501 <= bok && bok <= 800 && g === '0,9') return true;
+  return false;
+}
+
+export interface KotPrerequisite {
+  /** i18n label */
+  label: string;
+  /** required value, ready to display */
+  need: string;
+  ok: boolean;
+}
+
+export interface KotReport {
+  /** false → this shape is outside KOT validation scope */
+  inScope: boolean;
+  compliant: boolean;
+  prerequisites: KotPrerequisite[];
+  bok: number;
+  l: number;
+  grubosc: string;
+  /** thickness values KOT allows for the current `bok`/`l` (empty when bok is off-table) */
+  allowedGrubosc: string[];
+  /** true when `bok` falls within the KOT table (roughly 1–2000 mm) */
+  bokWithinTable: boolean;
+}
+
+/** Structured KOT status for the info tooltip. */
+export function kotReport(params: {
+  symbol: string;
+  dimensionValues: string[];
+  materialType: 'blacha' | 'chemo';
+  material: string;
+  blacha: string;
+  wykonanie: string;
+  klasaSzczelnosci: string;
+}): KotReport {
+  const { symbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci } = params;
+  const inScope = KOT_SHAPES.includes(symbol);
+
+  const a = parseInt(dimensionValues[0]) || 0;
+  const b = parseInt(dimensionValues[1]) || 0;
+  const l = parseInt(dimensionValues[2]) || 0;
+  const bok = Math.max(a, b);
+
+  const prerequisites: KotPrerequisite[] = [
+    { label: 'Typ', need: `${'Blacha'} (B)`, ok: materialType === 'blacha' },
+    { label: 'Materiał', need: 'Ocynk', ok: material === 'Ocynk' },
+    { label: 'Wykonanie', need: 'Średniociśnieniowe', ok: wykonanie === 'Średniociśnieniowe' },
+    { label: 'Kl.szczel.', need: 'B', ok: klasaSzczelnosci === 'B' },
+  ];
+
+  const allowedGrubosc = ['0,6', '0,7', '0,9'].filter((g) => kotAllowsThickness(bok, l, g));
+
+  return {
+    inScope,
+    compliant: inScope && calculateKot(params),
+    prerequisites,
+    bok,
+    l,
+    grubosc: blacha,
+    allowedGrubosc,
+    bokWithinTable: bok >= 1 && bok <= 2000,
+  };
+}

@@ -1,6 +1,12 @@
 import React from 'react';
 import type { MaterialType } from '../types';
 
+export interface PropertyError {
+  message: string;
+  /** value the "apply" chip sets the field to (frame rules only) */
+  suggest?: string;
+}
+
 interface PropertiesPanelProps {
   materialType: MaterialType;
   onMaterialTypeChange: (type: MaterialType) => void;
@@ -34,8 +40,8 @@ interface PropertiesPanelProps {
   ramkiWYLOptions: string[];
   ramkiOdOptions: string[];
 
-  // Validation errors (keyed by field name)
-  propertyErrors?: Record<string, string>;
+  // Validation errors (keyed by field name). `suggest` is a ready-to-apply value.
+  propertyErrors?: Record<string, PropertyError>;
 
   // Chemo mode disables certain fields
   isChemo: boolean;
@@ -88,9 +94,54 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   plaszczOptions,
   gruboscIzolacjiOptions,
 }) => {
-  const err = (field: string) => propertyErrors[field];
+  const err = (field: string): PropertyError | undefined => propertyErrors[field];
   const rowClass = (field: string, disabled?: boolean) =>
     `property-row${err(field) ? ' property-row-error' : ''}${disabled ? ' property-row-disabled' : ''}`;
+
+  // Ramka (frame) row: dropdown + an inline hint carrying the validation rule and
+  // a one-click "apply the minimum allowed frame" action.
+  const renderRamka = (
+    field: string,
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+    options: string[],
+  ) => {
+    const e = err(field);
+    return (
+      <div className={`${rowClass(field, isChemo)}${e ? ' property-row--withHint' : ''}`}>
+        <label>{t(label)}</label>
+        <select
+          value={value}
+          onChange={(ev) => onChange(ev.target.value)}
+          disabled={isChemo}
+          data-testid={`prop-${field}`}
+        >
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        {e && !isChemo && (
+          <div className="property-hint" data-testid={`prop-hint-${field}`} role="alert">
+            <span className="property-hint-msg">{e.message}</span>
+            {e.suggest && (
+              <button
+                type="button"
+                className="property-suggest-chip"
+                data-testid={`prop-suggest-${field}`}
+                onClick={() => onChange(e.suggest!)}
+                title={`${t('Ustaw')} ${e.suggest}`}
+              >
+                {t('Ustaw')} {e.suggest}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="properties-panel">
@@ -128,7 +179,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       </div>
       )}
 
-      <div className={rowClass('material')} title={err('material') || ''}>
+      <div className={rowClass('material')} title={err('material')?.message || ''}>
         <label>{t('Materiał')}</label>
         <select value={material} onChange={(e) => onMaterialChange(e.target.value)}>
           {materialOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
@@ -153,47 +204,30 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </>
       )}
 
-      <div className={rowClass('wykonanie')} title={err('wykonanie') || ''}>
+      <div className={rowClass('wykonanie')} title={err('wykonanie')?.message || ''}>
         <label>{t('Wykonanie')}</label>
         <select value={wykonanie} onChange={(e) => onWykonanieChange(e.target.value)}>
           {wykonanieOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
         </select>
       </div>
 
-      <div className={rowClass('klasaSzczelnosci', isChemo)} title={err('klasaSzczelnosci') || ''}>
+      <div className={rowClass('klasaSzczelnosci', isChemo)} title={err('klasaSzczelnosci')?.message || ''}>
         <label>{t('Kl.szczel.')}</label>
         <select value={klasaSzczelnosci} onChange={(e) => onKlasaSzczelnosciChange(e.target.value)} disabled={isChemo}>
           {klasaOptions.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
 
-      <div className={rowClass('lwzmoc', isChemo)} title={err('lwzmoc') || ''}>
+      <div className={rowClass('lwzmoc', isChemo)} title={err('lwzmoc')?.message || ''}>
         <label>{t('L.wzmoc.')}</label>
         <select value={lwzmoc} onChange={(e) => onLwzmocChange(e.target.value)} disabled={isChemo}>
           {wzmocOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
         </select>
       </div>
 
-      <div className={rowClass('ramkiWL', isChemo)} title={err('ramkiWL') || ''}>
-        <label>{t('RamkiWL')}</label>
-        <select value={ramkiWL} onChange={(e) => onRamkiWLChange(e.target.value)} disabled={isChemo}>
-          {ramkiWLOptions.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </div>
-
-      <div className={rowClass('ramkiWYL', isChemo)} title={err('ramkiWYL') || ''}>
-        <label>{t('RamkiWYL')}</label>
-        <select value={ramkiWYL} onChange={(e) => onRamkiWYLChange(e.target.value)} disabled={isChemo}>
-          {ramkiWYLOptions.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </div>
-
-      <div className={rowClass('ramkiOd', isChemo)} title={err('ramkiOd') || ''}>
-        <label>{t('RamkiOd')}</label>
-        <select value={ramkiOd} onChange={(e) => onRamkiOdChange(e.target.value)} disabled={isChemo}>
-          {ramkiOdOptions.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </div>
+      {renderRamka('ramkiWL', 'RamkiWL', ramkiWL, onRamkiWLChange, ramkiWLOptions)}
+      {renderRamka('ramkiWYL', 'RamkiWYL', ramkiWYL, onRamkiWYLChange, ramkiWYLOptions)}
+      {renderRamka('ramkiOd', 'RamkiOd', ramkiOd, onRamkiOdChange, ramkiOdOptions)}
     </div>
   );
 };

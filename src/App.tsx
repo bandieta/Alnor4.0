@@ -3,7 +3,9 @@ import Toolbar from './components/Toolbar';
 import ShapeList from './components/ShapeList';
 import DimensionInputs from './components/DimensionInputs';
 import type { ValidationError } from './components/DimensionInputs';
+import { validateShape, fieldConstraints } from './validation';
 import PropertiesPanel from './components/PropertiesPanel';
+import KotInfo from './components/KotInfo';
 import ShapeDiagram from './components/ShapeDiagram';
 import ShapeDiagram3D from './components/ShapeDiagram3D';
 import DataGrid from './components/DataGrid';
@@ -23,7 +25,7 @@ import {
   PLASZCZ_OPTIONS,
   GRUBOSC_IZOLACJI_OPTIONS,
 } from './data';
-import { calculateArea, generateSymbol, generatePrzekroj, calculateKot } from './calculations';
+import { calculateArea, generateSymbol, generatePrzekroj, kotReport } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
 import { LANGUAGE_OPTIONS, parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
@@ -404,103 +406,95 @@ function App() {
     return generatePrzekroj(numValues, selectedSymbol);
   }, [dimensionValues, selectedSymbol]);
 
-  // Validation errors
-  const validationErrors = useMemo((): ValidationError[] => {
-    const errors: ValidationError[] = [];
-    const labels = currentShape.labels;
-
-    // Check required fields (non-'...' labels) are not empty
-    labels.forEach((label, i) => {
-      if (label !== '...' && (!dimensionValues[i] || dimensionValues[i].trim() === '')) {
-        errors.push({ index: i, message: t('Wymagane') });
-      }
-    });
-
-    // QDa-specific range validation
-    if (selectedSymbol === 'QDa') {
-      const a = parseFloat(dimensionValues[0]);
-      const b = parseFloat(dimensionValues[1]);
-      const l = parseFloat(dimensionValues[2]);
-      const maxAB = material === 'Ocynk' ? 4000 : 2501;
-      const materialLabel = material === 'Ocynk' ? '4000' : '2501';
-
-      if (dimensionValues[0] !== '' && (isNaN(a) || a < 100 || a > maxAB)) {
-        const existing = errors.findIndex(e => e.index === 0);
-        if (existing >= 0) errors[existing].message = `100 - ${materialLabel}`;
-        else errors.push({ index: 0, message: `100 - ${materialLabel}` });
-      }
-      if (dimensionValues[1] !== '' && (isNaN(b) || b < 100 || b > maxAB)) {
-        const existing = errors.findIndex(e => e.index === 1);
-        if (existing >= 0) errors[existing].message = `100 - ${materialLabel}`;
-        else errors.push({ index: 1, message: `100 - ${materialLabel}` });
-      }
-      if (dimensionValues[2] !== '') {
-        const maxL = materialType === 'chemo' ? 1500 : 20000;
-        if (isNaN(l) || l < 100 || l > maxL) {
-          const existing = errors.findIndex(e => e.index === 2);
-          if (existing >= 0) errors[existing].message = `100 - ${maxL}`;
-          else errors.push({ index: 2, message: `100 - ${maxL}` });
-        }
-      }
-    }
-    return errors;
-  }, [selectedSymbol, dimensionValues, material, materialType, currentShape.labels, t]);
-
-  // Property validation (frame size, etc.)
-  const propertyErrors = useMemo((): Record<string, string> => {
-    const errors: Record<string, string> = {};
-
-    if (selectedSymbol === 'QDa') {
-      const a = parseFloat(dimensionValues[0]) || 0;
-      const b = parseFloat(dimensionValues[1]) || 0;
-      const maxAB = Math.max(a, b);
-
-      const frameRank = (f: string) =>
-        f === 'P20' ? 20 : f === 'P30' ? 30 : f === 'P40' ? 40 : 0;
-
-      let minFrame = 'P20';
-      if (maxAB > 2500) minFrame = 'P40';
-      else if (maxAB > 1000) minFrame = 'P30';
-
-      if (ramkiWL && frameRank(ramkiWL) < frameRank(minFrame)) {
-        errors.ramkiWL = `Min. ${minFrame} (max bok ${maxAB})`;
-      }
-      if (ramkiWYL && frameRank(ramkiWYL) < frameRank(minFrame)) {
-        errors.ramkiWYL = `Min. ${minFrame} (max bok ${maxAB})`;
-      }
-      if (ramkiOd && frameRank(ramkiOd) < frameRank(minFrame)) {
-        errors.ramkiOd = `Min. ${minFrame} (max bok ${maxAB})`;
-      }
-    }
-
-    return errors;
-  }, [selectedSymbol, dimensionValues, ramkiWL, ramkiWYL, ramkiOd]);
-
-  // KOT compliance check
-  const kotCompliant = useMemo(() => {
-    return calculateKot({
-      symbol: selectedSymbol,
+  // Dimension + property validation. Rules are ported from the legacy .NET app
+  // (Form1.cs, per-shape `if (symbol == "…")` blocks) into a standalone module —
+  // see `src/validation/` and `docs/REGULY_WALIDACJI.md`.
+  const validation = useMemo(
+    () =>
+      validateShape(selectedSymbol, dimensionValues, {
+        material,
+        materialType,
+        wykonanie,
+        klasaSzczelnosci,
+        blacha,
+        ramki: { wl: ramkiWL, wyl: ramkiWYL, od: ramkiOd },
+      }),
+    [
+      selectedSymbol,
       dimensionValues,
-      materialType,
       material,
-      blacha,
+      materialType,
       wykonanie,
       klasaSzczelnosci,
-    });
-  }, [selectedSymbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci]);
+      blacha,
+      ramkiWL,
+      ramkiWYL,
+      ramkiOd,
+    ],
+  );
 
-  // KOT tooltip — show what's missing
-  const kotTooltip = useMemo(() => {
-    if (kotCompliant) return t('Zgodne z KOT');
-    const missing: string[] = [];
-    if (materialType !== 'blacha') missing.push(t('Typ') + ': ' + t('Blacha') + ' (B)');
-    if (material !== 'Ocynk') missing.push(t('Materiał') + ': ' + t('Ocynk'));
-    if (wykonanie !== 'Średniociśnieniowe') missing.push(t('Wykonanie') + ': ' + t('Średniociśnieniowe'));
-    if (klasaSzczelnosci !== 'B') missing.push(t('Kl.szczel.') + ': B');
-    if (!['0,6', '0,7', '0,9'].includes(blacha)) missing.push(t('Grubość izolacji') + ': 0,6 / 0,7 / 0,9');
-    if (missing.length > 0) return t('Niezgodne z KOT') + '. ' + t('Wymagane') + ':\n' + missing.join('\n');
-    return t('Niezgodne z KOT') + ' (' + t('wymiary poza zakresem') + ')';
-  }, [kotCompliant, materialType, material, wykonanie, klasaSzczelnosci, blacha, t]);
+  const validationErrors = useMemo(
+    (): ValidationError[] =>
+      validation.dimensionErrors.map((e) => ({
+        index: e.index,
+        message: t(e.message),
+        suggest: e.suggest,
+      })),
+    [validation, t],
+  );
+
+  // Effective min/max per dimension field — used to clamp input on blur and show
+  // an allowed-range hint. Derived from the same rule set.
+  const fieldRanges = useMemo(
+    () =>
+      fieldConstraints(selectedSymbol, dimensionValues, {
+        material,
+        materialType,
+        wykonanie,
+        klasaSzczelnosci,
+        blacha,
+      }),
+    [selectedSymbol, dimensionValues, material, materialType, wykonanie, klasaSzczelnosci, blacha],
+  );
+
+  // Property validation (frame size). Sheet-thickness notes are advisory and
+  // excluded here so they don't block "Add". Each entry carries the rule text and
+  // (for frame rules) a suggested value the user can apply with one click.
+  const propertyErrors = useMemo((): Record<string, { message: string; suggest?: string }> => {
+    const errors: Record<string, { message: string; suggest?: string }> = {};
+    for (const e of validation.propertyErrors) {
+      if (e.ruleId === 'blacha.standard' || !e.field) continue;
+      const suggest = e.params?.min != null ? String(e.params.min) : undefined;
+      errors[e.field] = { message: t(e.message), suggest };
+    }
+    return errors;
+  }, [validation, t]);
+
+  // KOT compliance — structured report for the info popover (see KotInfo).
+  const kotStatus = useMemo(
+    () =>
+      kotReport({
+        symbol: selectedSymbol,
+        dimensionValues,
+        materialType,
+        material,
+        blacha,
+        wykonanie,
+        klasaSzczelnosci,
+      }),
+    [selectedSymbol, dimensionValues, materialType, material, blacha, wykonanie, klasaSzczelnosci],
+  );
+
+  // "Ustaw parametry zgodne z KOT" — force the four prerequisites and pick a
+  // thickness the KOT table allows for the current largest side.
+  const handleMakeKotCompliant = useCallback(() => {
+    setMaterialType('blacha');
+    setMaterial('Ocynk');
+    setWykonanie('Średniociśnieniowe');
+    setKlasaSzczelnosci('B');
+    const g = kotStatus.allowedGrubosc[0];
+    if (g) setBlacha(g);
+  }, [kotStatus.allowedGrubosc]);
 
   // Generate full symbol
   const fullSymbol = useMemo(() => {
@@ -1116,6 +1110,7 @@ function App() {
                 onChange={handleDimensionChange}
                 errors={validationErrors}
                 showErrors={showValidation}
+                ranges={fieldRanges}
               />
               <div className="summary-fields">
                 <div className="summary-row">
@@ -1226,17 +1221,19 @@ function App() {
                 className="min-m2-input"
               />
             </span>
-            <button className="btn btn-action" onClick={handleAdd}>{editingRowId ? t('Zapisz') : t('Dodaj')}</button>
+            <button className="btn btn-action" data-testid="btn-add" onClick={handleAdd}>{editingRowId ? t('Zapisz') : t('Dodaj')}</button>
             <button className="btn btn-danger" onClick={handleDelete}>{t('Usuń')}</button>
             <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId || !selectedRowId}>{t('Edytuj')}</button>
             {editingRowId && (
               <button className="btn" onClick={() => setEditingRowId(null)}>{t('Anuluj')}</button>
             )}
             <button className="btn btn-action" onClick={handleInsertAfter}>{t('Wstaw za')} ...</button>
-            <span
-              className={`btn btn-kot ${kotCompliant ? 'btn-kot-green' : ''}`}
-              title={kotTooltip}
-            >KOT</span>
+            <KotInfo
+              report={kotStatus}
+              shapeName={t(currentShape.name)}
+              onMakeCompliant={handleMakeKotCompliant}
+              t={t}
+            />
           </div>
 
           {/* Data grid */}
