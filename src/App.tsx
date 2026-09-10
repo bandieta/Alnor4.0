@@ -3,7 +3,7 @@ import Toolbar from './components/Toolbar';
 import ShapeList from './components/ShapeList';
 import DimensionInputs from './components/DimensionInputs';
 import type { ValidationError } from './components/DimensionInputs';
-import { validateShape } from './validation';
+import { validateShape, fieldConstraints } from './validation';
 import PropertiesPanel from './components/PropertiesPanel';
 import ShapeDiagram from './components/ShapeDiagram';
 import ShapeDiagram3D from './components/ShapeDiagram3D';
@@ -440,6 +440,20 @@ function App() {
         suggest: e.suggest,
       })),
     [validation, t],
+  );
+
+  // Effective min/max per dimension field — used to clamp input on blur and show
+  // an allowed-range hint. Derived from the same rule set.
+  const fieldRanges = useMemo(
+    () =>
+      fieldConstraints(selectedSymbol, dimensionValues, {
+        material,
+        materialType,
+        wykonanie,
+        klasaSzczelnosci,
+        blacha,
+      }),
+    [selectedSymbol, dimensionValues, material, materialType, wykonanie, klasaSzczelnosci, blacha],
   );
 
   // Property validation (frame size). Sheet-thickness notes are advisory and
@@ -1095,6 +1109,7 @@ function App() {
                 onChange={handleDimensionChange}
                 errors={validationErrors}
                 showErrors={showValidation}
+                ranges={fieldRanges}
               />
               <div className="summary-fields">
                 <div className="summary-row">

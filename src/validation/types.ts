@@ -46,6 +46,13 @@ export interface ShapeValidationResult {
   valid: boolean;
 }
 
+/** An effective numeric bound on a single dimension field. */
+export interface FieldBound {
+  index: number;
+  min?: number;
+  max?: number;
+}
+
 export interface Rule {
   id: string;
   /** Dimension indices this rule concerns (for docs / field focus). */
@@ -60,4 +67,14 @@ export interface Rule {
     ctx: ValidationContext,
     raw: string[],
   ) => RuleViolation | RuleViolation[] | null;
+  /**
+   * Effective min/max this rule imposes on its field(s) given the current
+   * sibling values — used to constrain the input (clamp on blur, show a range
+   * hint). Return `[]` when no numeric bound applies (e.g. the radius "0 or ≥100"
+   * rule, or a relation whose siblings aren't filled in yet).
+   */
+  bounds?: (values: number[], ctx: ValidationContext) => FieldBound[];
 }
+
+/** Effective {min,max} per dimension field index. */
+export type FieldConstraints = Record<number, { min?: number; max?: number }>;

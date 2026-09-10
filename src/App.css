@@ -1234,6 +1234,15 @@ select:focus {
   font-weight: 700;
 }
 
+/* Always-visible allowed-range hint under a dimension field */
+.dimension-range-hint {
+  font-size: 9px;
+  font-weight: 600;
+  color: #8a8a8a;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
 /* Click-to-apply suggested range chips shown under an invalid dimension field */
 .dimension-suggest {
   display: inline-flex;

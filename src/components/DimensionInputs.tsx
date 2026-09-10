@@ -7,12 +7,17 @@ export interface ValidationError {
   suggest?: { min?: number; max?: number };
 }
 
+/** Effective numeric bounds per dimension field index. */
+export type FieldRanges = Record<number, { min?: number; max?: number }>;
+
 interface DimensionInputsProps {
   labels: string[];
   values: string[];
   onChange: (index: number, value: string) => void;
   errors?: ValidationError[];
   showErrors?: boolean;
+  /** Per-field min/max — value is clamped into range on blur and the range is shown as a hint. */
+  ranges?: FieldRanges;
 }
 
 const SCROLL_STEP = 10;
@@ -28,7 +33,26 @@ const sanitizeNumeric = (raw: string): string => {
   return s;
 };
 
-const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onChange, errors = [], showErrors = false }) => {
+const fmt = (n: number): string => String(Math.round(n * 100) / 100);
+
+const rangeLabel = (r?: { min?: number; max?: number }): string | null => {
+  if (!r) return null;
+  const hasMin = r.min != null;
+  const hasMax = r.max != null;
+  if (hasMin && hasMax) return `${fmt(r.min!)}–${fmt(r.max!)}`;
+  if (hasMin) return `≥ ${fmt(r.min!)}`;
+  if (hasMax) return `≤ ${fmt(r.max!)}`;
+  return null;
+};
+
+const DimensionInputs: React.FC<DimensionInputsProps> = ({
+  labels,
+  values,
+  onChange,
+  errors = [],
+  showErrors = false,
+  ranges = {},
+}) => {
   const leftLabels = labels.slice(0, 8);
   const rightLabels = labels.slice(8);
 
@@ -36,19 +60,49 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
     return errors.find((e) => e.index === index);
   };
 
-  const fmt = (n: number): string => String(Math.round(n * 100) / 100);
+  // Clamp a number into the field's allowed range (never below 0).
+  const clamp = useCallback(
+    (index: number, n: number): number => {
+      const r = ranges[index];
+      let out = n;
+      const lo = Math.max(0, r?.min ?? 0);
+      if (out < lo) out = lo;
+      if (r?.max != null && out > r.max) out = r.max;
+      return out;
+    },
+    [ranges],
+  );
 
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLInputElement>, index: number) => {
-    e.preventDefault();
-    const current = parseFloat(values[index]) || 0;
-    const delta = e.deltaY < 0 ? SCROLL_STEP : -SCROLL_STEP;
-    const next = Math.max(0, current + delta);
-    onChange(index, String(next));
-  }, [values, onChange]);
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<HTMLInputElement>, index: number) => {
+      e.preventDefault();
+      const current = parseFloat(values[index]) || 0;
+      const delta = e.deltaY < 0 ? SCROLL_STEP : -SCROLL_STEP;
+      onChange(index, String(clamp(index, current + delta)));
+    },
+    [values, onChange, clamp],
+  );
 
-  const handleChange = useCallback((index: number, value: string) => {
-    onChange(index, sanitizeNumeric(value));
-  }, [onChange]);
+  const handleChange = useCallback(
+    (index: number, value: string) => {
+      onChange(index, sanitizeNumeric(value));
+    },
+    [onChange],
+  );
+
+  // On blur, snap an out-of-range value to the nearest bound so a field can't be
+  // left below its minimum or above its maximum. Reads the live DOM value rather
+  // than closed-over props so it works even before React has flushed the edit.
+  const handleBlur = useCallback(
+    (index: number, raw: string) => {
+      if (!raw || raw.trim() === '') return;
+      const n = parseFloat(raw.replace(',', '.'));
+      if (!Number.isFinite(n)) return;
+      const c = clamp(index, n);
+      if (c !== n) onChange(index, fmt(c));
+    },
+    [onChange, clamp],
+  );
 
   // Reject non-numeric characters before they reach the field, so the caret
   // never jumps. sanitizeNumeric() in handleChange still covers paste / autofill.
@@ -58,11 +112,13 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
     e.preventDefault();
   }, []);
 
-  const step = useCallback((index: number, direction: 1 | -1) => {
-    const current = parseFloat(values[index]) || 0;
-    const next = Math.max(0, current + direction * SCROLL_STEP);
-    onChange(index, String(next));
-  }, [values, onChange]);
+  const step = useCallback(
+    (index: number, direction: 1 | -1) => {
+      const current = parseFloat(values[index]) || 0;
+      onChange(index, String(clamp(index, current + direction * SCROLL_STEP)));
+    },
+    [values, onChange, clamp],
+  );
 
   const renderInput = (label: string, index: number) => {
     const error = getError(index);
@@ -70,6 +126,8 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
     const suggest = error?.suggest;
     const hasSuggest =
       hasVisibleError && suggest && (suggest.min != null || suggest.max != null);
+    const range = ranges[index];
+    const rangeText = rangeLabel(range);
     return (
       <div key={index} className="dimension-row">
         <label className="dimension-label">{label}</label>
@@ -81,10 +139,14 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
                 inputMode="decimal"
                 autoComplete="off"
                 data-testid={`dim-${index}`}
+                data-min={range?.min ?? ''}
+                data-max={range?.max ?? ''}
+                title={rangeText ? `Dozwolony zakres: ${rangeText}` : undefined}
                 className={`dimension-value${hasVisibleError ? ' dimension-error' : ''}`}
                 value={values[index] || ''}
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={handleKeyDown}
+                onBlur={(e) => handleBlur(index, e.currentTarget.value)}
                 onWheel={(e) => handleWheel(e, index)}
               />
               <span className="number-stepper-buttons">
@@ -104,7 +166,7 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
                 />
               </span>
             </div>
-            {hasVisibleError && (
+            {hasVisibleError ? (
               <span className="dimension-error-msg" role="alert">
                 {error!.message}
                 {hasSuggest && (
@@ -134,6 +196,12 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
                   </span>
                 )}
               </span>
+            ) : (
+              rangeText && (
+                <span className="dimension-range-hint" data-testid={`dim-range-${index}`}>
+                  {rangeText}
+                </span>
+              )
             )}
           </div>
         ) : (

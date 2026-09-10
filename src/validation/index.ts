@@ -21,9 +21,11 @@ export type {
   ValidationContext,
   Suggestion,
   Rule,
+  FieldConstraints,
 } from './types';
 export { RULES } from './registry';
 export { minFrameFor } from './properties';
+export { fieldConstraints } from './constraints';
 
 const EMPTY_CTX: ValidationContext = { material: 'Ocynk', materialType: 'blacha' };
 

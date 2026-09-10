@@ -7,7 +7,26 @@ komunikaty i jak je szybko poprawić.
 
 ---
 
-## 1. Jak wygląda błąd i jak go poprawić
+## 1. Ograniczenie zakresu w polach
+
+Pod każdym polem wymiaru, które ma określony zakres, widać szary podpis
+z dozwolonymi wartościami, np. **`100–4000`**, **`≥ 30`** lub **`≤ 440`**.
+
+- **Wartość spoza zakresu jest automatycznie korygowana** po opuszczeniu pola
+  (klawisz Tab lub kliknięcie w inne miejsce): za mała wartość „podskakuje” do
+  minimum, za duża „spada” do maksimum. Nie da się więc zostawić w polu wartości
+  spoza zakresu.
+- **Strzałki i przewijanie kółkiem myszy** też zatrzymują się na granicach
+  zakresu.
+- Zakresy **zależne od innych wymiarów** (np. `d ≤ b`, `w ≤ L − 60`,
+  `L ≥ h + q + r + i + 30`) pojawiają się dopiero po wpisaniu tych wymiarów i są
+  przeliczane na bieżąco.
+
+Reguły, których nie da się zapisać jako prosty zakres (promień „0 lub ≥ 100”,
+minimalne `L` liczone z odejść, zależności `b`/`d`), nadal są sprawdzane przy
+dodawaniu — patrz niżej.
+
+## 2. Jak wygląda błąd i jak go poprawić
 
 Po kliknięciu **Dodaj** (lub **Zapisz** podczas edycji):
 
@@ -36,13 +55,13 @@ na liście rozwijanej. Szerszą ramkę zawsze można wybrać ręcznie.
 
 ---
 
-## 2. Komunikaty ogólne
+## 3. Komunikaty ogólne
 
 | Komunikat | Co oznacza | Jak poprawić |
 |---|---|---|
 | **Pole wymagane** | Któreś z pól wymiarów jest puste. | Wypełnij wszystkie pola wymiarów danej kształtki. |
 | **Wartość `a` poza zakresem (100–4000 mm)** | Bok kanału (`a`, `b`, a przy niektórych kształtkach też `c`, `d`) jest za mały lub za duży. Górna granica zależy od materiału: **Ocynk — 4000 mm**, **Kwasówka i Aluminium — 2501 mm**. | Kliknij `min 100` lub `max …`, albo wpisz wartość z podanego zakresu. Jeśli potrzebujesz większego boku — zmień materiał na Ocynk. |
-| **Wartość `L` poza zakresem (…–… mm)** | Długość kształtki wykracza poza dopuszczalne okno (różne dla różnych kształtek — patrz sekcja 3). W trybie **chemia** długość kanału prostokątnego (QDa) jest ograniczona do **1500 mm**. | Skoryguj długość do podanego zakresu (przyciski `min` / `max`). |
+| **Wartość `L` poza zakresem (…–… mm)** | Długość kształtki wykracza poza dopuszczalne okno (różne dla różnych kształtek — patrz sekcja 4). W trybie **chemia** długość kanału prostokątnego (QDa) jest ograniczona do **1500 mm**. | Skoryguj długość do podanego zakresu (przyciski `min` / `max`). |
 | **Wartość `x` musi być większa od 0** | Wpisano `0` w polu, które musi mieć wartość dodatnią. | Wpisz wartość większą od zera. |
 | **Promień musi być równy 0 lub co najmniej 100 mm** | Promień gięcia (`r`, a przy trójnikach formowanych też `q`) ma wartość z przedziału 1–99. | Ustaw `0` (kształtka bez zaokrąglenia) **albo** wartość ≥ 100. |
 | **Przy promieniu 0 wartość `e` musi być ≥ 50 mm** | Gdy promień = 0, przedłużenia `e` i `f` muszą mieć co najmniej 50 mm. | Zwiększ `e` / `f` do min. 50 mm lub ustaw promień ≥ 100. |
@@ -62,7 +81,7 @@ na liście rozwijanej. Szerszą ramkę zawsze można wybrać ręcznie.
 
 ---
 
-## 3. Ograniczenia dla poszczególnych kształtek
+## 4. Ograniczenia dla poszczególnych kształtek
 
 Dla każdej kształtki podano: kolejność wymiarów (tak jak pola w programie),
 warunki, które muszą być spełnione, oraz **przykładowy poprawny zestaw wymiarów**.
@@ -252,7 +271,7 @@ inaczej.
 
 ---
 
-## 4. Najczęstsze pytania
+## 5. Najczęstsze pytania
 
 **Wpisuję poprawny wymiar, a pole dalej jest czerwone.**
 Sprawdzenie odświeża się po każdej zmianie. Jeśli błąd nie znika, upewnij się,

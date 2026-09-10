@@ -1,9 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// End-to-end coverage for the dimension-validation module wired into the app.
-// The rules themselves are unit-tested in src/validation/__tests__; this file
-// only proves the wiring: errors surface on "Dodaj", the Add is blocked, and the
-// suggested-range chips apply a valid value.
+// End-to-end coverage for the dimension-validation module wired into the app:
+// - each field is bounded (value snaps into range on blur, range shown as a hint)
+// - rules that aren't a simple range (formed radius, minimum L, frame width)
+//   still surface an error on "Dodaj" with a one-click fix.
+// The rules themselves are unit-tested in src/validation/__tests__.
 
 async function selectShape(page: Page, symbol: string) {
   await page.getByTestId(`shape-${symbol}`).click();
@@ -13,7 +14,6 @@ async function fillDims(page: Page, values: Array<number | string>) {
   for (let i = 0; i < values.length; i++) {
     const input = page.getByTestId(`dim-${i}`);
     await input.fill(String(values[i]));
-    // controlled input — wait for React to commit before moving on
     await expect(input).toHaveValue(String(values[i]));
   }
 }
@@ -27,53 +27,69 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByTestId('btn-add')).toBeVisible();
 });
 
-test('QDa: side out of range blocks Add and offers a clickable minimum', async ({ page }) => {
+test('static range: field snaps into [min, max] on blur and shows the range hint', async ({ page }) => {
   await selectShape(page, 'QDa');
-  await fillDims(page, [50, 200, 500]); // a = 50 < 100
+  await expect(page.getByTestId('dim-range-0')).toHaveText('100–4000');
 
-  await page.getByTestId('btn-add').click();
+  const a = page.getByTestId('dim-0');
+  await a.fill('50');
+  await expect(a).toHaveValue('50'); // committed
+  await a.blur();
+  await expect(a).toHaveValue('100'); // snapped up to the minimum
 
-  const errA = page.locator('.dimension-row', { has: page.getByTestId('dim-0') }).locator('.dimension-error-msg');
-  await expect(errA).toBeVisible();
-  await expect(errA).toContainText('poza zakresem');
-  await expect(dataRows(page)).toHaveCount(0);
+  await a.fill('9000');
+  await expect(a).toHaveValue('9000');
+  await a.blur();
+  await expect(a).toHaveValue('4000'); // snapped down to the maximum
 
-  // apply the suggested minimum
-  await page.getByTestId('dim-suggest-0-min').click();
-  await expect(page.getByTestId('dim-0')).toHaveValue('100');
-
-  // now valid — Add succeeds
-  await page.getByTestId('btn-add').click();
-  await expect(dataRows(page)).toHaveCount(1);
+  await a.fill('250');
+  await expect(a).toHaveValue('250');
+  await a.blur();
+  await expect(a).toHaveValue('250'); // already in range — untouched
 });
 
-test('TR1a: relational rule w ≤ L − 60 with a max chip', async ({ page }) => {
+test('relational range: TR1a enforces w ≤ L − 60 once L is set', async ({ page }) => {
   await selectShape(page, 'TR1a');
   // a, b, d, w, L, e, f, l3
-  await fillDims(page, [250, 300, 140, 500, 500, 50, 50, 80]); // w = 500 > 440
+  await fillDims(page, [250, 300, 140, 100, 500, 50, 50, 80]);
+
+  const w = page.getByTestId('dim-3');
+  await w.fill('900'); // L − 60 = 440
+  await w.blur();
+  await expect(w).toHaveValue('440');
+});
+
+test('formed radius (not a simple range): blocks Add, chip applies the minimum', async ({ page }) => {
+  await selectShape(page, 'QBa');
+  // a, b, e, f, r  — r = 50 is invalid (must be 0 or ≥ 100)
+  await fillDims(page, [300, 200, 150, 150, 50]);
 
   await page.getByTestId('btn-add').click();
 
-  const errW = page.locator('.dimension-row', { has: page.getByTestId('dim-3') }).locator('.dimension-error-msg');
-  await expect(errW).toBeVisible();
-  await expect(errW).toContainText('w');
+  const errR = page
+    .locator('.dimension-row', { has: page.getByTestId('dim-4') })
+    .locator('.dimension-error-msg');
+  await expect(errR).toBeVisible();
+  await expect(errR).toContainText('Promień');
   await expect(dataRows(page)).toHaveCount(0);
 
-  await page.getByTestId('dim-suggest-3-max').click();
-  await expect(page.getByTestId('dim-3')).toHaveValue('440');
+  await page.getByTestId('dim-suggest-4-min').click();
+  await expect(page.getByTestId('dim-4')).toHaveValue('100');
 
   await page.getByTestId('btn-add').click();
   await expect(dataRows(page)).toHaveCount(1);
 });
 
-test('TRa: minimum L is computed from the branch dimensions', async ({ page }) => {
+test('minimum L (from branch dimensions): blocks Add, chip applies the minimum', async ({ page }) => {
   await selectShape(page, 'TRa');
-  // a, b, d, h, L, q, r, i, p
-  await fillDims(page, [300, 250, 200, 100, 200, 100, 100, 100, 100]); // L = 200 < 430
+  // a, b, d, h, L, q, r, i, p  — L = 200 < h+q+r+i+30 = 430
+  await fillDims(page, [300, 250, 200, 100, 200, 100, 100, 100, 100]);
 
   await page.getByTestId('btn-add').click();
 
-  const errL = page.locator('.dimension-row', { has: page.getByTestId('dim-4') }).locator('.dimension-error-msg');
+  const errL = page
+    .locator('.dimension-row', { has: page.getByTestId('dim-4') })
+    .locator('.dimension-error-msg');
   await expect(errL).toBeVisible();
   await expect(dataRows(page)).toHaveCount(0);
 
@@ -84,7 +100,7 @@ test('TRa: minimum L is computed from the branch dimensions', async ({ page }) =
   await expect(dataRows(page)).toHaveCount(1);
 });
 
-test('Ramka: hint under the frame field explains the rule and applies the minimum', async ({ page }) => {
+test('ramka: hint under the frame field explains the rule and applies the minimum', async ({ page }) => {
   await selectShape(page, 'QDa');
   await fillDims(page, [1600, 200, 500]); // largest side 1600 → frame must be ≥ P30
 
@@ -95,7 +111,6 @@ test('Ramka: hint under the frame field explains the rule and applies the minimu
   await expect(hint).toContainText('P30');
   await expect(dataRows(page)).toHaveCount(0);
 
-  // one click applies the suggested frame
   await page.getByTestId('prop-suggest-ramkiWL').click();
   await expect(page.getByTestId('prop-ramkiWL')).toHaveValue('P30');
   await page.getByTestId('prop-suggest-ramkiWYL').click();
@@ -105,7 +120,7 @@ test('Ramka: hint under the frame field explains the rule and applies the minimu
   await expect(dataRows(page)).toHaveCount(1);
 });
 
-test('QDa: fully valid dimensions add straight away', async ({ page }) => {
+test('valid dimensions add straight away with no errors', async ({ page }) => {
   await selectShape(page, 'QDa');
   await fillDims(page, [300, 200, 500]);
   await page.getByTestId('btn-add').click();

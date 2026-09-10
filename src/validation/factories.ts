@@ -87,6 +87,7 @@ export function sideRange(index: number, labels: string[]): Rule {
   return {
     id: `side.${index}`,
     fields: [index],
+    bounds: (_values, ctx) => [{ index, min: SIDE_MIN, max: sideMax(ctx.material) }],
     check: (values, ctx, raw) => {
       if (!raw[index] || raw[index].trim() === '') return null;
       const max = sideMax(ctx.material);
@@ -115,15 +116,17 @@ export function lengthRange(
 ): Rule {
   const min = opts.min ?? LENGTH_MIN;
   const max = opts.max ?? LENGTH_MAX;
+  const upperFor = (ctx: ValidationContext) =>
+    ctx.materialType === 'chemo' && opts.chemoMax != null
+      ? Math.min(max, opts.chemoMax ?? LENGTH_MAX_CHEMO)
+      : max;
   return {
     id: `length.${index}`,
     fields: [index],
+    bounds: (_values, ctx) => [{ index, min, max: upperFor(ctx) }],
     check: (values, ctx, raw) => {
       if (!raw[index] || raw[index].trim() === '') return null;
-      const upper =
-        ctx.materialType === 'chemo' && opts.chemoMax != null
-          ? Math.min(max, opts.chemoMax ?? LENGTH_MAX_CHEMO)
-          : max;
+      const upper = upperFor(ctx);
       const val = values[index];
       if (val < min || val > upper) {
         const label = fieldLetter(labels, index);
@@ -192,13 +195,23 @@ export function efMin(
   labels: string[],
   rIndex?: number,
 ): Rule {
+  const minFor = (values: number[]) => {
+    const r = rIndex != null ? values[rIndex] : 0;
+    return r > 0 ? r + EF_RADIUS_MARGIN : EF_MIN_FRAME;
+  };
   return {
     id: `efMin.${eIndex}-${fIndex}`,
     fields: rIndex != null ? [eIndex, fIndex, rIndex] : [eIndex, fIndex],
+    bounds: (values) => {
+      const min = minFor(values);
+      return [
+        { index: eIndex, min },
+        { index: fIndex, min },
+      ];
+    },
     check: (values, _ctx, raw) => {
       const out: RuleViolation[] = [];
-      const r = rIndex != null ? values[rIndex] : 0;
-      const min = r > 0 ? r + EF_RADIUS_MARGIN : EF_MIN_FRAME;
+      const min = minFor(values);
       for (const i of [eIndex, fIndex]) {
         if (!raw[i] || raw[i].trim() === '') continue;
         if (values[i] < min) {
@@ -225,6 +238,7 @@ export function alfaRange(index: number, labels: string[]): Rule {
   return {
     id: `alfa.${index}`,
     fields: [index],
+    bounds: () => [{ index, min: ALFA_MIN, max: ALFA_MAX }],
     check: (values, _ctx, raw) => {
       if (!raw[index] || raw[index].trim() === '') return null;
       const val = values[index];
@@ -258,9 +272,18 @@ export function relation(
   messageKey: string,
   suggest?: (values: number[], ctx: ValidationContext) => RuleViolation['suggest'],
 ): Rule {
+  const siblings = fields.filter((i) => i !== anchor);
   return {
     id: ruleId,
     fields,
+    bounds: (values, ctx) => {
+      if (!suggest) return [];
+      // sibling values drive the bound — don't compute it until they're set
+      if (siblings.some((i) => values[i] <= 0)) return [];
+      const s = suggest(values, ctx);
+      if (!s || (s.min == null && s.max == null)) return [];
+      return [{ index: anchor, min: s.min, max: s.max }];
+    },
     check: (values, ctx, raw) => {
       // only evaluate once every referenced field has a value
       if (fields.some((i) => !raw[i] || raw[i].trim() === '')) return null;

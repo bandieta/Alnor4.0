@@ -27,14 +27,31 @@ Cała logika znajduje się w osobnym module `src/validation/`:
 
 ```
 src/validation/
-  types.ts        typy publiczne (RuleViolation, ValidationContext, …)
+  types.ts        typy publiczne (RuleViolation, ValidationContext, FieldBound, …)
   constants.ts    limity liczbowe (zakresy boków, długości, promienia, tabela blach)
-  factories.ts    fabryki reguł wspólnych (required, sideRange, lengthRange, radiusRule, efMin, alfaRange, relation)
+  factories.ts    fabryki reguł wspólnych (required, sideRange, lengthRange, radiusRule, efMin, alfaRange, relation) — każda wystawia też bounds()
   properties.ts   sprawdzenia „property” (ramka, grubość blachy)
   registry.ts     lista reguł dla każdego z 28 symboli (RULES)
+  constraints.ts  fieldConstraints(symbol, values, ctx) — efektywne min/max na pole
   index.ts        validateShape(symbol, values, ctx) — publiczne wejście
   __tests__/      testy jednostkowe (Vitest)
 ```
+
+### Ograniczenie zakresu w polach wejściowych
+
+`fieldConstraints()` zbiera z reguł (`Rule.bounds`) efektywne `{ min, max }` dla
+każdego pola przy bieżących wartościach pozostałych pól. `App.tsx` przekazuje to
+do `DimensionInputs` jako `ranges`:
+
+- pole pokazuje zakres jako szary podpis (`.dimension-range-hint`),
+- wartość spoza zakresu jest przycinana do granicy w `onBlur`
+  (`handleBlur` czyta żywą wartość z DOM, nie z propsów),
+- strzałki i kółko myszy również respektują `min`/`max`.
+
+Reguły bez sensownego zakresu liczbowego (`radiusRule` „0 lub ≥ 100”, relacje bez
+`suggest`) nie wystawiają `bounds` — pozostają wyłącznie jako komunikat przy
+„Dodaj”. Boundy relacyjne pojawiają się dopiero, gdy pola-argumenty są wypełnione
+(`> 0`); nonsensowne `max` (poniżej `min` lub ujemne) są odrzucane.
 
 Wywołanie:
 
