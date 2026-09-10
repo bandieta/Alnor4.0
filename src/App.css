@@ -560,6 +560,49 @@ body {
   opacity: 0.45;
 }
 
+/* Ramka rows that carry a validation hint below the dropdown */
+.property-row--withHint {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.property-hint {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0 74px;
+}
+
+.property-hint-msg {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ce0015;
+  line-height: 1.15;
+}
+
+.property-suggest-chip {
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 8px;
+  border: 1px solid #ce0015;
+  border-radius: 999px;
+  background: #fff;
+  color: #ce0015;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.property-suggest-chip:hover,
+.property-suggest-chip:focus-visible {
+  background: #ce0015;
+  color: #fff;
+  outline: none;
+}
+
 .insulation-separator {
   border-top: 1px solid #004290;
   padding-top: 6px;
@@ -1189,6 +1232,34 @@ select:focus {
   line-height: 1.1;
   white-space: nowrap;
   font-weight: 700;
+}
+
+/* Click-to-apply suggested range chips shown under an invalid dimension field */
+.dimension-suggest {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.dimension-suggest-chip {
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 6px;
+  border: 1px solid #ce0015;
+  border-radius: 999px;
+  background: #fff;
+  color: #ce0015;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dimension-suggest-chip:hover,
+.dimension-suggest-chip:focus-visible {
+  background: #ce0015;
+  color: #fff;
+  outline: none;
 }
 
 .dimension-value.dimension-error {

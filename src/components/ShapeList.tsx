@@ -48,6 +48,7 @@ const ShapeList: React.FC<ShapeListProps> = ({
           return (
             <div
               key={shape.symbol}
+              data-testid={`shape-${shape.symbol}`}
               className={`shape-list-item ${isSelected ? 'selected' : ''}`}
               onClick={() => !disabled && onSelect(shape.symbol)}
             >

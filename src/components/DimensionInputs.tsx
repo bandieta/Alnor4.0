@@ -3,6 +3,8 @@ import React, { useCallback } from 'react';
 export interface ValidationError {
   index: number;
   message: string;
+  /** Optional suggested range — rendered as click-to-apply chips in the field tooltip. */
+  suggest?: { min?: number; max?: number };
 }
 
 interface DimensionInputsProps {
@@ -30,9 +32,11 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
   const leftLabels = labels.slice(0, 8);
   const rightLabels = labels.slice(8);
 
-  const getError = (index: number): string | undefined => {
-    return errors.find((e) => e.index === index)?.message;
+  const getError = (index: number): ValidationError | undefined => {
+    return errors.find((e) => e.index === index);
   };
+
+  const fmt = (n: number): string => String(Math.round(n * 100) / 100);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLInputElement>, index: number) => {
     e.preventDefault();
@@ -62,7 +66,10 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
 
   const renderInput = (label: string, index: number) => {
     const error = getError(index);
-    const hasVisibleError = error && showErrors;
+    const hasVisibleError = Boolean(error) && showErrors;
+    const suggest = error?.suggest;
+    const hasSuggest =
+      hasVisibleError && suggest && (suggest.min != null || suggest.max != null);
     return (
       <div key={index} className="dimension-row">
         <label className="dimension-label">{label}</label>
@@ -73,6 +80,7 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
                 type="text"
                 inputMode="decimal"
                 autoComplete="off"
+                data-testid={`dim-${index}`}
                 className={`dimension-value${hasVisibleError ? ' dimension-error' : ''}`}
                 value={values[index] || ''}
                 onChange={(e) => handleChange(index, e.target.value)}
@@ -96,7 +104,37 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({ labels, values, onCha
                 />
               </span>
             </div>
-            {hasVisibleError && <span className="dimension-error-msg">{error}</span>}
+            {hasVisibleError && (
+              <span className="dimension-error-msg" role="alert">
+                {error!.message}
+                {hasSuggest && (
+                  <span className="dimension-suggest">
+                    {suggest!.min != null && (
+                      <button
+                        type="button"
+                        data-testid={`dim-suggest-${index}-min`}
+                        className="dimension-suggest-chip"
+                        onClick={() => onChange(index, fmt(suggest!.min!))}
+                        title={`Wstaw wartość minimalną (${fmt(suggest!.min!)})`}
+                      >
+                        min {fmt(suggest!.min!)}
+                      </button>
+                    )}
+                    {suggest!.max != null && (
+                      <button
+                        type="button"
+                        data-testid={`dim-suggest-${index}-max`}
+                        className="dimension-suggest-chip"
+                        onClick={() => onChange(index, fmt(suggest!.max!))}
+                        title={`Wstaw wartość maksymalną (${fmt(suggest!.max!)})`}
+                      >
+                        max {fmt(suggest!.max!)}
+                      </button>
+                    )}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
         ) : (
           <input className="dimension-value" disabled value="" />

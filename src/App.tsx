@@ -3,6 +3,7 @@ import Toolbar from './components/Toolbar';
 import ShapeList from './components/ShapeList';
 import DimensionInputs from './components/DimensionInputs';
 import type { ValidationError } from './components/DimensionInputs';
+import { validateShape } from './validation';
 import PropertiesPanel from './components/PropertiesPanel';
 import ShapeDiagram from './components/ShapeDiagram';
 import ShapeDiagram3D from './components/ShapeDiagram3D';
@@ -404,77 +405,55 @@ function App() {
     return generatePrzekroj(numValues, selectedSymbol);
   }, [dimensionValues, selectedSymbol]);
 
-  // Validation errors
-  const validationErrors = useMemo((): ValidationError[] => {
-    const errors: ValidationError[] = [];
-    const labels = currentShape.labels;
+  // Dimension + property validation. Rules are ported from the legacy .NET app
+  // (Form1.cs, per-shape `if (symbol == "…")` blocks) into a standalone module —
+  // see `src/validation/` and `docs/REGULY_WALIDACJI.md`.
+  const validation = useMemo(
+    () =>
+      validateShape(selectedSymbol, dimensionValues, {
+        material,
+        materialType,
+        wykonanie,
+        klasaSzczelnosci,
+        blacha,
+        ramki: { wl: ramkiWL, wyl: ramkiWYL, od: ramkiOd },
+      }),
+    [
+      selectedSymbol,
+      dimensionValues,
+      material,
+      materialType,
+      wykonanie,
+      klasaSzczelnosci,
+      blacha,
+      ramkiWL,
+      ramkiWYL,
+      ramkiOd,
+    ],
+  );
 
-    // Check required fields (non-'...' labels) are not empty
-    labels.forEach((label, i) => {
-      if (label !== '...' && (!dimensionValues[i] || dimensionValues[i].trim() === '')) {
-        errors.push({ index: i, message: t('Wymagane') });
-      }
-    });
+  const validationErrors = useMemo(
+    (): ValidationError[] =>
+      validation.dimensionErrors.map((e) => ({
+        index: e.index,
+        message: t(e.message),
+        suggest: e.suggest,
+      })),
+    [validation, t],
+  );
 
-    // QDa-specific range validation
-    if (selectedSymbol === 'QDa') {
-      const a = parseFloat(dimensionValues[0]);
-      const b = parseFloat(dimensionValues[1]);
-      const l = parseFloat(dimensionValues[2]);
-      const maxAB = material === 'Ocynk' ? 4000 : 2501;
-      const materialLabel = material === 'Ocynk' ? '4000' : '2501';
-
-      if (dimensionValues[0] !== '' && (isNaN(a) || a < 100 || a > maxAB)) {
-        const existing = errors.findIndex(e => e.index === 0);
-        if (existing >= 0) errors[existing].message = `100 - ${materialLabel}`;
-        else errors.push({ index: 0, message: `100 - ${materialLabel}` });
-      }
-      if (dimensionValues[1] !== '' && (isNaN(b) || b < 100 || b > maxAB)) {
-        const existing = errors.findIndex(e => e.index === 1);
-        if (existing >= 0) errors[existing].message = `100 - ${materialLabel}`;
-        else errors.push({ index: 1, message: `100 - ${materialLabel}` });
-      }
-      if (dimensionValues[2] !== '') {
-        const maxL = materialType === 'chemo' ? 1500 : 20000;
-        if (isNaN(l) || l < 100 || l > maxL) {
-          const existing = errors.findIndex(e => e.index === 2);
-          if (existing >= 0) errors[existing].message = `100 - ${maxL}`;
-          else errors.push({ index: 2, message: `100 - ${maxL}` });
-        }
-      }
+  // Property validation (frame size). Sheet-thickness notes are advisory and
+  // excluded here so they don't block "Add". Each entry carries the rule text and
+  // (for frame rules) a suggested value the user can apply with one click.
+  const propertyErrors = useMemo((): Record<string, { message: string; suggest?: string }> => {
+    const errors: Record<string, { message: string; suggest?: string }> = {};
+    for (const e of validation.propertyErrors) {
+      if (e.ruleId === 'blacha.standard' || !e.field) continue;
+      const suggest = e.params?.min != null ? String(e.params.min) : undefined;
+      errors[e.field] = { message: t(e.message), suggest };
     }
     return errors;
-  }, [selectedSymbol, dimensionValues, material, materialType, currentShape.labels, t]);
-
-  // Property validation (frame size, etc.)
-  const propertyErrors = useMemo((): Record<string, string> => {
-    const errors: Record<string, string> = {};
-
-    if (selectedSymbol === 'QDa') {
-      const a = parseFloat(dimensionValues[0]) || 0;
-      const b = parseFloat(dimensionValues[1]) || 0;
-      const maxAB = Math.max(a, b);
-
-      const frameRank = (f: string) =>
-        f === 'P20' ? 20 : f === 'P30' ? 30 : f === 'P40' ? 40 : 0;
-
-      let minFrame = 'P20';
-      if (maxAB > 2500) minFrame = 'P40';
-      else if (maxAB > 1000) minFrame = 'P30';
-
-      if (ramkiWL && frameRank(ramkiWL) < frameRank(minFrame)) {
-        errors.ramkiWL = `Min. ${minFrame} (max bok ${maxAB})`;
-      }
-      if (ramkiWYL && frameRank(ramkiWYL) < frameRank(minFrame)) {
-        errors.ramkiWYL = `Min. ${minFrame} (max bok ${maxAB})`;
-      }
-      if (ramkiOd && frameRank(ramkiOd) < frameRank(minFrame)) {
-        errors.ramkiOd = `Min. ${minFrame} (max bok ${maxAB})`;
-      }
-    }
-
-    return errors;
-  }, [selectedSymbol, dimensionValues, ramkiWL, ramkiWYL, ramkiOd]);
+  }, [validation, t]);
 
   // KOT compliance check
   const kotCompliant = useMemo(() => {
@@ -1226,7 +1205,7 @@ function App() {
                 className="min-m2-input"
               />
             </span>
-            <button className="btn btn-action" onClick={handleAdd}>{editingRowId ? t('Zapisz') : t('Dodaj')}</button>
+            <button className="btn btn-action" data-testid="btn-add" onClick={handleAdd}>{editingRowId ? t('Zapisz') : t('Dodaj')}</button>
             <button className="btn btn-danger" onClick={handleDelete}>{t('Usuń')}</button>
             <button className="btn btn-action" onClick={handleEdit} disabled={!!editingRowId || !selectedRowId}>{t('Edytuj')}</button>
             {editingRowId && (
