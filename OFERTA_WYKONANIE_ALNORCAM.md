@@ -1,9 +1,9 @@
 # OFERTA NA WYKONANIE APLIKACJI ALNORCAM 4.0
 
 **Wersja dokumentu:** 1.0  
-**Data:** 03.09.2026  
-**Wykonawca:** [nazwa wykonawcy]  
-**Zamawiający:** [nazwa zamawiającego]
+**Data:** 07.09.2026  
+**Wykonawca:** Michal Bandrowski
+**Zamawiający:** 
 
 ---
 
@@ -120,10 +120,7 @@ Aplikacja będzie obsługiwała następujące języki:
 - angielski,
 - niemiecki,
 - węgierski,
-- chiński,
-- afrikaans,
-- tajski,
-- japoński
+
 - inne (do ustalenia)
 
 ---
@@ -163,14 +160,14 @@ Po zakończeniu prac Zamawiający otrzyma:
 
 Przewidywany czas realizacji wynosi:
 
-**16-20 tygodni pracy**
+**8-12 tygodni pracy**
 
 | Etap | Zakres | Czas |
 |---|---|---:|
-| 1 | Analiza, wymagania i dane referencyjne | 2 tygodnie |
+| 1 | Analiza, wymagania i dane referencyjne | 1 tygodnie |
 | 2 | Uporządkowanie architektury aplikacji | 1-2 tygodnie |
-| 3 | Weryfikacja obliczeń i walidacji | 2-3 tygodnie |
-| 4 | Obsługa projektu i formularzy | 1-2 tygodnie |
+| 3 | Weryfikacja obliczeń i walidacji | 2 tygodnie |
+| 4 | Obsługa projektu i formularzy | 1 tygodnie |
 | 5 | Stabilizacja wizualizacji 2D/3D | 2-3 tygodnie |
 | 6 | Testy i poprawki | 2 tygodnie |
 | 7 | Przygotowanie wydania | 2 tygodnie |
@@ -185,11 +182,10 @@ Harmonogram może ulec zmianie w przypadku rozszerzenia zakresu, braku danych re
 
 Cena za wykonanie zakresu określonego w niniejszej ofercie:
 
-# 89 000 PLN netto
+# 65 000 PLN netto
 
-Cena obejmuje pracę jednego programisty oraz przygotowanie opisanych funkcji frontendowych.
-
-Cena nie obejmuje podatku VAT.
+Cena obejmuje pracę programisty oraz przygotowanie opisanych funkcji frontendowych.
+Cena nie obejmuje podatku VAT (32% na umowe o dzielo, 85 800 PLN burtto)
 
 ### 6.2. Wariant podstawowy
 
@@ -200,9 +196,8 @@ Cena nie obejmuje podatku VAT.
 Proponowany harmonogram płatności:
 
 - 20% - rozpoczęcie prac,
-- 30% - zakończenie architektury i podstawowych funkcji,
-- 30% - zakończenie implementacji i testów,
-- 20% - odbiór końcowy i przekazanie wersji produkcyjnej.
+- 60% - zakończenie architektury, funkcji, implementacji i testow (demo 1)
+- 20% - odbiór końcowy i przekazanie wersji produkcyjnej (demo 2)
 
 Szczegółowy harmonogram płatności może zostać ustalony w umowie.
 
@@ -269,47 +264,12 @@ Poniższe funkcje wymagają osobnej wyceny:
 - monitoring produkcyjny,
 - aplikacja mobilna.
 
-Szacunkowy koszt rozbudowy o backend, użytkowników i bazę danych:
-
-**od 70 000 do 150 000 PLN netto**, zależnie od zakresu integracji i wymagań dotyczących bezpieczeństwa.
-
 ---
 
-## 12. Ważne ryzyka projektowe
-
-Największy wpływ na termin i koszt mogą mieć:
-
-- brak kompletnych danych referencyjnych,
-- różnice pomiędzy działaniem aplikacji C# a oczekiwaniami użytkowników,
-- konieczność zmiany wzorów obliczeniowych,
-- dodatkowe wymagania dotyczące dokładności modeli 3D,
-- konieczność obsługi nowych typów kształtek,
-- wymagania integracyjne z innymi systemami,
-- zmiana założeń dotyczących zapisu danych.
-
-W przypadku pojawienia się nowych wymagań Wykonawca przedstawi odrębną wycenę i wpływ na harmonogram.
-
----
-
-## 13. Ważność oferty
+## 12. Ważność oferty
 
 Oferta jest ważna przez 30 dni od daty jej wystawienia.
 
 Rozpoczęcie prac nastąpi po zaakceptowaniu oferty oraz ustaleniu warunków współpracy.
 
 ---
-
-## 14. Podsumowanie cenowe
-
-| Wariant | Zakres | Cena netto |
-|---|---|---:|
-| Wariant rekomendowany | Produkcyjna wersja frontendowa | 89 000 PLN |
-| Rozbudowa opcjonalna | Backend, użytkownicy, baza danych i integracje | od 70 000 PLN |
-
-## Rekomendowany wariant
-
-Rekomendowany jest **Wariant produkcyjny frontendowy** w cenie:
-
-# 89 000 PLN netto
-
-Pozwoli on uporządkować istniejący kod, potwierdzić poprawność obliczeń, zapewnić obsługę wszystkich uzgodnionych typów kształtek oraz przygotować aplikację do dalszej rozbudowy o backend i integracje.

@@ -1,8 +1,8 @@
 # OFERTA NA ROZBUDOWĘ I UTRZYMANIE APLIKACJI ALNORCAM .NET
 
 **Wersja dokumentu:** 1.0  
-**Data:** 03.09.2026  
-**Wykonawca:** [nazwa wykonawcy]  
+**Data:** 09.09.2026  
+**Wykonawca:** Michal Bandrowski 
 **Zamawiający:** [nazwa zamawiającego]
 
 ---
@@ -14,9 +14,7 @@ Przedmiotem oferty jest rozbudowa istniejącej aplikacji AlnorCAM wykonanej w te
 Zakres obejmuje w szczególności:
 
 - dodanie obliczania powierzchni dla elementów niewykonanych z blachy,
-- zmianę i uporządkowanie istniejących sposobów wyliczania powierzchni,
 - analizę oraz poprawę błędów ujawnionych po latach użytkowania,
-- zabezpieczenie istniejących funkcji przed regresją,
 - przygotowanie i wdrożenie poprawionej wersji aplikacji.
 
 Prace będą prowadzone na podstawie dostępnego kodu źródłowego aplikacji .NET, danych produkcyjnych oraz przykładów wskazanych przez Zamawiającego.
@@ -30,7 +28,6 @@ Celem projektu jest zapewnienie, aby aplikacja:
 - poprawnie wyliczała powierzchnię elementów wykonanych z różnych materiałów,
 - rozróżniała elementy z blachy oraz elementy z innych materiałów,
 - stosowała właściwe wzory i zasady dla każdego rodzaju elementu,
-- dawała powtarzalne i możliwe do zweryfikowania wyniki,
 - nie traciła poprawności po zmianie istniejących reguł
 
 ---
@@ -52,12 +49,7 @@ Analiza może obejmować:
 - różnice pomiędzy wartością oczekiwaną a wynikiem aplikacji,
 - problemy z wartościami granicznymi,
 - problemy z pustymi lub niepełnymi danymi,
-- błędy wynikające z jednostek miary,
-- błędy zaokrągleń,
-- błędy powstające przy zmianie materiału,
 - błędy zapisu i odczytu danych,
-- błędy występujące tylko dla określonych konfiguracji systemowych,
-- problemy związane ze starszą wersją środowiska .NET lub systemu operacyjnego.
 
 Każdy potwierdzony błąd zostanie opisany, odtworzony i poprawiony.
 
@@ -142,27 +134,11 @@ Każdy potwierdzony błąd zostanie opisany, odtworzony i poprawiony.
 
 ---
 
-## 5. Dokumentacja rezultatów
-
-W ramach prac zostaną przygotowane:
-
-- opis zastosowanych wzorów,
-- tabela parametrów wejściowych,
-- tabela materiałów i reguł obliczeniowych,
-- lista poprawionych błędów,
-- lista zmian funkcjonalnych,
-- zestaw wyników referencyjnych,
-- dokumentacja testów,
-- instrukcja aktualizacji aplikacji,
-- instrukcja wycofania wersji w przypadku problemów.
-
----
-
-## 6. Harmonogram
+## 5. Harmonogram
 
 Przewidywany czas realizacji pełnego zakresu wynosi:
 
-**8-14 tygodni pracy jednego programisty.**
+**8-14 tygodni pracy .**
 
 | Etap | Zakres | Czas |
 |---|---|---:|
@@ -173,7 +149,7 @@ Przewidywany czas realizacji pełnego zakresu wynosi:
 | 5 | Poprawa błędów historycznych | 2-4 tygodnie |
 | 6 | Testy, wdrożenie i dokumentacja | 1-2 tygodnie |
 
-Harmonogram zależy od kompletności kodu źródłowego, dostępności osoby merytorycznej oraz liczby błędów możliwych do odtworzenia.
+Harmonogram zależy od dostępności osoby merytorycznej oraz liczby błędów możliwych do odtworzenia.
 
 ---
 
@@ -191,46 +167,14 @@ Wariant obejmuje pełny zakres opisany w niniejszej ofercie:
 - dokumentację,
 - wdrożenie poprawionej wersji.
 
-**Szacunkowy nakład: 40-70 dni roboczych, czyli 320-560 godzin.**
+**Szacunkowy nakład: 40-70 dni roboczych **
 
 Orientacyjna cena przy stawce 180-250 PLN/h:
 
-# 57 600-140 000 PLN netto
+# 30 000 PLN netto
 
-Rekomendowany budżet dla pełnego zakresu:
-
-# 95 000 PLN netto
-
-Cena końcowa zostanie potwierdzona po zakończeniu etapu analizy i otrzymaniu kompletu przykładów referencyjnych.
-
-### 7.2. Wariant etapowy
-
-Wariant etapowy pozwala rozpocząć od analizy oraz najważniejszych zmian.
-
-| Pakiet | Zakres | Cena netto |
-|---|---|---:|
-| A | Analiza kodu, wymagań i błędów | 12 000 PLN |
-| B | Obliczenia materiałów innych niż blacha | 30 000-45 000 PLN |
-| C | Zmiany istniejących wyliczeń | 20 000-35 000 PLN |
-| D | Poprawa błędów historycznych i testy | 25 000-45 000 PLN |
-| E | Wdrożenie i dokumentacja | 8 000-15 000 PLN |
-
-Wariant etapowy umożliwia podjęcie decyzji o dalszych pracach na podstawie wyników analizy.
-
-### 7.3. Wariant awaryjny: szybka korekta najważniejszych błędów
-
-Zakres:
-
-- analiza maksymalnie 5 zgłoszonych błędów,
-- poprawa błędów o najwyższym priorytecie,
-- podstawowe testy regresyjne,
-- przygotowanie poprawionej wersji aplikacji.
-
-**Szacunkowy nakład: 10-18 dni roboczych.**
-
-**Szacunkowa cena: 18 000-35 000 PLN netto.**
-
-Wariant nie obejmuje pełnego wdrożenia obliczeń dla wszystkich materiałów niewykonanych z blachy.
+Cena obejmuje pracę programisty oraz przygotowanie opisanych funkcji frontendowych.
+Cena nie obejmuje podatku VAT (32% na umowe o dzielo, 39 600 burtto)
 
 ---
 
@@ -239,12 +183,8 @@ Wariant nie obejmuje pełnego wdrożenia obliczeń dla wszystkich materiałów n
 Rekomendowany jest podział płatności według etapów:
 
 - 20% - rozpoczęcie i analiza,
-- 25% - zatwierdzenie modelu obliczeń,
-- 30% - zakończenie implementacji,
-- 15% - zakończenie testów,
-- 10% - wdrożenie i przekazanie dokumentacji.
-
-W przypadku rozliczenia godzinowego prace będą raportowane w cyklu tygodniowym wraz z opisem wykonanych zadań.
+- 60% - zatwierdzenie modelu obliczeń, implementacji, testow
+- 20% - wdrożenie i przekazanie dokumentacji.
 
 ---
 
@@ -315,11 +255,6 @@ Możliwe jest zawarcie osobnej umowy utrzymaniowej obejmującej:
 - konsultacje użytkowników,
 - rozwój nowych reguł obliczeniowych.
 
-Proponowana stawka prac utrzymaniowych:
-
-**180-250 PLN/h netto**
-
-Minimalny pakiet utrzymaniowy może zostać ustalony odrębnie, na przykład jako 10-20 godzin miesięcznie.
 
 ---
 
@@ -327,12 +262,6 @@ Minimalny pakiet utrzymaniowy może zostać ustalony odrębnie, na przykład jak
 
 Na termin i koszt realizacji mogą wpłynąć:
 
-- brak kompletnego kodu źródłowego,
-- brak możliwości uruchomienia starego środowiska .NET,
-- nieudokumentowane reguły zapisane wyłącznie w kodzie,
-- niejednoznaczne oczekiwane wyniki,
-- duża liczba błędów historycznych,
-- błędy danych zapisanych w poprzednich wersjach,
 - brak osoby merytorycznej do akceptacji wyników,
 - konieczność zachowania kompatybilności z wieloma wersjami środowiska,
 - dodatkowe wymagania dotyczące bazy danych lub integracji.
@@ -341,32 +270,11 @@ W przypadku ujawnienia nowych wymagań lub błędów poza uzgodnionym zakresem W
 
 ---
 
-## 14. Rekomendacja realizacyjna
 
-Rekomenduje się realizację projektu w dwóch krokach:
-
-1. **Etap analityczny za 12 000 PLN netto** - potwierdzenie zakresu, wzorów, błędów i danych referencyjnych.
-2. **Etap implementacyjny** - realizowany na podstawie wyników analizy, z rekomendowanym budżetem całkowitym do **95 000 PLN netto**.
-
-Takie podejście ogranicza ryzyko wyceny, ponieważ w wieloletniej aplikacji .NET część reguł może być zapisana w kodzie bez aktualnej dokumentacji, a część błędów może wynikać z historycznych danych lub niejednoznacznych założeń biznesowych.
-
----
-
-## 15. Ważność oferty
+## 14. Ważność oferty
 
 Oferta jest ważna przez 30 dni od daty jej wystawienia.
 
 Rozpoczęcie prac nastąpi po zaakceptowaniu oferty oraz ustaleniu szczegółowych warunków współpracy.
 
----
-
-## 16. Podsumowanie cenowe
-
-| Wariant | Zakres | Cena netto |
-|---|---|---:|
-| Szybka korekta | Najważniejsze błędy, maksymalnie 5 przypadków | 18 000-35 000 PLN |
-| Wariant etapowy | Analiza, nowe obliczenia, zmiany i poprawki | 75 000-152 000 PLN |
-| Wariant pełny | Kompleksowa rozbudowa i stabilizacja aplikacji .NET | rekomendowane 95 000 PLN |
-| Utrzymanie | Prace powdrożeniowe | 180-250 PLN/h |
-
-**Rekomendowany sposób rozpoczęcia:** analiza aplikacji i wymagań za **12 000 PLN netto**, a następnie realizacja pozostałych prac według potwierdzonego zakresu.
+--
