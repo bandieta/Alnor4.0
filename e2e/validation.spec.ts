@@ -1,10 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 
 // End-to-end coverage for the dimension-validation module wired into the app:
-// - each field is bounded (value snaps into range on blur, range shown as a hint)
-// - rules that aren't a simple range (formed radius, minimum L, frame width)
-//   still surface an error on "Dodaj" with a one-click fix.
+// - each field is bounded (value snaps into range on blur)
+// - rules that aren't a simple range (formed radius, frame width) still
+//   surface an error on "Dodaj" with a one-click fix.
 // The rules themselves are unit-tested in src/validation/__tests__.
+//
+// The demo build locks shape selection to QDa/QBa/QBNa/QPR6a/PR1a and the
+// language picker to Polski/English — scenarios here stick to that set (see
+// the "demo mode" test) so they exercise the app as a demo viewer actually can.
 
 async function selectShape(page: Page, symbol: string) {
   await page.getByTestId(`shape-${symbol}`).click();
@@ -47,15 +51,31 @@ test('static range: field snaps into [min, max] on blur', async ({ page }) => {
   await expect(a).toHaveValue('250'); // already in range — untouched
 });
 
-test('relational range: TR1a enforces w ≤ L − 60 once L is set', async ({ page }) => {
-  await selectShape(page, 'TR1a');
-  // a, b, d, w, L, e, f, l3
-  await fillDims(page, [250, 300, 140, 100, 500, 50, 50, 80]);
+test('radius zero (not a simple range): e/f minimum rises to 50, chip applies it', async ({ page }) => {
+  await selectShape(page, 'QBa');
+  // a, b, e, f, r — the flat minimum for e/f is 30, but r = 0 raises it to 50
+  await fillDims(page, [300, 200, 30, 30, 0]);
 
-  const w = page.getByTestId('dim-3');
-  await w.fill('900'); // L − 60 = 440
-  await w.blur();
-  await expect(w).toHaveValue('440');
+  await page.getByTestId('btn-add').click();
+
+  const errE = page
+    .locator('.dimension-row', { has: page.getByTestId('dim-2') })
+    .locator('.dimension-error-msg');
+  await expect(errE).toBeVisible();
+  await expect(errE).toContainText('promieniu 0');
+  await expect(dataRows(page)).toHaveCount(0);
+
+  // fixing a field re-hides the error panel (it re-validates live), so re-open
+  // it with "Dodaj" between fixes
+  await page.getByTestId('dim-suggest-2-min').click();
+  await expect(page.getByTestId('dim-2')).toHaveValue('50');
+  await page.getByTestId('btn-add').click();
+
+  await page.getByTestId('dim-suggest-3-min').click();
+  await expect(page.getByTestId('dim-3')).toHaveValue('50');
+  await page.getByTestId('btn-add').click();
+
+  await expect(dataRows(page)).toHaveCount(1);
 });
 
 test('formed radius (not a simple range): blocks Add, chip applies the minimum', async ({ page }) => {
@@ -79,24 +99,30 @@ test('formed radius (not a simple range): blocks Add, chip applies the minimum',
   await expect(dataRows(page)).toHaveCount(1);
 });
 
-test('minimum L (from branch dimensions): blocks Add, chip applies the minimum', async ({ page }) => {
-  await selectShape(page, 'TRa');
-  // a, b, d, h, L, q, r, i, p  — L = 200 < h+q+r+i+30 = 430
-  await fillDims(page, [300, 250, 200, 100, 200, 100, 100, 100, 100]);
+test('demo mode: shapes outside the demo set are locked, languages outside it are disabled', async ({ page }) => {
+  // TR1a / TRa etc. carry the relational rules (d ≤ b, minimum L from branch
+  // dims, …) — fully covered in src/validation/__tests__/rules.test.ts. They
+  // aren't reachable here because the demo build locks the shape list to
+  // QDa/QBa/QBNa/QPR6a/PR1a.
+  const locked = page.getByTestId('shape-TR1a');
+  await expect(locked).toHaveClass(/locked/);
+  await expect(locked.locator('.demo-stamp')).toHaveText('demo');
 
-  await page.getByTestId('btn-add').click();
+  await locked.click();
+  // selection didn't change — still QDa's 3 fields, not TR1a's 8
+  await expect(page.getByTestId('dim-0')).toBeVisible();
+  await expect(page.getByTestId('dim-7')).toHaveCount(0);
 
-  const errL = page
-    .locator('.dimension-row', { has: page.getByTestId('dim-4') })
-    .locator('.dimension-error-msg');
-  await expect(errL).toBeVisible();
-  await expect(dataRows(page)).toHaveCount(0);
+  // an enabled shape still works
+  await selectShape(page, 'QBa');
+  await expect(page.getByTestId('dim-4')).toBeVisible(); // QBa's "r" field
 
-  await page.getByTestId('dim-suggest-4-min').click();
-  await expect(page.getByTestId('dim-4')).toHaveValue('430');
-
-  await page.getByTestId('btn-add').click();
-  await expect(dataRows(page)).toHaveCount(1);
+  // language picker: only Polski/English are selectable, the rest show "(demo)"
+  const de = page.locator('.lang-dropdown option[value="de"]');
+  await expect(de).toBeDisabled();
+  await expect(de).toContainText('(demo)');
+  const en = page.locator('.lang-dropdown option[value="en"]');
+  await expect(en).toBeEnabled();
 });
 
 test('ramka: hint under the frame field explains the rule and applies the minimum', async ({ page }) => {
