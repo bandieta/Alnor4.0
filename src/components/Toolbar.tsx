@@ -64,9 +64,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
   return (
     <div className="toolbar">
       <div className="toolbar-buttons">
-        <button className="btn btn-primary" onClick={onNew}>{t('Nowy')}</button>
-        <button className="btn btn-primary" onClick={onLoad}>{t('Pobierz')}</button>
-        <button className="btn btn-primary" onClick={onSave}>{t('Zapisz')}</button>
+        <button className="btn btn-primary" data-testid="btn-new" onClick={onNew}>{t('Nowy')}</button>
+        <button className="btn btn-primary" data-testid="btn-load" onClick={onLoad}>{t('Pobierz')}</button>
+        <button className="btn btn-primary" data-testid="btn-save" onClick={onSave}>{t('Zapisz')}</button>
       </div>
 
       <button className="btn btn-secondary">{t('Dane osobowe i opisowe')} ...</button>

@@ -1,9 +1,12 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import type { ChangeEvent } from 'react';
 import Toolbar from './components/Toolbar';
 import ShapeList from './components/ShapeList';
 import DimensionInputs from './components/DimensionInputs';
 import type { ValidationError } from './components/DimensionInputs';
 import { validateShape, fieldConstraints } from './validation';
+import type { ValidationContext } from './validation';
+import { exportProject, importProject } from './legacyFormat';
 import PropertiesPanel from './components/PropertiesPanel';
 import KotInfo from './components/KotInfo';
 import ShapeDiagram from './components/ShapeDiagram';
@@ -29,14 +32,6 @@ import { calculateArea, generateSymbol, generatePrzekroj, kotReport } from './ca
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
 import { LANGUAGE_OPTIONS, parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
-
-// Demo build: only these fittings can be selected. Every other shape in the
-// list is shown with a "demo" stamp and cannot be chosen.
-const DEMO_ENABLED_SYMBOLS = ['QDa', 'QBa', 'QBNa', 'QPR6a', 'PR1a'];
-
-// Demo build: only these UI languages can be selected. Every other language is
-// marked "(demo)" in the picker and disabled.
-const DEMO_ENABLED_LANGUAGES: AppLanguage[] = ['pl', 'en'];
 
 function buildSumaBlachyReport(gridRows: GridRow[]): string {
   const ocynkIdx: Record<string, number> = {
@@ -232,11 +227,44 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
   return report.join('\n');
 }
 
+// Rebuilds the material/execution context validateShape needs from an
+// imported Ksztaltka, mirroring how the editor derives it while a shape is
+// being entered by hand.
+function ksztaltkaValidationContext(k: Ksztaltka): ValidationContext {
+  return {
+    material: k.isChemo ? k.materialChemo : k.material,
+    materialType: k.isChemo ? 'chemo' : 'blacha',
+    wykonanie: k.wykonanie,
+    klasaSzczelnosci: k.klasa_szczelnosci,
+    blacha: k.blacha,
+    ramki: { wl: k.ramkawl, wyl: k.ramkawyl, od: k.ramkaod },
+  };
+}
+
+// Denormalizes an imported Ksztaltka back into a display GridRow, mirroring
+// the row construction in handleAdd (src/App.tsx ~line 654).
+function ksztaltkaToGridRow(k: Ksztaltka): GridRow {
+  return {
+    id: crypto.randomUUID(),
+    oznaczenie: k.oznaczenie,
+    nazwa: k.nazwa,
+    symbol: k.pelny_symbol,
+    sztuk: parseInt(k.sztuk, 10) || 1,
+    material: k.isChemo ? k.materialChemo : k.material,
+    m2: parseFloat(k.powierznia) || 0,
+    przekroj: k.przekroj,
+    uwagi: k.uwagi,
+    shapeSymbol: k.symbol,
+    tab: k.tab,
+    ksztaltka: k,
+  };
+}
+
 function App() {
   const [language, setLanguage] = useState<AppLanguage>(() => {
     try {
       const saved = localStorage.getItem('alnor-cam-language');
-      if (isAppLanguage(saved) && DEMO_ENABLED_LANGUAGES.includes(saved)) {
+      if (isAppLanguage(saved)) {
         return saved;
       }
       return 'pl';
@@ -520,7 +548,6 @@ function App() {
 
   // Handle shape selection
   const handleSelectShape = useCallback((symbol: string) => {
-    if (!DEMO_ENABLED_SYMBOLS.includes(symbol)) return;
     setSelectedSymbol(symbol);
     setDimensionValues(Array(17).fill(''));
   }, []);
@@ -883,43 +910,74 @@ function App() {
     setSelectedRowId(null);
   }, []);
 
-  // Save project as JSON
+  // Save project — legacy-compatible AES+XML format (same file format the
+  // .NET app reads/writes), so exports can be opened by either app.
   const handleSave = useCallback(() => {
-    const data = JSON.stringify({ rows: gridRows, nextOznaczenie }, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'alnorcam-project.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [gridRows, nextOznaczenie]);
+    void (async () => {
+      const blob = await exportProject(gridRows.map((r) => r.ksztaltka));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'alnorcam-project.alc';
+      a.click();
+      URL.revokeObjectURL(url);
+    })();
+  }, [gridRows]);
 
-  // Load project from JSON
+  // Load project — tries the legacy AES+XML format first (files from either
+  // app), falling back to the old self-invented JSON format so project files
+  // saved by earlier versions of this app still load. No fixed extension:
+  // the legacy app enforces none either.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleLoad = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = ''; // allow re-selecting the same file next time
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
+      void (async () => {
         try {
-          const data = JSON.parse(ev.target?.result as string);
-          if (data.rows) setGridRows(data.rows);
-          if (data.nextOznaczenie) {
-            setNextOznaczenie(data.nextOznaczenie);
-            setOznaczenie(String(data.nextOznaczenie));
+          const buffer = await file.arrayBuffer();
+          let ksztaltki;
+          try {
+            ksztaltki = await importProject(buffer);
+          } catch {
+            const data = JSON.parse(new TextDecoder().decode(buffer));
+            if (!data.rows) throw new Error('not a recognized project file');
+            setGridRows(data.rows);
+            if (data.nextOznaczenie) {
+              setNextOznaczenie(data.nextOznaczenie);
+              setOznaczenie(String(data.nextOznaczenie));
+            }
+            return;
+          }
+
+          const validRows: GridRow[] = [];
+          const rejected: string[] = [];
+          for (const k of ksztaltki) {
+            const result = validateShape(k.symbol, k.tab, ksztaltkaValidationContext(k));
+            if (result.valid) {
+              validRows.push(ksztaltkaToGridRow(k));
+            } else {
+              const reason = result.violations[0]?.message ?? '';
+              rejected.push(`${k.oznaczenie || k.symbol}: ${reason}`);
+            }
+          }
+          setGridRows(validRows);
+          if (rejected.length > 0) {
+            alert(`${t('Błąd wczytywania pliku')}:\n${rejected.join('\n')}`);
           }
         } catch {
           alert(t('Błąd wczytywania pliku'));
         }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  }, [t]);
+      })();
+    },
+    [t],
+  );
 
   const sumaBlachyReport = useMemo(() => buildSumaBlachyReport(gridRows), [gridRows]);
 
@@ -953,20 +1011,14 @@ function App() {
               <select
                 className="lang-dropdown"
                 value={language}
-                onChange={(e) => {
-                  const next = e.target.value as AppLanguage;
-                  if (DEMO_ENABLED_LANGUAGES.includes(next)) setLanguage(next);
-                }}
+                onChange={(e) => setLanguage(e.target.value as AppLanguage)}
                 aria-label={t('Język')}
               >
-                {LANGUAGE_OPTIONS.map((option) => {
-                  const isDemo = !DEMO_ENABLED_LANGUAGES.includes(option.value);
-                  return (
-                    <option key={option.value} value={option.value} disabled={isDemo}>
-                      {t(option.label)}{isDemo ? ' (demo)' : ''}
-                    </option>
-                  );
-                })}
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.label)}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -979,12 +1031,18 @@ function App() {
             sumaBlachyReport={sumaBlachyReport}
             t={t}
           />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileInputChange}
+            data-testid="file-input"
+            hidden
+          />
           <ShapeList
             shapes={SHAPE_DEFINITIONS}
             selectedSymbol={selectedSymbol}
             onSelect={handleSelectShape}
             disabled={isUserElement}
-            enabledSymbols={DEMO_ENABLED_SYMBOLS}
             t={t}
           />
         </div>
