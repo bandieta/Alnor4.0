@@ -30,7 +30,7 @@ import {
 } from './data';
 import { calculateArea, generateSymbol, generatePrzekroj, kotReport } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
-import { LANGUAGE_OPTIONS, parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
+import { parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
 
 function buildSumaBlachyReport(gridRows: GridRow[]): string {
@@ -261,7 +261,7 @@ function ksztaltkaToGridRow(k: Ksztaltka): GridRow {
 }
 
 function App() {
-  const [language, setLanguage] = useState<AppLanguage>(() => {
+  const [language] = useState<AppLanguage>(() => {
     try {
       const saved = localStorage.getItem('alnor-cam-language');
       if (isAppLanguage(saved)) {
@@ -1007,20 +1007,6 @@ function App() {
         <div className="left-panel">
           <div className="sidebar-header">
             <span className="logo">Alnor<span className="logo-accent">CAM</span></span>
-            <div className="lang-switcher" title={t('Język')}>
-              <select
-                className="lang-dropdown"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as AppLanguage)}
-                aria-label={t('Język')}
-              >
-                {LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {t(option.label)}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
           <Toolbar
             systemType={systemType}
