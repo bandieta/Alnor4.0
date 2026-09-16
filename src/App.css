@@ -529,6 +529,18 @@ body {
   opacity: 0.45;
 }
 
+.thickness-warning {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ce0015;
+  background: #fdecec;
+  border: 1px solid #f3b8b8;
+  border-radius: 5px;
+  padding: 5px 8px;
+  margin: -2px 0 4px;
+  animation: fadeIn 0.15s ease-out;
+}
+
 /* Ramka rows that carry a validation hint below the dropdown */
 .property-row--withHint {
   flex-wrap: wrap;
@@ -1490,6 +1502,75 @@ select:focus {
 .shape-3d-canvas-wrapper canvas {
   display: block;
   border-radius: 8px;
+}
+
+/* ===== PROJECT INFO MODAL ===== */
+.project-info-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.project-info-modal {
+  width: 360px;
+  max-width: 90vw;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: scaleIn 0.2s ease-out;
+}
+
+.project-info-modal-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #004290;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.project-info-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.project-info-modal-body .property-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.project-info-modal-body label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #004290;
+}
+
+.project-info-modal-body input {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.project-info-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #e5e5e5;
 }
 
 .shape-3d-placeholder {

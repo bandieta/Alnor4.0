@@ -8,6 +8,7 @@ import { validateShape, fieldConstraints } from './validation';
 import type { ValidationContext } from './validation';
 import { exportProject, importProject } from './legacyFormat';
 import PropertiesPanel from './components/PropertiesPanel';
+import ProjectInfoDialog from './components/ProjectInfoDialog';
 import KotInfo from './components/KotInfo';
 import ShapeDiagram from './components/ShapeDiagram';
 import ShapeDiagram3D from './components/ShapeDiagram3D';
@@ -28,8 +29,8 @@ import {
   PLASZCZ_OPTIONS,
   GRUBOSC_IZOLACJI_OPTIONS,
 } from './data';
-import { calculateArea, generateSymbol, generatePrzekroj, kotReport } from './calculations';
-import type { GridRow, SystemType, MaterialType, Ksztaltka } from './types';
+import { calculateArea, calculateInsulatedArea, generateSymbol, generatePrzekroj, kotReport, blachaBandStandard, isBlachaThicknessAtLeast } from './calculations';
+import type { GridRow, SystemType, MaterialType, Ksztaltka, ProjectInfo } from './types';
 import { parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
 
@@ -60,6 +61,14 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
     '0.8': 1,
   };
 
+  // Chemical (PVC/PP/PPs/PE) pipe wall thicknesses — same area formula as
+  // sheet metal, just a different material/thickness axis (GRUBOSC_CHEMO_OPTIONS).
+  const CHEMO_MATERIALS = ['PVC', 'PP', 'PPs', 'PE'];
+  const CHEMO_THICKNESSES = ['4', '5', '6', '8', '10', '12'];
+  const chemoIdx: Record<string, number> = {
+    '4': 0, '5': 1, '6': 2, '8': 3, '10': 4, '12': 5,
+  };
+
   const kanOcynk = Array(7).fill(0) as number[];
   const kanKwasowka = Array(2).fill(0) as number[];
   const kanAluminum = Array(2).fill(0) as number[];
@@ -73,6 +82,16 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
   const kszOcynkIz = Array(7).fill(0) as number[];
   const kszKwasowkaIz = Array(2).fill(0) as number[];
   const kszAluminumIz = Array(2).fill(0) as number[];
+
+  const chemoBuckets: Record<string, { kan: number[]; ksz: number[]; kanIz: number[]; kszIz: number[] }> = {};
+  for (const m of CHEMO_MATERIALS) {
+    chemoBuckets[m] = {
+      kan: Array(CHEMO_THICKNESSES.length).fill(0),
+      ksz: Array(CHEMO_THICKNESSES.length).fill(0),
+      kanIz: Array(CHEMO_THICKNESSES.length).fill(0),
+      kszIz: Array(CHEMO_THICKNESSES.length).fill(0),
+    };
+  }
 
   const kanal1500 = [0, 0];
   const izolacje = [0, 0, 0];
@@ -138,7 +157,10 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
 
     if (isIzolowana && plaszcz.includes('Bez Płaszcza')) {
       const powIz = parseNum(k?.powierzniaIz || '0') || 0;
-      const izArea = powIz > 0 ? powIz : area;
+      // powIz is a per-piece area (like tab[15]/k.powierznia), so it needs the
+      // same *qty scaling `area` above already gets — matches Form1.cs's
+      // `sSize = tab[15] ... ; izolacje[x] += sSize * qty` shape.
+      const izArea = powIz > 0 ? powIz * qty : area;
       if ((k?.gruboscIlozacji || '').includes('30')) izolacje[0] += izArea;
       else if ((k?.gruboscIlozacji || '').includes('50')) izolacje[1] += izArea;
       else if ((k?.gruboscIlozacji || '').includes('100')) izolacje[2] += izArea;
@@ -174,6 +196,15 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
           : (insulatedWithJacket ? kszAluminumIz : kszAluminum);
         target[idx] += area;
       }
+    } else if (CHEMO_MATERIALS.includes(material)) {
+      const idx = chemoIdx[blacha];
+      if (idx !== undefined) {
+        const bucket = chemoBuckets[material];
+        const target = isQDa
+          ? (insulatedWithJacket ? bucket.kanIz : bucket.kan)
+          : (insulatedWithJacket ? bucket.kszIz : bucket.ksz);
+        target[idx] += area;
+      }
     }
   }
 
@@ -197,10 +228,16 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
   pushPair(kanOcynk, kszOcynk, 'Ocynk', ['0,6', '0,7', '0,8', '0,9', '1', '1,1', '1,2'], lines);
   pushPair(kanKwasowka, kszKwasowka, 'Kwasówka', ['0,6', '0,8'], lines);
   pushPair(kanAluminum, kszAluminum, 'Aluminium', ['0,6', '0,8'], lines);
+  for (const m of CHEMO_MATERIALS) {
+    pushPair(chemoBuckets[m].kan, chemoBuckets[m].ksz, m, CHEMO_THICKNESSES, lines);
+  }
 
   pushPair(kanOcynkIz, kszOcynkIz, 'Iz. Ocynk', ['0,6', '0,7', '0,8', '0,9', '1', '1,1', '1,2'], izLines);
   pushPair(kanKwasowkaIz, kszKwasowkaIz, 'Iz. Kwasówka', ['0,6', '0,8'], izLines);
   pushPair(kanAluminumIz, kszAluminumIz, 'Iz. Aluminium', ['0,6', '0,8'], izLines);
+  for (const m of CHEMO_MATERIALS) {
+    pushPair(chemoBuckets[m].kanIz, chemoBuckets[m].kszIz, `Iz. ${m}`, CHEMO_THICKNESSES, izLines);
+  }
 
   const report: string[] = [];
   if (lines.length > 0) {
@@ -225,6 +262,12 @@ function buildSumaBlachyReport(gridRows: GridRow[]): string {
   }
 
   return report.join('\n');
+}
+
+// "50 mm" / "100 mm" -> 50 / 100. Mirrors ksztaltka.cs's
+// `gruboscIlozacji.Replace("mm", "").Replace(" ", "")`.
+function parseInsulationMm(gruboscIzolacji: string): number {
+  return Number.parseFloat(gruboscIzolacji.replace('mm', '').replace(/\s/g, '').replace(',', '.')) || 0;
 }
 
 // Rebuilds the material/execution context validateShape needs from an
@@ -380,6 +423,71 @@ function App() {
     }
   }, []);
 
+  // Auto-suggest/upgrade sheet thickness as dimensions grow (Form1.cs
+  // zmien_blache_komunikat, ~11533-11649) — only for Ocynk/Kwasówka/Aluminium;
+  // chemo has its own thickness scale with no minimum-thickness table.
+  const [blachaWarning, setBlachaWarning] = useState<string | null>(null);
+
+  const bok = useMemo(() => {
+    const a = parseFloat(dimensionValues[0]) || 0;
+    const b = parseFloat(dimensionValues[1]) || 0;
+    let max = Math.max(a, b);
+    // Legacy also widens the check against c/d for these shapes (Form1.cs:11304-11318).
+    if (selectedSymbol === 'QPR6a' || selectedSymbol === 'QPR2a') {
+      const c = parseFloat(dimensionValues[2]) || 0;
+      const d = parseFloat(dimensionValues[3]) || 0;
+      max = Math.max(max, c, d);
+    } else if (selectedSymbol === 'QBFRa' || selectedSymbol === 'QPR4a') {
+      const d = parseFloat(dimensionValues[2]) || 0;
+      max = Math.max(max, d);
+    }
+    return max;
+  }, [selectedSymbol, dimensionValues]);
+
+  // `blacha` is deliberately read via a ref rather than a dependency here:
+  // this effect's own `setBlacha(required)` call must not immediately
+  // re-trigger itself and, seeing the now-corrected value, null out the
+  // warning it just raised before the user ever sees it.
+  const blachaRef = useRef(blacha);
+  useEffect(() => { blachaRef.current = blacha; }, [blacha]);
+
+  useEffect(() => {
+    if (isChemo || isUserElement || bok <= 0) return;
+    const required = blachaBandStandard(material, wykonanie, bok);
+    if (!required) return;
+    if (!isBlachaThicknessAtLeast(material, wykonanie, blachaRef.current, required)) {
+      setBlacha(required);
+      setBlachaWarning(t('Grubość blachy za mała!'));
+    }
+  }, [bok, material, wykonanie, isChemo, isUserElement, t]);
+
+  // Manual thickness picks get the same too-thin check (mirrors legacy
+  // showing the same warning from the combo box's own change handler).
+  const handleBlachaChange = useCallback((value: string) => {
+    setBlacha(value);
+    if (isChemo || isUserElement || bok <= 0) return;
+    const required = blachaBandStandard(material, wykonanie, bok);
+    if (required && !isBlachaThicknessAtLeast(material, wykonanie, value, required)) {
+      setBlacha(required);
+      setBlachaWarning(t('Grubość blachy za mała!'));
+    }
+  }, [bok, material, wykonanie, isChemo, isUserElement, t]);
+
+  // Auto-dismiss the thickness warning toast.
+  useEffect(() => {
+    if (!blachaWarning) return;
+    const id = setTimeout(() => setBlachaWarning(null), 3500);
+    return () => clearTimeout(id);
+  }, [blachaWarning]);
+
+  // Kwasówka/Aluminium only ever ran Niskociśnieniowe in the legacy app —
+  // Wykonanie was forced and disabled for those materials (Form1.Designer.cs
+  // 870-872, forced at Form1.cs:14849-14862).
+  const handleMaterialChange = useCallback((value: string) => {
+    setMaterial(value);
+    if (value !== 'Ocynk') setWykonanie('Niskociśnieniowe');
+  }, []);
+
   // User element fields (visible when element_uzytkownika)
   const [userNazwa, setUserNazwa] = useState('');
   const [userSymbol, setUserSymbol] = useState('');
@@ -392,6 +500,22 @@ function App() {
     } catch { return []; }
   });
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+
+  // Order/project header (legacy Form3 "Dane"): stored on every saved
+  // Ksztaltka as Qnazwa/Qzamawia/Qdata so files stay legacy-compatible.
+  const [projectInfo, setProjectInfo] = useState<ProjectInfo>(() => {
+    try {
+      const saved = localStorage.getItem('alnor-cam-project-info');
+      return saved ? JSON.parse(saved) : { nazwa: '', zamawia: '', data: '' };
+    } catch { return { nazwa: '', zamawia: '', data: '' }; }
+  });
+  const [showProjectInfo, setShowProjectInfo] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('alnor-cam-project-info', JSON.stringify(projectInfo));
+    } catch { /* quota exceeded — ignore */ }
+  }, [projectInfo]);
 
   // Persist grid to localStorage on change
   useEffect(() => {
@@ -578,6 +702,34 @@ function App() {
     setShowValidation(false);
   }, []);
 
+  // Replace-by-designation: if Add collides with an existing row's
+  // Oznaczenie, confirm before overwriting when the shape type differs
+  // (silent overwrite when it matches — same fitting being re-entered).
+  // Mirrors Form1.cs's button8_Click loop (~29454-29467): "Czy istniejący
+  // element (…) zastąpić?", replacing in place rather than appending.
+  // Returns false when the user declined — caller should abort the Add.
+  const addOrReplaceRow = useCallback((row: GridRow): boolean => {
+    const existingIdx = row.oznaczenie.trim()
+      ? gridRows.findIndex((r) => r.oznaczenie === row.oznaczenie)
+      : -1;
+
+    if (existingIdx !== -1 && gridRows[existingIdx].shapeSymbol !== row.shapeSymbol) {
+      const ok = window.confirm(`${t('Czy istniejący element')} (${row.oznaczenie}) ${t('zastąpić?')}`);
+      if (!ok) return false;
+    }
+
+    if (existingIdx !== -1) {
+      setGridRows((prev) => {
+        const next = [...prev];
+        next[existingIdx] = row;
+        return next;
+      });
+    } else {
+      setGridRows((prev) => [...prev, row]);
+    }
+    return true;
+  }, [gridRows, t]);
+
   // Add element to grid
   const handleAdd = useCallback(() => {
     const rowOznaczenie = oznaczenieEnabled ? oznaczenie : '';
@@ -638,7 +790,7 @@ function App() {
         );
         setEditingRowId(null);
       } else {
-        setGridRows((prev) => [...prev, newRow]);
+        if (!addOrReplaceRow(newRow)) return;
         advanceOznaczenie();
       }
       return;
@@ -652,6 +804,9 @@ function App() {
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
     const area = calculateArea(selectedSymbol, numValues);
     const unitArea = Math.max(area, parseFloat(minM2) || 0);
+    const unitAreaIz = isIzolowane
+      ? Math.max(calculateInsulatedArea(selectedSymbol, numValues, parseInsulationMm(gruboscIzolacji)), parseFloat(minM2) || 0)
+      : 0;
     const qty = parseInt(sztuk) || 1;
 
     const ksztaltka: Ksztaltka = {
@@ -678,7 +833,7 @@ function App() {
       ramkawyl: ramkiWYL,
       ramkaod: ramkiOd,
       powierznia: unitArea.toFixed(2),
-      powierzniaIz: '',
+      powierzniaIz: isIzolowane ? unitAreaIz.toFixed(2) : '',
       pelny_symbol: fullSymbol,
       pelny_symbolIz: '',
       izolowana: isIzolowane,
@@ -709,7 +864,7 @@ function App() {
       );
       setEditingRowId(null);
     } else {
-      setGridRows((prev) => [...prev, newRow]);
+      if (!addOrReplaceRow(newRow)) return;
       advanceOznaczenie();
     }
   }, [
@@ -718,7 +873,7 @@ function App() {
     ramkiWL, ramkiWYL, ramkiOd, systemType, fullSymbol, calculatedPrzekroj,
     minM2, editingRowId, isIzolowane, plaszcz, gruboscIzolacji,
     isUserElement, userNazwa, userSymbol,
-    advanceOznaczenie,
+    advanceOznaczenie, addOrReplaceRow,
   ]);
 
   // Delete selected row
@@ -834,6 +989,9 @@ function App() {
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
     const area = calculateArea(selectedSymbol, numValues);
     const unitArea = Math.max(area, parseFloat(minM2) || 0);
+    const unitAreaIz = isIzolowane
+      ? Math.max(calculateInsulatedArea(selectedSymbol, numValues, parseInsulationMm(gruboscIzolacji)), parseFloat(minM2) || 0)
+      : 0;
     const qty = parseInt(sztuk) || 1;
 
     const ksztaltka: Ksztaltka = {
@@ -860,7 +1018,7 @@ function App() {
       ramkawyl: ramkiWYL,
       ramkaod: ramkiOd,
       powierznia: unitArea.toFixed(2),
-      powierzniaIz: '',
+      powierzniaIz: isIzolowane ? unitAreaIz.toFixed(2) : '',
       pelny_symbol: fullSymbol,
       pelny_symbolIz: '',
       izolowana: isIzolowane,
@@ -908,13 +1066,23 @@ function App() {
     setNextOznaczenie(100);
     setOznaczenie('100');
     setSelectedRowId(null);
+    setProjectInfo({ nazwa: '', zamawia: '', data: '' });
   }, []);
 
   // Save project — legacy-compatible AES+XML format (same file format the
   // .NET app reads/writes), so exports can be opened by either app.
   const handleSave = useCallback(() => {
     void (async () => {
-      const blob = await exportProject(gridRows.map((r) => r.ksztaltka));
+      // The legacy app only reads the order header (Qnazwa/Qzamawia/Qdata) off
+      // item [0] on load, but stamping every row keeps it robust regardless of
+      // reordering and costs nothing.
+      const ksztaltki = gridRows.map((r) => ({
+        ...r.ksztaltka,
+        Qnazwa: projectInfo.nazwa,
+        Qzamawia: projectInfo.zamawia,
+        Qdata: projectInfo.data,
+      }));
+      const blob = await exportProject(ksztaltki);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -922,7 +1090,7 @@ function App() {
       a.click();
       URL.revokeObjectURL(url);
     })();
-  }, [gridRows]);
+  }, [gridRows, projectInfo]);
 
   // Load project — tries the legacy AES+XML format first (files from either
   // app), falling back to the old self-invented JSON format so project files
@@ -968,6 +1136,14 @@ function App() {
             }
           }
           setGridRows(validRows);
+          const header = ksztaltki[0];
+          if (header) {
+            setProjectInfo({
+              nazwa: header.Qnazwa || '',
+              zamawia: header.Qzamawia || '',
+              data: header.Qdata || '',
+            });
+          }
           if (rejected.length > 0) {
             alert(`${t('Błąd wczytywania pliku')}:\n${rejected.join('\n')}`);
           }
@@ -1014,9 +1190,18 @@ function App() {
             onNew={handleNew}
             onSave={handleSave}
             onLoad={handleLoad}
+            onOpenProjectInfo={() => setShowProjectInfo(true)}
             sumaBlachyReport={sumaBlachyReport}
             t={t}
           />
+          {showProjectInfo && (
+            <ProjectInfoDialog
+              info={projectInfo}
+              onSave={setProjectInfo}
+              onClose={() => setShowProjectInfo(false)}
+              t={t}
+            />
+          )}
           <input
             type="file"
             ref={fileInputRef}
@@ -1231,9 +1416,9 @@ function App() {
                 onMaterialTypeChange={handleMaterialTypeChange}
                 t={t}
                 blacha={blacha}
-                onBlachaChange={setBlacha}
+                onBlachaChange={handleBlachaChange}
                 material={material}
-                onMaterialChange={setMaterial}
+                onMaterialChange={handleMaterialChange}
                 wykonanie={wykonanie}
                 onWykonanieChange={setWykonanie}
                 klasaSzczelnosci={klasaSzczelnosci}
@@ -1263,6 +1448,7 @@ function App() {
                 onGruboscIzolacjiChange={setGruboscIzolacji}
                 plaszczOptions={PLASZCZ_OPTIONS}
                 gruboscIzolacjiOptions={GRUBOSC_IZOLACJI_OPTIONS}
+                thicknessWarning={blachaWarning}
               />
             </div>
             </>

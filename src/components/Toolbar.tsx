@@ -7,6 +7,7 @@ interface ToolbarProps {
   onNew: () => void;
   onSave: () => void;
   onLoad: () => void;
+  onOpenProjectInfo: () => void;
   sumaBlachyReport: string;
   t: (text: string) => string;
 }
@@ -17,6 +18,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onNew,
   onSave,
   onLoad,
+  onOpenProjectInfo,
   sumaBlachyReport,
   t,
 }) => {
@@ -38,7 +40,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     if (!trimmed) return '';
     if (trimmed.endsWith(':')) return translateSumaSection(trimmed);
 
-    const parsed = trimmed.match(/^(Iz\.\s+)?(Ocynk|Kwasówka|Aluminium)\s+([0-9,]+)\s+(kan|ksz):\s+(.+)$/);
+    const parsed = trimmed.match(/^(Iz\.\s+)?(Ocynk|Kwasówka|Aluminium|PVC|PPs|PP|PE)\s+([0-9,]+)\s+(kan|ksz):\s+(.+)$/);
     if (parsed) {
       const prefix = parsed[1] ? `${t('Izolowane')} ` : '';
       const material = t(parsed[2]);
@@ -69,14 +71,14 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button className="btn btn-primary" data-testid="btn-save" onClick={onSave}>{t('Zapisz')}</button>
       </div>
 
-      <button className="btn btn-secondary">{t('Dane osobowe i opisowe')} ...</button>
+      <button className="btn btn-secondary" onClick={onOpenProjectInfo} data-testid="btn-project-info">{t('Dane osobowe i opisowe')} ...</button>
 
       <button
         className="btn btn-secondary suma-blachy-toggle"
         onClick={() => setSumaExpanded((v) => !v)}
         title={translatedSumaTitle}
       >
-        <span>{t('Suma blachy')}</span>
+        <span>{t('Powierzchnia')}</span>
         <span className={`suma-icon${sumaExpanded ? ' expanded' : ''}`}>▸</span>
       </button>
 
@@ -125,7 +127,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     const label = parts[0].trim();
                     const value = parts.slice(1).join(':').trim();
 
-                    const parsed = label.match(/^(Iz\.\s+)?(Ocynk|Kwasówka|Aluminium)\s+([0-9,]+)\s+(kan|ksz)$/);
+                    const parsed = label.match(/^(Iz\.\s+)?(Ocynk|Kwasówka|Aluminium|PVC|PPs|PP|PE)\s+([0-9,]+)\s+(kan|ksz)$/);
                     if (parsed) {
                       // The "Izolowane" prefix is redundant here — these rows
                       // already sit under an "Izolowane:" section header — and it

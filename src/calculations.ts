@@ -1,4 +1,7 @@
-// Thickness calculator - auto-select sheet thickness based on largest dimension
+// Chemo (PVC/PP/PPs/PE) pipe wall thickness calculator, keyed off the larger
+// side. Port of the legacy `ThicknessCalc.CalculateThikness()` — note that in
+// the legacy app itself this was write-only (computed into a combo box that
+// nothing read back from), so treat this as a suggestion, not a hard rule.
 export function calculateThickness(material: string, bokA: number, bokB: number): number {
   const a = Math.max(bokA, bokB);
 
@@ -17,6 +20,76 @@ export function calculateThickness(material: string, bokA: number, bokB: number)
   if (a <= 1000) return 8;
   if (a <= 1200) return 10;
   return 12;
+}
+
+// Sheet-metal (Ocynk/Kwasówka/Aluminium) minimum-thickness bands, keyed by
+// material+wykonanie. Ported from Form1.cs's `zmien_blache`/
+// `zmien_blache_komunikat` (~11294-11649) — legacy silently forces the
+// thickness combo up to the band's `standard` value and shows "Grubość
+// blachy za mała!" whenever the current selection is thinner.
+interface BlachaBand {
+  min: number;
+  max: number;
+  standard: string;
+}
+
+const BLACHA_BANDS: Record<string, BlachaBand[]> = {
+  'Ocynk|Niskociśnieniowe': [
+    { min: 100, max: 500, standard: '0,6' },
+    { min: 501, max: 1000, standard: '0,8' },
+    { min: 1001, max: 2000, standard: '1,0' },
+    { min: 2001, max: 4000, standard: '1,1' },
+  ],
+  'Ocynk|Średniociśnieniowe': [
+    { min: 100, max: 500, standard: '0,7' },
+    { min: 501, max: 1000, standard: '0,9' },
+    { min: 1001, max: 2000, standard: '1,1' },
+    { min: 2001, max: 4000, standard: '1,2' },
+  ],
+  'Kwasówka|Niskociśnieniowe': [
+    { min: 100, max: 1000, standard: '0,6' },
+    { min: 1001, max: 2501, standard: '0,8' },
+  ],
+  'Aluminium|Niskociśnieniowe': [
+    { min: 100, max: 2501, standard: '0,8' },
+  ],
+};
+
+// Ordered thinnest->thickest, used to judge whether a selection is "at least
+// as thick as" a band's standard (legacy's per-band exclusion lists collapse
+// to this one order table).
+const BLACHA_ORDER: Record<string, string[]> = {
+  // Legacy's literal C# string for this thickness is bare "1" — the rest of
+  // this app (BLACHA_OPTIONS, the surface-summary thickness buckets) instead
+  // uses "1,0", so that's what we standardize on here too.
+  'Ocynk|Niskociśnieniowe': ['0,6', '0,8', '1,0', '1,1'],
+  'Ocynk|Średniociśnieniowe': ['0,7', '0,9', '1,1', '1,2'],
+  'Kwasówka|Niskociśnieniowe': ['0,6', '0,8'],
+  'Aluminium|Niskociśnieniowe': ['0,6', '0,8'],
+};
+
+function blachaKey(material: string, wykonanie: string): string {
+  // Execution is forced to Niskociśnieniowe for Kwasówka/Aluminium (see
+  // PropertiesPanel) — the band tables only ever define that combination.
+  const effectiveWykonanie = material === 'Ocynk' ? wykonanie : 'Niskociśnieniowe';
+  return `${material}|${effectiveWykonanie}`;
+}
+
+/** The minimum standard thickness for this material/wykonanie/side, or null when `bok` is outside the legacy table (100-4000mm) or the material has no band rules. */
+export function blachaBandStandard(material: string, wykonanie: string, bok: number): string | null {
+  const bands = BLACHA_BANDS[blachaKey(material, wykonanie)];
+  const band = bands?.find((b) => bok >= b.min && bok <= b.max);
+  return band?.standard ?? null;
+}
+
+/** Is `current` at least as thick as `required`, per the material's thickness order? Unknown values are treated as "fine" (no opinion). */
+export function isBlachaThicknessAtLeast(material: string, wykonanie: string, current: string, required: string): boolean {
+  const order = BLACHA_ORDER[blachaKey(material, wykonanie)];
+  if (!order) return true;
+  const curIdx = order.indexOf(current);
+  const reqIdx = order.indexOf(required);
+  if (curIdx === -1 || reqIdx === -1) return true;
+  return curIdx >= reqIdx;
 }
 
 // Surface area calculation functions (Blacha.cs port)
@@ -232,6 +305,67 @@ export function calculateArea(symbol: string, tab: number[]): number {
   } catch {
     return 0;
   }
+}
+
+// Insulated-jacket dimension deltas per shape: [tab index, multiplier of the
+// insulation thickness]. Ported from the actual per-shape `wartoscIz =
+// Blacha.Rozwiniecie_*(...)` call sites in Form1.cs (e.g. for QBa:
+// `Rozwiniecie_QBa(a + _gg2, b + _gg2, f, ee, r - _gg)`) — NOT from
+// `ksztaltka.cs`'s `tabIzo()`, which is dead code full of copy-paste bugs
+// (duplicated TR5a block, wrong signs on TR7a/TR8a/TR9a) that the legacy app
+// never actually calls for this calculation.
+//
+// QPR6a is the one deliberate deviation from the legacy runtime: its call
+// site passes the insulated dimensions completely unchanged (a legacy bug —
+// the offset was simply forgotten). We instead follow `tabIzo()`'s
+// documented intent (a/b/c/d all +2×thickness), matching the "outer sheet
+// dimensions grow by 2x insulation thickness" pattern every other shape
+// follows.
+const INSULATED_DELTAS: Record<string, Array<[index: number, multiplier: number]>> = {
+  QDa: [[0, 2], [1, 2]],
+  QBa: [[0, 2], [1, 2], [4, -1]],
+  QBNa: [[0, 2], [1, 2], [4, -1]],
+  QPR6a: [[0, 2], [1, 2], [2, 2], [3, 2]],
+  PR1a: [[0, 2], [1, 2], [2, 2]],
+  PR7a: [[0, 2], [1, 2], [2, 2]],
+  QPR2a: [[0, 2], [1, 2], [2, 2], [3, 2]],
+  QBRa: [[0, 2], [2, 2], [5, -1]],
+  QBR1a: [[0, 2], [3, 2], [6, -1]],
+  QBFRa: [[0, 2], [1, 2], [2, 2]],
+  QBFa: [[0, 2], [1, 2]],
+  QESa: [[0, 2], [1, 2]],
+  TR1a: [[0, 2], [1, 2], [2, 2], [3, 2]],
+  TR2a: [[0, 2], [1, 2], [2, 2]],
+  TRa: [[0, 2], [1, 2], [2, 2], [3, 2], [6, -1]],
+  QPR3a: [[0, 2], [1, 2]],
+  QPR4a: [[0, 2], [1, 2], [2, 2]],
+  TR6a: [[1, 2], [2, 2]],
+  CZ1a: [[0, 2], [1, 2], [2, 2], [3, 2], [5, 2], [6, 2]],
+  CZ2a: [[0, 2], [1, 2], [2, 2], [4, 2]],
+  TR3a: [[0, 2], [1, 2], [2, 2], [3, 2], [8, -1], [9, -1]],
+  TR4a: [[0, 2], [1, 2], [3, 2], [6, -1]],
+  TR5a: [[0, 2], [1, 2]],
+  QD1a: [[0, 2], [1, 2]],
+  QD2a: [[0, 2], [1, 2]],
+  TR7a: [[0, 2], [1, 2], [2, 2], [3, 2], [8, -1], [9, -1]],
+  TR8a: [[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2]],
+  TR9a: [[0, 2], [1, 2], [2, 2], [3, 2], [4, 2]],
+};
+
+/** Applies the insulated-jacket dimension deltas for `symbol` to `tab`, given the insulation thickness `gg` (mm). */
+export function insulatedTab(symbol: string, tab: number[], gg: number): number[] {
+  const deltas = INSULATED_DELTAS[symbol];
+  if (!deltas) return tab;
+  const result = tab.slice();
+  for (const [index, multiplier] of deltas) {
+    result[index] = (result[index] || 0) + multiplier * gg;
+  }
+  return result;
+}
+
+/** Area of the insulated (jacket) geometry — same formula as calculateArea, just enlarged dimensions. */
+export function calculateInsulatedArea(symbol: string, tab: number[], gg: number): number {
+  return calculateArea(symbol, insulatedTab(symbol, tab, gg));
 }
 
 // Generate the full symbol string for a shape

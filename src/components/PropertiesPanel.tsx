@@ -54,6 +54,9 @@ interface PropertiesPanelProps {
   onGruboscIzolacjiChange: (v: string) => void;
   plaszczOptions: string[];
   gruboscIzolacjiOptions: string[];
+
+  // Transient "Grubość blachy za mała!"-style notice after an auto-upgrade
+  thicknessWarning?: string | null;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -93,6 +96,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onGruboscIzolacjiChange,
   plaszczOptions,
   gruboscIzolacjiOptions,
+  thicknessWarning,
 }) => {
   const err = (field: string): PropertyError | undefined => propertyErrors[field];
   const rowClass = (field: string, disabled?: boolean) =>
@@ -179,6 +183,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       </div>
       )}
 
+      {thicknessWarning && (
+        <div className="thickness-warning" role="alert">{thicknessWarning}</div>
+      )}
+
       <div className={rowClass('material')} title={err('material')?.message || ''}>
         <label>{t('Materiał')}</label>
         <select value={material} onChange={(e) => onMaterialChange(e.target.value)}>
@@ -204,9 +212,13 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </>
       )}
 
-      <div className={rowClass('wykonanie')} title={err('wykonanie')?.message || ''}>
+      <div className={rowClass('wykonanie', !isChemo && material !== 'Ocynk')} title={err('wykonanie')?.message || ''}>
         <label>{t('Wykonanie')}</label>
-        <select value={wykonanie} onChange={(e) => onWykonanieChange(e.target.value)}>
+        <select
+          value={wykonanie}
+          onChange={(e) => onWykonanieChange(e.target.value)}
+          disabled={!isChemo && material !== 'Ocynk'}
+        >
           {wykonanieOptions.map(o => <option key={o} value={o}>{t(o)}</option>)}
         </select>
       </div>
