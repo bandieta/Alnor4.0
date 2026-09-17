@@ -444,8 +444,13 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // QBNa port of the Form1.cs `if (symbol == "QBNa")` GDI block: the QBa elbow with a
     // variable bend angle. Plan view on the left (outlet leg of length e pointing down,
     // bend of inner radius r sweeping alfa degrees, inlet leg of length f leaving the
-    // bend at that angle), end view on the right (a-wide box whose height is Form1's
-    // sin(alfa)-projected f+b extent, with the projected r and the e extents below it).
+    // bend at that angle), end view on the right: like QBa's, a vertical projection of
+    // the plan view — the a-wide box is the inlet face seen foreshortened (b·sin alfa
+    // tall, so exactly b at 90°), starting at the plan view's top edge, with the rest of
+    // the fitting's extent hanging below it down to the outlet flange. Form1 instead
+    // floats its box sin(alfa)·f above the QBa baseline and makes it (f+b)·sin alfa tall,
+    // which leaves the two views misaligned (f too high and f too tall at 90°); that is a
+    // legacy slip, dropped here so the views line up as they do for QDa/QBa.
     const rawA = values[0] || 200;
     const rawB = values[1] || 200;
     const rawE = values[2] || 150;
@@ -493,7 +498,6 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // Form1 truncates each sin(alfa)-scaled length to int before using it.
     const sB = toInt(sin * b);
     const sR = toInt(sin * r);
-    const sF = toInt(sin * f);
 
     // ---- plan view -------------------------------------------------------------
     // punkty3: outlet leg, b wide, e long, pointing straight down.
@@ -566,16 +570,17 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const sectionShift = Math.max(0, eLabelRight - (190 - p + pushX) + 6);
     const sx = 190 + pushX + sectionShift;
 
-    // punkty: Form1 stretches the box from sin(alfa)·f above the QBa baseline to
-    // sin(alfa)·b below it; punkty1 is its flange, p wider on every side.
-    const small = { x0: sx, y0: 20 + pushY - sF, x1: sx + a, y1: 20 + pushY + sB };
+    // punkty: the inlet face, foreshortened, at the plan view's top edge; punkty1 is its
+    // flange, p wider on every side.
+    const planTop = Math.min(p0.y, p1.y);
+    const small = { x0: sx, y0: planTop, x1: sx + a, y1: planTop + b * sin };
     const big = { x0: sx - p, y0: small.y0 - p, x1: sx + a + p, y1: small.y1 + p };
 
-    // podmalym + podmalyme: sin(alfa)·r and e extents stacked under the box. Form1 erases
-    // the divider between them with the background pen and FillPolygon(myBrush, punkty1)
-    // paints the flange rect over the top of the r block, so what remains visible is one
-    // outline emerging from under the flange.
-    const underBottom = small.y1 + sR + e;
+    // podmalym + podmalyme: the rest of the fitting below the face, down to the outlet
+    // flange (the plan view's bottom edge). Form1 erases the divider inside it with the
+    // background pen and FillPolygon(myBrush, punkty1) paints the flange rect over its top,
+    // so what remains visible is one outline emerging from under the flange.
+    const underBottom = lower.y1;
     const underTop = Math.min(big.y1, underBottom);
     const underPath = `M ${small.x0} ${underTop} L ${small.x0} ${underBottom} L ${small.x1} ${underBottom} L ${small.x1} ${underTop}`;
     const underFlangeY = underBottom - p;
