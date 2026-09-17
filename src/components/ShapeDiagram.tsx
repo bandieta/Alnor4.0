@@ -8,9 +8,13 @@ interface ShapeDiagramProps {
   values: number[];
   labels: string[];
   t?: (text: string) => string;
+  /** "Kreska rysunku" (Form1.cs kreskaToolStripMenuItem_Click / colorDialog2) — the 2D drawing's outline color, legacy default Color.Blue. */
+  lineColor?: string;
+  /** "Tło rysunku" (Form1.cs tłoToolStripMenuItem_Click / pictureBox2.BackColor). */
+  backgroundColor?: string;
 }
 
-const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _labels, t = (text) => text }) => {
+const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _labels, t = (text) => text, lineColor = '#004290', backgroundColor }) => {
   const width = 360;
   const height = 160;
 
@@ -199,18 +203,18 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     return (
       <g>
         {/* Form1 flange extension lines around side view */}
-        <line x1={flangeRight.x1} y1={flangeRight.y1} x2={flangeRight.x2} y2={flangeRight.y2} stroke="#004290" strokeWidth={1.4} />
-        <line x1={flangeInnerLeft.x1} y1={flangeInnerLeft.y1} x2={flangeInnerLeft.x2} y2={flangeInnerLeft.y2} stroke="#004290" strokeWidth={1.2} />
-        <line x1={flangeInnerRight.x1} y1={flangeInnerRight.y1} x2={flangeInnerRight.x2} y2={flangeInnerRight.y2} stroke="#004290" strokeWidth={1.2} />
-        <line x1={flangeLeft.x1} y1={flangeLeft.y1} x2={flangeLeft.x2} y2={flangeLeft.y2} stroke="#004290" strokeWidth={1.4} />
+        <line x1={flangeRight.x1} y1={flangeRight.y1} x2={flangeRight.x2} y2={flangeRight.y2} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={flangeInnerLeft.x1} y1={flangeInnerLeft.y1} x2={flangeInnerLeft.x2} y2={flangeInnerLeft.y2} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={flangeInnerRight.x1} y1={flangeInnerRight.y1} x2={flangeInnerRight.x2} y2={flangeInnerRight.y2} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={flangeLeft.x1} y1={flangeLeft.y1} x2={flangeLeft.x2} y2={flangeLeft.y2} stroke={lineColor} strokeWidth={1.4} />
 
         {/* Main outlines */}
         <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
-          fill="none" stroke="#004290" strokeWidth={1.6} />
+          fill="none" stroke={lineColor} strokeWidth={1.6} />
         <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
         <rect x={sidePoly.x0} y={sidePoly.y0} width={sidePoly.x1 - sidePoly.x0} height={sidePoly.y1 - sidePoly.y0}
-          fill="none" stroke="#004290" strokeWidth={1.6} />
+          fill="none" stroke={lineColor} strokeWidth={1.6} />
 
         {/* a dimension (top of right view) */}
         <line x1={small.x0} y1={aDimY} x2={small.x1} y2={aDimY}
@@ -353,18 +357,18 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     return (
       <g>
         <rect x={left.x0} y={left.y0} width={left.x1 - left.x0} height={left.y1 - left.y0}
-          fill="none" stroke="#004290" strokeWidth={1.6} />
+          fill="none" stroke={lineColor} strokeWidth={1.6} />
 
         <rect x={underSmall.x0} y={underSmall.y0} width={underSmall.x1 - underSmall.x0} height={underSmall.y1 - underSmall.y0}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
         <rect x={underSmallE.x0} y={underSmallE.y0} width={underSmallE.x1 - underSmallE.x0} height={underSmallE.y1 - underSmallE.y0}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
 
         <rect x={lower.x0} y={lower.y0} width={lower.x1 - lower.x0} height={lower.y1 - lower.y0}
-          fill="none" stroke="#004290" strokeWidth={1.6} />
+          fill="none" stroke={lineColor} strokeWidth={1.6} />
 
-        <path d={quarterArcPath(innerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />
-        {r !== 0 && <path d={quarterArcPath(outerRect)} fill="none" stroke="#004290" strokeWidth={1.6} />}
+        <path d={quarterArcPath(innerRect)} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {r !== 0 && <path d={quarterArcPath(outerRect)} fill="none" stroke={lineColor} strokeWidth={1.6} />}
 
         <line x1={left.x1} y1={lower.y0} x2={left.x1 + r} y2={left.y1}
           stroke="#9b9b9b" strokeWidth={0.9} />
@@ -379,9 +383,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           fontSize={10} fill="#555555">r</text>
 
         <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
         <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
-          fill="none" stroke="#004290" strokeWidth={1.6} />
+          fill="none" stroke={lineColor} strokeWidth={1.6} />
 
         <line x1={left.x0} y1={left.y0 - 15} x2={left.x1} y2={left.y0 - 15}
           stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
@@ -520,21 +524,21 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       <g>
         {/* === SIDE VIEW (left) === */}
         {/* Outer wall: e-leg → arc → f-leg */}
-        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={outerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={`${fOStartX},${fOStartY} ${fOEndX},${fOEndY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={outerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={`${fOStartX},${fOStartY} ${fOEndX},${fOEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Inner wall: e-leg → arc → f-leg */}
-        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={innerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={`${fIStartX},${fIStartY} ${fIEndX},${fIEndY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={innerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={`${fIStartX},${fIStartY} ${fIEndX},${fIEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Flanges */}
         {/* E-leg flange (perpendicular to leg = horizontal) */}
-        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke="#004290" strokeWidth={2} />
+        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke={lineColor} strokeWidth={2} />
         {/* F-leg flange (perpendicular to f-direction) */}
         <line x1={fIEndX - flangeNX * 3} y1={fIEndY - flangeNY * 3}
-              x2={fOEndX + flangeNX * 3} y2={fOEndY + flangeNY * 3} stroke="#004290" strokeWidth={2} />
+              x2={fOEndX + flangeNX * 3} y2={fOEndY + flangeNY * 3} stroke={lineColor} strokeWidth={2} />
 
         {/* b dimension — across duct at e-leg top */}
         <line x1={vInnerX} y1={vTopEnd - 10} x2={vOuterX} y2={vTopEnd - 10}
@@ -604,9 +608,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* === CROSS-SECTION (right) === */}
         <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
 
         {/* a dimension (above cross-section) */}
         <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
@@ -668,30 +672,30 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* === Side view === */}
         {/* Front vertical + flange */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke="#004290" strokeWidth={2.2} />
+        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
         {/* Front straight — top */}
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
         {/* Front straight — bottom */}
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
         {/* Taper — top */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
         {/* Taper — bottom */}
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
         {/* Rear straight — top */}
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
         {/* Rear straight — bottom */}
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
         {/* Rear vertical + flange */}
-        <line x1={svX + sl} y1={svT2 - p} x2={svX + sl} y2={svB2 + p} stroke="#004290" strokeWidth={2.2} />
+        <line x1={svX + sl} y1={svT2 - p} x2={svX + sl} y2={svB2 + p} stroke={lineColor} strokeWidth={2.2} />
 
         {/* Dashed division lines at h and L-m */}
         {sh > 1 && (
           <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
         {sm > 1 && (
           <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
 
         {/* b dimension — left (front height) */}
@@ -729,10 +733,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* === Cross-section: front a×b solid, rear c×d dashed === */}
         <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         {/* Flange frame */}
         <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
         {/* Rear opening c×d dashed inside */}
         <rect x={crossX + (sa - sCross) / 2} y={crossY + (sb - sd) / 2} width={sCross} height={sd}
           fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
@@ -797,23 +801,23 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* Front vertical + flange */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke="#004290" strokeWidth={2.2} />
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
+        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
         {/* Asymmetric taper */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX + sl} y1={svT2 - p} x2={svX + sl} y2={svB2 + p} stroke="#004290" strokeWidth={2.2} />
+        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX + sl} y1={svT2 - p} x2={svX + sl} y2={svB2 + p} stroke={lineColor} strokeWidth={2.2} />
 
         {sh > 1 && (
           <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
         {sm > 1 && (
           <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
 
         {/* b dimension — left */}
@@ -848,9 +852,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Cross-section: front a×b solid, rear c×d dashed offset */}
         <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
         {/* Rear c×d dashed offset by e,f */}
         <rect x={crossX + sf} y={crossY + se} width={sCross} height={sd}
           fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
@@ -925,31 +929,31 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* === Side view === */}
         {/* Front vertical + flange */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke="#004290" strokeWidth={2.2} />
+        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
         {/* Front straight — top */}
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
         {/* Front straight — bottom */}
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
         {/* Taper — top */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
         {/* Taper — bottom */}
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
         {/* Rear straight — top */}
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
         {/* Rear straight — bottom */}
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
         {/* Rear — circle symbol (small arc/ellipse at rear end) */}
         <ellipse cx={svX + sl} cy={svCY} rx={3} ry={sd / 2}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
 
         {/* Dashed division lines at h and L-m */}
         {sh > 1 && (
           <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
         {sm > 1 && (
           <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
 
         {/* b dimension — left (front height) */}
@@ -987,10 +991,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* === Cross-section: front a×b rectangle + rear circle dashed === */}
         <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         {/* Flange frame */}
         <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
         {/* Rear circular opening dashed inside */}
         <circle cx={crossX + sa / 2} cy={svCY} r={sr}
           fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
@@ -1054,24 +1058,24 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         {/* === Side view === */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke="#004290" strokeWidth={2.2} />
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
+        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
         {/* Asymmetric taper */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke="#004290" strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke="#004290" strokeWidth={1.8} />
+        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
         <ellipse cx={svX + sl} cy={cirCY} rx={3} ry={sr}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
 
         {sh > 1 && (
           <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
         {sm > 1 && (
           <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke="#004290" strokeWidth={0.7} strokeDasharray="3 2" />
+            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
         )}
 
         {/* b dimension — left */}
@@ -1106,9 +1110,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* === Cross-section === */}
         <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
         {/* Asymmetric circle (offset by e,f) */}
         <circle cx={cirCrossX} cy={cirCrossY} r={sr}
           fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
@@ -1255,19 +1259,19 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
 
         {/* Outer wall: f-leg → arc → e-leg */}
-        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={outerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={`${eOStartX},${eOStartY} ${eOEndX},${eOEndY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={outerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={`${eOStartX},${eOStartY} ${eOEndX},${eOEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Inner wall: f-leg → arc → e-leg */}
-        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={innerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={`${eIStartX},${eIStartY} ${eIEndX},${eIEndY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={innerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={`${eIStartX},${eIStartY} ${eIEndX},${eIEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Flanges */}
-        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke="#004290" strokeWidth={2} />
+        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke={lineColor} strokeWidth={2} />
         <line x1={eIEndX - flangeNX * 3} y1={eIEndY - flangeNY * 3}
-              x2={eOEndX + flangeNX * 3} y2={eOEndY + flangeNY * 3} stroke="#004290" strokeWidth={2} />
+              x2={eOEndX + flangeNX * 3} y2={eOEndY + flangeNY * 3} stroke={lineColor} strokeWidth={2} />
 
         {/* b dimension — f-leg width */}
         <line x1={vInnerX} y1={vTopEnd - 10} x2={vOuterX} y2={vTopEnd - 10}
@@ -1353,9 +1357,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         {/* Solid: a×b (inlet) */}
         <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
         {/* Dashed: a×d (outlet, centered vertically) */}
         <rect x={crossX} y={crossY + (cb - cd) / 2} width={ca} height={cd}
           fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
@@ -1514,19 +1518,19 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
 
         {/* Outer wall */}
-        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={outerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={`${eOStartX},${eOStartY} ${eOEndX},${eOEndY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={outerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={`${eOStartX},${eOStartY} ${eOEndX},${eOEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Inner wall */}
-        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={innerArc.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <polyline points={`${eIStartX},${eIStartY} ${eIEndX},${eIEndY}`} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={innerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={`${eIStartX},${eIStartY} ${eIEndX},${eIEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Flanges */}
-        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke="#004290" strokeWidth={2} />
+        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke={lineColor} strokeWidth={2} />
         <line x1={eIEndX - flangeNX * 3} y1={eIEndY - flangeNY * 3}
-              x2={eOEndX + flangeNX * 3} y2={eOEndY + flangeNY * 3} stroke="#004290" strokeWidth={2} />
+              x2={eOEndX + flangeNX * 3} y2={eOEndY + flangeNY * 3} stroke={lineColor} strokeWidth={2} />
 
         {/* d dimension — f-leg width (inlet radial) */}
         <line x1={vInnerX} y1={vTopEnd - 10} x2={vOuterX} y2={vTopEnd - 10}
@@ -1612,9 +1616,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={crossX + Math.max(ca, cc) / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         {/* Solid: a×d (inlet) */}
         <rect x={crossX} y={crossY} width={ca} height={cd}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cd + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
         {/* Dashed: c×b (outlet, offset) */}
         <rect x={outX} y={outY} width={cc} height={cbv}
           fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
@@ -1706,23 +1710,23 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* === LEFT VIEW: L-shape front view === */}
 
         {/* Outer walls */}
-        <line x1={ox} y1={oy} x2={rightX} y2={oy} stroke="#004290" strokeWidth={1.8} />
-        <line x1={rightX} y1={oy} x2={rightX} y2={botY} stroke="#004290" strokeWidth={1.8} />
-        <line x1={rightX} y1={botY} x2={icx} y2={botY} stroke="#004290" strokeWidth={1.8} />
-        <line x1={ox} y1={oy} x2={ox} y2={icy} stroke="#004290" strokeWidth={1.8} />
+        <line x1={ox} y1={oy} x2={rightX} y2={oy} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={rightX} y1={oy} x2={rightX} y2={botY} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={rightX} y1={botY} x2={icx} y2={botY} stroke={lineColor} strokeWidth={1.8} />
+        <line x1={ox} y1={oy} x2={ox} y2={icy} stroke={lineColor} strokeWidth={1.8} />
 
         {/* Inner walls + arc */}
-        <line x1={ox} y1={icy} x2={arcCX} y2={icy} stroke="#004290" strokeWidth={1.8} />
-        <polyline points={innerArcPts.join(' ')} fill="none" stroke="#004290" strokeWidth={1.8} />
-        <line x1={icx} y1={arcCY} x2={icx} y2={botY} stroke="#004290" strokeWidth={1.8} />
+        <line x1={ox} y1={icy} x2={arcCX} y2={icy} stroke={lineColor} strokeWidth={1.8} />
+        <polyline points={innerArcPts.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <line x1={icx} y1={arcCY} x2={icx} y2={botY} stroke={lineColor} strokeWidth={1.8} />
 
         {/* Left flange (d-opening at x=ox) */}
-        <line x1={ox} y1={oy - sp} x2={ox} y2={icy + sp} stroke="#004290" strokeWidth={2} />
-        <line x1={ox + sp} y1={oy} x2={ox + sp} y2={icy} stroke="#004290" strokeWidth={1.2} />
+        <line x1={ox} y1={oy - sp} x2={ox} y2={icy + sp} stroke={lineColor} strokeWidth={2} />
+        <line x1={ox + sp} y1={oy} x2={ox + sp} y2={icy} stroke={lineColor} strokeWidth={1.2} />
 
         {/* Bottom flange (b-opening at y=botY) */}
-        <line x1={icx - sp} y1={botY} x2={rightX + sp} y2={botY} stroke="#004290" strokeWidth={2} />
-        <line x1={icx} y1={botY - sp} x2={rightX} y2={botY - sp} stroke="#004290" strokeWidth={1.2} />
+        <line x1={icx - sp} y1={botY} x2={rightX + sp} y2={botY} stroke={lineColor} strokeWidth={2} />
+        <line x1={icx} y1={botY - sp} x2={rightX} y2={botY - sp} stroke={lineColor} strokeWidth={1.2} />
 
         {/* d dimension — left side, top to inner corner */}
         <line x1={ox - 12} y1={oy} x2={ox - 12} y2={icy}
@@ -1757,9 +1761,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
 
         <rect x={crossX} y={crossY} width={ca} height={cd}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cd + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
 
         {/* a dimension on cross-section */}
         <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
@@ -1847,24 +1851,24 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z przodu')}</text>
 
         {/* Outer boundary: top→right→bottom-right→inner-bottom, then inner boundary back to start */}
-        <polyline points={outerPts} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={outerPts} fill="none" stroke={lineColor} strokeWidth={1.8} />
         {/* Inner vertical: from inner-bottom-right up to arc right-tangent */}
         <line x1={cornerX} y1={oy + sb + sf} x2={cornerX} y2={arcCY}
-          stroke="#004290" strokeWidth={1.8} />
+          stroke={lineColor} strokeWidth={1.8} />
         {/* Arc + horizontal inner + left edge */}
-        <polyline points={innerPts} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <polyline points={innerPts} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Flanges at the two duct openings */}
         {/* Left vertical flange (inlet): at left edge, height = b */}
         <line x1={ox - fp} y1={oy} x2={ox - fp} y2={cornerY}
-          stroke="#004290" strokeWidth={2.2} />
+          stroke={lineColor} strokeWidth={2.2} />
         <line x1={ox + fp} y1={oy} x2={ox + fp} y2={cornerY}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
         {/* Bottom horizontal flange (outlet): at bottom edge of right arm, width = b */}
         <line x1={cornerX} y1={oy + sb + sf + fp} x2={ox + se + sb} y2={oy + sb + sf + fp}
-          stroke="#004290" strokeWidth={2.2} />
+          stroke={lineColor} strokeWidth={2.2} />
         <line x1={cornerX} y1={oy + sb + sf - fp} x2={ox + se + sb} y2={oy + sb + sf - fp}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
 
         {/* e — horizontal leg dimension (bottom, spanning e width) */}
         <line x1={ox} y1={oy + sb + sf + fp + 13} x2={ox + se} y2={oy + sb + sf + fp + 13}
@@ -1909,9 +1913,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* Cross section (right panel) */}
         <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
         <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
           stroke="#9b9b9b" strokeWidth={0.8}
           markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
@@ -1959,15 +1963,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Flange line on left (open/mating end) */}
         <line x1={sx} y1={sy - fp} x2={sx} y2={sy + sb + fp}
-          stroke="#004290" strokeWidth={2.2} />
+          stroke={lineColor} strokeWidth={2.2} />
 
         {/* Cap body rectangle (side face: e × b) */}
         <rect x={sx} y={sy} width={se} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Closed end — thick plate line on right */}
         <line x1={sx + se} y1={sy - 2} x2={sx + se} y2={sy + sb + 2}
-          stroke="#004290" strokeWidth={4} />
+          stroke={lineColor} strokeWidth={4} />
 
         {/* e dimension (depth) */}
         <line x1={sx} y1={sy + sb + fp + 14} x2={sx + se} y2={sy + sb + fp + 14}
@@ -1990,9 +1994,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* Cross-section */}
         <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
 
         {/* a dimension */}
         <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
@@ -2062,21 +2066,21 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Main duct rectangle */}
         <rect x={ox} y={oy} width={sL} height={sb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Left flange (main duct in) */}
         <line x1={ox} y1={oy - fp} x2={ox} y2={oy + sb + fp}
-          stroke="#004290" strokeWidth={2.2} />
+          stroke={lineColor} strokeWidth={2.2} />
         {/* Right flange (main duct out) */}
         <line x1={ox + sL} y1={oy - fp} x2={ox + sL} y2={oy + sb + fp}
-          stroke="#004290" strokeWidth={2.2} />
+          stroke={lineColor} strokeWidth={2.2} />
 
         {/* Branch rectangle below main duct */}
         <rect x={ox + se} y={oy + sb} width={sw} height={sl3}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         {/* Branch bottom flange */}
         <line x1={ox + se - fp} y1={oy + sb + sl3} x2={ox + se + sw + fp} y2={oy + sb + sl3}
-          stroke="#004290" strokeWidth={2.2} />
+          stroke={lineColor} strokeWidth={2.2} />
 
         {/* L dimension (main duct length) */}
         <line x1={ox} y1={oy - fp - 12} x2={ox + sL} y2={oy - fp - 12}
@@ -2128,13 +2132,13 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* Cross-section */}
         <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
         <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} strokeDasharray="4 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
 
         {/* Branch opening location in cross-section (d and f) */}
         <rect x={branchLeftX} y={branchY} width={Math.max(2, branchRightX - branchLeftX)} height={branchH}
-          fill="none" stroke="#004290" strokeWidth={1.4} strokeDasharray="3 2" />
+          fill="none" stroke={lineColor} strokeWidth={1.4} strokeDasharray="3 2" />
         <line x1={branchCenterX} y1={crossY - cp - 18} x2={branchCenterX} y2={crossY + cb + cp + 12}
           stroke="#b3b3b3" strokeWidth={0.7} strokeDasharray="3 3" />
 
@@ -2224,18 +2228,18 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       <g>
         {/* === FRONT VIEW === */}
         {/* Main duct rectangle */}
-        <rect x={ox} y={oy} width={sl} height={sa} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <rect x={ox} y={oy} width={sl} height={sa} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Left flange */}
-        <line x1={ox} y1={oy - sp} x2={ox} y2={mBot + sp} stroke="#004290" strokeWidth={2} />
-        <line x1={ox - sp} y1={oy} x2={ox - sp} y2={mBot} stroke="#004290" strokeWidth={1.2} />
+        <line x1={ox} y1={oy - sp} x2={ox} y2={mBot + sp} stroke={lineColor} strokeWidth={2} />
+        <line x1={ox - sp} y1={oy} x2={ox - sp} y2={mBot} stroke={lineColor} strokeWidth={1.2} />
 
         {/* Right flange */}
-        <line x1={mRight} y1={oy - sp} x2={mRight} y2={mBot + sp} stroke="#004290" strokeWidth={2} />
-        <line x1={mRight + sp} y1={oy} x2={mRight + sp} y2={mBot} stroke="#004290" strokeWidth={1.2} />
+        <line x1={mRight} y1={oy - sp} x2={mRight} y2={mBot + sp} stroke={lineColor} strokeWidth={2} />
+        <line x1={mRight + sp} y1={oy} x2={mRight + sp} y2={mBot} stroke={lineColor} strokeWidth={1.2} />
 
         {/* Branch rectangle — above main duct */}
-        <rect x={bLeft} y={bTop} width={sd} height={sl3} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <rect x={bLeft} y={bTop} width={sd} height={sl3} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* a dimension — right side of main duct */}
         <line x1={mRight + sp + 10} y1={oy} x2={mRight + sp + 10} y2={mBot}
@@ -2267,14 +2271,14 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Main duct cross-section a×b */}
         <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         {/* Flanges */}
         <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
 
         {/* Branch indicator on cross-section (round opening) */}
         <circle cx={brCrossX} cy={brCrossY} r={branchR}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
         <line x1={brCrossX} y1={brCrossY + branchR} x2={brCrossX} y2={crossY}
           stroke="#b3b3b3" strokeWidth={0.7} strokeDasharray="3 2" />
 
@@ -2387,19 +2391,19 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     return (
       <g>
         {/* === FRONT VIEW === */}
-        <path d={profilePath} fill="none" stroke="#004290" strokeWidth={1.8} />
+        <path d={profilePath} fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Left flange */}
-        <line x1={xL} y1={yDuctTop - fl} x2={xL} y2={yBot + fl} stroke="#004290" strokeWidth={2} />
-        <line x1={xL + fl} y1={yDuctTop} x2={xL + fl} y2={yBot} stroke="#004290" strokeWidth={1.2} />
+        <line x1={xL} y1={yDuctTop - fl} x2={xL} y2={yBot + fl} stroke={lineColor} strokeWidth={2} />
+        <line x1={xL + fl} y1={yDuctTop} x2={xL + fl} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
 
         {/* Right flange */}
-        <line x1={xR} y1={yILine - fl} x2={xR} y2={yBot + fl} stroke="#004290" strokeWidth={2} />
-        <line x1={xR - fl} y1={yILine} x2={xR - fl} y2={yBot} stroke="#004290" strokeWidth={1.2} />
+        <line x1={xR} y1={yILine - fl} x2={xR} y2={yBot + fl} stroke={lineColor} strokeWidth={2} />
+        <line x1={xR - fl} y1={yILine} x2={xR - fl} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
 
         {/* Branch flange (top) */}
-        <line x1={xBrL - fl} y1={yBrTop} x2={xBrR + fl} y2={yBrTop} stroke="#004290" strokeWidth={2} />
-        <line x1={xBrL} y1={yBrTop + fl} x2={xBrR} y2={yBrTop + fl} stroke="#004290" strokeWidth={1.2} />
+        <line x1={xBrL - fl} y1={yBrTop} x2={xBrR + fl} y2={yBrTop} stroke={lineColor} strokeWidth={2} />
+        <line x1={xBrL} y1={yBrTop + fl} x2={xBrR} y2={yBrTop + fl} stroke={lineColor} strokeWidth={1.2} />
 
         {/* === DIMENSIONS === */}
         {/* L — below duct */}
@@ -2449,23 +2453,23 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Upper section (branch neck: b+p+r-d tall) */}
         <rect x={csX} y={csY} width={ca} height={csTotalH - cd}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
         {/* Top flange */}
-        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke="#004290" strokeWidth={1.5} />
-        <line x1={csX} y1={csY + cf} x2={csX + ca} y2={csY + cf} stroke="#004290" strokeWidth={0.8} />
+        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke={lineColor} strokeWidth={1.5} />
+        <line x1={csX} y1={csY + cf} x2={csX + ca} y2={csY + cf} stroke={lineColor} strokeWidth={0.8} />
 
         {/* Connector lines from neck to d-flange */}
-        <line x1={csX - cf} y1={csY + cp + cr - cf} x2={csX} y2={csY + cp + cr - cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX - cf} y1={csY + cp + cr - cf} x2={csX - cf} y2={csDivY - cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY + cp + cr - cf} x2={csX + ca} y2={csY + cp + cr - cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY + cp + cr - cf} x2={csX + ca + cf} y2={csDivY - cf} stroke="#004290" strokeWidth={0.8} />
+        <line x1={csX - cf} y1={csY + cp + cr - cf} x2={csX} y2={csY + cp + cr - cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX - cf} y1={csY + cp + cr - cf} x2={csX - cf} y2={csDivY - cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX + ca + cf} y1={csY + cp + cr - cf} x2={csX + ca} y2={csY + cp + cr - cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX + ca + cf} y1={csY + cp + cr - cf} x2={csX + ca + cf} y2={csDivY - cf} stroke={lineColor} strokeWidth={0.8} />
 
         {/* Lower d section */}
         <rect x={csX} y={csDivY} width={ca} height={cd}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
         {/* d-section flange */}
         <rect x={csX - cf} y={csDivY - cf} width={ca + 2 * cf} height={cd + 2 * cf}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
 
         {/* a dimension — below */}
         <line x1={csX} y1={csBotY + cf + 10} x2={csX + ca} y2={csBotY + cf + 10}
@@ -2544,26 +2548,26 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* Upper inlet section */}
         <polygon
           points={`${u0.x},${u0.y} ${diagTopStart.x},${diagTopStart.y} ${diagBotStart.x},${diagBotStart.y} ${u7.x},${u7.y}`}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Lower outlet section */}
         <polygon
           points={`${diagTopEnd.x},${diagTopEnd.y} ${l1.x},${l1.y} ${l2.x},${l2.y} ${diagBotEnd.x},${diagBotEnd.y}`}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Diagonal connections */}
         <line x1={diagTopStart.x} y1={diagTopStart.y} x2={diagTopEnd.x} y2={diagTopEnd.y}
-          stroke="#004290" strokeWidth={1.8} />
+          stroke={lineColor} strokeWidth={1.8} />
         <line x1={diagBotStart.x} y1={diagBotStart.y} x2={diagBotEnd.x} y2={diagBotEnd.y}
-          stroke="#004290" strokeWidth={1.8} />
+          stroke={lineColor} strokeWidth={1.8} />
 
         {/* Left flange (upper inlet) */}
-        <line x1={u0.x} y1={u0.y - fl} x2={u0.x} y2={u7.y + fl} stroke="#004290" strokeWidth={2} />
-        <line x1={u0.x + fl} y1={u0.y} x2={u0.x + fl} y2={u7.y} stroke="#004290" strokeWidth={1.2} />
+        <line x1={u0.x} y1={u0.y - fl} x2={u0.x} y2={u7.y + fl} stroke={lineColor} strokeWidth={2} />
+        <line x1={u0.x + fl} y1={u0.y} x2={u0.x + fl} y2={u7.y} stroke={lineColor} strokeWidth={1.2} />
 
         {/* Right flange (lower outlet) */}
-        <line x1={l1.x} y1={l1.y - fl} x2={l1.x} y2={l2.y + fl} stroke="#004290" strokeWidth={2} />
-        <line x1={l1.x - fl} y1={l1.y} x2={l1.x - fl} y2={l2.y} stroke="#004290" strokeWidth={1.2} />
+        <line x1={l1.x} y1={l1.y - fl} x2={l1.x} y2={l2.y + fl} stroke={lineColor} strokeWidth={2} />
+        <line x1={l1.x - fl} y1={l1.y} x2={l1.x - fl} y2={l2.y} stroke={lineColor} strokeWidth={1.2} />
 
         {/* === DIMENSIONS === */}
         {/* L — above everything */}
@@ -2596,18 +2600,18 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Full rectangle a × (b+e) */}
         <rect x={csX} y={csY} width={ca} height={cb + ce}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
 
         {/* Top flange */}
-        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke="#004290" strokeWidth={1.5} />
-        <line x1={csX - cf} y1={csY} x2={csX - cf} y2={csY + cb + cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY} x2={csX + ca + cf} y2={csY + cb + cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX} y1={csY + cb + cf} x2={csX - cf} y2={csY + cb + cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX + ca} y1={csY + cb + cf} x2={csX + ca + cf} y2={csY + cb + cf} stroke="#004290" strokeWidth={0.8} />
+        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke={lineColor} strokeWidth={1.5} />
+        <line x1={csX - cf} y1={csY} x2={csX - cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX + ca + cf} y1={csY} x2={csX + ca + cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX} y1={csY + cb + cf} x2={csX - cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX + ca} y1={csY + cb + cf} x2={csX + ca + cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
 
         {/* b section line */}
         <line x1={csX} y1={csY + ce} x2={csX + ca} y2={csY + ce}
-          stroke="#004290" strokeWidth={0.8} strokeDasharray="3 2" />
+          stroke={lineColor} strokeWidth={0.8} strokeDasharray="3 2" />
 
         {/* a dimension — below */}
         <line x1={csX} y1={csBotY + cf + 10} x2={csX + ca} y2={csBotY + cf + 10}
@@ -2689,26 +2693,26 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* Inlet section (trapezoid) */}
         <polygon
           points={`${i0.x},${i0.y} ${i1.x},${i1.y} ${i1d.x},${i1d.y} ${i7.x},${i7.y}`}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Outlet section */}
         <polygon
           points={`${o0.x},${o0.y} ${o1.x},${o1.y} ${o2.x},${o2.y} ${o3.x},${o3.y}`}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Diagonal connections */}
         <line x1={i1.x} y1={i1.y} x2={o0.x} y2={o0.y}
-          stroke="#004290" strokeWidth={1.8} />
+          stroke={lineColor} strokeWidth={1.8} />
         <line x1={i1d.x} y1={i1d.y} x2={o3.x} y2={o3.y}
-          stroke="#004290" strokeWidth={1.8} />
+          stroke={lineColor} strokeWidth={1.8} />
 
         {/* Left flange (inlet) */}
-        <line x1={i0.x} y1={i0.y - fl} x2={i0.x} y2={i7.y + fl} stroke="#004290" strokeWidth={2} />
-        <line x1={i0.x + fl} y1={i0.y} x2={i0.x + fl} y2={i7.y} stroke="#004290" strokeWidth={1.2} />
+        <line x1={i0.x} y1={i0.y - fl} x2={i0.x} y2={i7.y + fl} stroke={lineColor} strokeWidth={2} />
+        <line x1={i0.x + fl} y1={i0.y} x2={i0.x + fl} y2={i7.y} stroke={lineColor} strokeWidth={1.2} />
 
         {/* Right flange (outlet) */}
-        <line x1={o1.x} y1={o1.y - fl} x2={o1.x} y2={o2.y + fl} stroke="#004290" strokeWidth={2} />
-        <line x1={o1.x - fl} y1={o1.y} x2={o1.x - fl} y2={o2.y} stroke="#004290" strokeWidth={1.2} />
+        <line x1={o1.x} y1={o1.y - fl} x2={o1.x} y2={o2.y + fl} stroke={lineColor} strokeWidth={2} />
+        <line x1={o1.x - fl} y1={o1.y} x2={o1.x - fl} y2={o2.y} stroke={lineColor} strokeWidth={1.2} />
 
         {/* === DIMENSIONS === */}
         {/* L — above */}
@@ -2746,20 +2750,20 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Inlet cross-section a × d (top) */}
         <rect x={csX} y={csY} width={ca} height={cbd}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
         {/* Inlet flange */}
-        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke="#004290" strokeWidth={1.5} />
-        <line x1={csX - cf} y1={csY} x2={csX - cf} y2={csY + cbd + cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY} x2={csX + ca + cf} y2={csY + cbd + cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX} y1={csY + cbd + cf} x2={csX - cf} y2={csY + cbd + cf} stroke="#004290" strokeWidth={0.8} />
-        <line x1={csX + ca} y1={csY + cbd + cf} x2={csX + ca + cf} y2={csY + cbd + cf} stroke="#004290" strokeWidth={0.8} />
+        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke={lineColor} strokeWidth={1.5} />
+        <line x1={csX - cf} y1={csY} x2={csX - cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX + ca + cf} y1={csY} x2={csX + ca + cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX} y1={csY + cbd + cf} x2={csX - cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
+        <line x1={csX + ca} y1={csY + cbd + cf} x2={csX + ca + cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
 
         {/* Outlet cross-section a × b (bottom) */}
         <rect x={csX} y={csY + ce} width={ca} height={cbb}
-          fill="none" stroke="#004290" strokeWidth={1.2} />
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
         {/* Outlet flange */}
         <rect x={csX - cf} y={csY + ce - cf} width={ca + 2 * cf} height={cbb + 2 * cf}
-          fill="none" stroke="#004290" strokeWidth={0.8} />
+          fill="none" stroke={lineColor} strokeWidth={0.8} />
 
         {/* a dimension — below */}
         <line x1={csX} y1={csBotY + cf + 10} x2={csX + ca} y2={csBotY + cf + 10}
@@ -2826,17 +2830,17 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Saddle rect in side view: e wide, extends g + wrapDepth deep */}
         <rect x={sadX} y={sadY} width={sE} height={sSaddleH}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Flanges at saddle top */}
         <line x1={sadX - sP} y1={sadY} x2={sadX + sE + sP} y2={sadY}
-          stroke="#004290" strokeWidth={2} />
+          stroke={lineColor} strokeWidth={2} />
         <line x1={sadX} y1={sadY + sP} x2={sadX + sE} y2={sadY + sP}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
 
         {/* Dashed line at g height (boundary between flat and wrapped portions) */}
         <line x1={sadX} y1={sadY + sG} x2={sadX + sE} y2={sadY + sG}
-          stroke="#004290" strokeWidth={0.8} strokeDasharray="3 2" />
+          stroke={lineColor} strokeWidth={0.8} strokeDasharray="3 2" />
 
         {/* e dimension — above saddle */}
         <line x1={sadX} y1={sadY - 10} x2={sadX + sE} y2={sadY - 10}
@@ -2862,27 +2866,27 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
         {/* Saddle f×g rectangle */}
         <rect x={csRX} y={csRY} width={sF} height={csG}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Flange accent at bottom of saddle rect */}
         <line x1={csRX + 1} y1={csRY + csG} x2={csRX + sF - 1} y2={csRY + csG}
-          stroke="#004290" strokeWidth={2} />
+          stroke={lineColor} strokeWidth={2} />
 
         {/* Connection lines from saddle bottom corners down to pipe circle */}
         <line x1={csRX} y1={csRY + csG} x2={csRX} y2={connY}
-          stroke="#004290" strokeWidth={1.5} />
+          stroke={lineColor} strokeWidth={1.5} />
         <line x1={csRX + sF} y1={csRY + csG} x2={csRX + sF} y2={connY}
-          stroke="#004290" strokeWidth={1.5} />
+          stroke={lineColor} strokeWidth={1.5} />
 
         {/* Pipe arc between connection points (top of pipe) */}
         <path d={`M ${csRX} ${connY} A ${csR} ${csR} 0 0 1 ${csRX + sF} ${connY}`}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
 
         {/* Flanges at top of saddle rect */}
         <line x1={csRX - csP} y1={csRY} x2={csRX + sF + csP} y2={csRY}
-          stroke="#004290" strokeWidth={2} />
+          stroke={lineColor} strokeWidth={2} />
         <line x1={csRX} y1={csRY + csP} x2={csRX + sF} y2={csRY + csP}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
 
         {/* f dimension — above cross-section */}
         <line x1={csRX} y1={csRY - 10} x2={csRX + sF} y2={csRY - 10}
@@ -2952,40 +2956,40 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* === SIDE VIEW (left) === */}
         {/* Main duct */}
         <rect x={ox} y={oy} width={sL} height={sB}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
 
         {/* Left flange */}
         <line x1={ox} y1={oy - sP} x2={ox} y2={oy + sB + sP}
-          stroke="#004290" strokeWidth={2} />
+          stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sP} y1={oy} x2={ox + sP} y2={oy + sB}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
         {/* Right flange */}
         <line x1={ox + sL} y1={oy - sP} x2={ox + sL} y2={oy + sB + sP}
-          stroke="#004290" strokeWidth={2} />
+          stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sL - sP} y1={oy} x2={ox + sL - sP} y2={oy + sB}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
 
         {/* Top branch (w wide, l3 tall, offset e from left) */}
         <rect x={ox + sE - sW / 2} y={oy - sL3} width={sW} height={sL3}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
         {/* Top branch flanges */}
         <line x1={ox + sE - sW / 2 - sP} y1={oy - sL3}
               x2={ox + sE + sW / 2 + sP} y2={oy - sL3}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sE - sW / 2} y1={oy - sL3 + sP}
               x2={ox + sE + sW / 2} y2={oy - sL3 + sP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* Bottom branch (w1 wide, l4 tall, offset e1 from left) */}
         <rect x={ox + sE1 - sW1 / 2} y={oy + sB} width={sW1} height={sL4}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
         {/* Bottom branch flanges */}
         <line x1={ox + sE1 - sW1 / 2 - sP} y1={oy + sB + sL4}
               x2={ox + sE1 + sW1 / 2 + sP} y2={oy + sB + sL4}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sE1 - sW1 / 2} y1={oy + sB + sL4 - sP}
               x2={ox + sE1 + sW1 / 2} y2={oy + sB + sL4 - sP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* w dimension — top branch width */}
         <line x1={ox + sE - sW / 2} y1={oy - sL3 - 8}
@@ -3033,35 +3037,35 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* === CROSS-SECTION (right) === */}
         {/* Main duct cross-section */}
         <rect x={csx} y={csy} width={csA} height={csB}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         {/* Flange frame */}
         <rect x={csx - csP} y={csy - csP} width={csA + 2 * csP} height={csB + 2 * csP}
-          fill="none" stroke="#004290" strokeWidth={1.3} />
+          fill="none" stroke={lineColor} strokeWidth={1.3} />
 
         {/* Top branch stub (d wide, extends upward by l3) */}
         {/* Offset from right: f; centerX = csx + csA - csF - csD/2 */}
         <rect x={csx + csA - csF - csD / 2} y={csy - csL3 + csP}
               width={csD} height={csL3 - csP}
-              fill="none" stroke="#004290" strokeWidth={1.5} />
+              fill="none" stroke={lineColor} strokeWidth={1.5} />
         {/* Top branch flange */}
         <line x1={csx + csA - csF - csD / 2 - csP} y1={csy - csL3 + csP}
               x2={csx + csA - csF + csD / 2 + csP} y2={csy - csL3 + csP}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={csx + csA - csF - csD / 2} y1={csy - csL3 + 2 * csP}
               x2={csx + csA - csF + csD / 2} y2={csy - csL3 + 2 * csP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* Bottom branch stub (d1 wide, extends downward by l4) */}
         <rect x={csx + csA - csF1 - csD1 / 2} y={csy + csB}
               width={csD1} height={csL4 - csP}
-              fill="none" stroke="#004290" strokeWidth={1.5} />
+              fill="none" stroke={lineColor} strokeWidth={1.5} />
         {/* Bottom branch flange */}
         <line x1={csx + csA - csF1 - csD1 / 2 - csP} y1={csy + csB + csL4 - csP}
               x2={csx + csA - csF1 + csD1 / 2 + csP} y2={csy + csB + csL4 - csP}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 - 2 * csP}
               x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 - 2 * csP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* b dimension — below cross-section */}
         <line x1={csx} y1={csy + csB + csL4 + 10}
@@ -3158,37 +3162,37 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* === SIDE VIEW (left) === */}
         {/* Main duct */}
         <rect x={ox} y={oy} width={sL} height={sB}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         {/* Left flange */}
         <line x1={ox} y1={oy - sP} x2={ox} y2={oy + sB + sP}
-          stroke="#004290" strokeWidth={2} />
+          stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sP} y1={oy} x2={ox + sP} y2={oy + sB}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
         {/* Right flange */}
         <line x1={ox + sL} y1={oy - sP} x2={ox + sL} y2={oy + sB + sP}
-          stroke="#004290" strokeWidth={2} />
+          stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sL - sP} y1={oy} x2={ox + sL - sP} y2={oy + sB}
-          stroke="#004290" strokeWidth={1} />
+          stroke={lineColor} strokeWidth={1} />
 
         {/* Top branch (w=d wide, l3 tall, offset e from left) */}
         <rect x={ox + sE - sW / 2} y={oy - sL3} width={sW} height={sL3}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
         <line x1={ox + sE - sW / 2 - sP} y1={oy - sL3}
               x2={ox + sE + sW / 2 + sP} y2={oy - sL3}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sE - sW / 2} y1={oy - sL3 + sP}
               x2={ox + sE + sW / 2} y2={oy - sL3 + sP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* Bottom branch (w1=d1 wide, l4 tall, offset e1 from left) */}
         <rect x={ox + sE1 - sW1 / 2} y={oy + sB} width={sW1} height={sL4}
-          fill="none" stroke="#004290" strokeWidth={1.5} />
+          fill="none" stroke={lineColor} strokeWidth={1.5} />
         <line x1={ox + sE1 - sW1 / 2 - sP} y1={oy + sB + sL4}
               x2={ox + sE1 + sW1 / 2 + sP} y2={oy + sB + sL4}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={ox + sE1 - sW1 / 2} y1={oy + sB + sL4 - sP}
               x2={ox + sE1 + sW1 / 2} y2={oy + sB + sL4 - sP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* l3 dimension */}
         <line x1={ox - 10} y1={oy} x2={ox - 10} y2={oy - sL3}
@@ -3224,31 +3228,31 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
         {/* === CROSS-SECTION (right) === */}
         {/* Main duct cross-section */}
         <rect x={csx} y={csy} width={csA} height={csB}
-          fill="none" stroke="#004290" strokeWidth={1.8} />
+          fill="none" stroke={lineColor} strokeWidth={1.8} />
         <rect x={csx - csP} y={csy - csP} width={csA + 2 * csP} height={csB + 2 * csP}
-          fill="none" stroke="#004290" strokeWidth={1.3} />
+          fill="none" stroke={lineColor} strokeWidth={1.3} />
 
         {/* Top branch stub (d wide, l3 tall, offset from right by f) */}
         <rect x={csx + csA - csF - csD / 2} y={csy - csL3 + csP}
               width={csD} height={csL3 - csP}
-              fill="none" stroke="#004290" strokeWidth={1.5} />
+              fill="none" stroke={lineColor} strokeWidth={1.5} />
         <line x1={csx + csA - csF - csD / 2 - csP} y1={csy - csL3 + csP}
               x2={csx + csA - csF + csD / 2 + csP} y2={csy - csL3 + csP}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={csx + csA - csF - csD / 2} y1={csy - csL3 + 2 * csP}
               x2={csx + csA - csF + csD / 2} y2={csy - csL3 + 2 * csP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* Bottom branch stub (d1 wide, l4 tall, offset from right by f1) */}
         <rect x={csx + csA - csF1 - csD1 / 2} y={csy + csB}
               width={csD1} height={csL4 - csP}
-              fill="none" stroke="#004290" strokeWidth={1.5} />
+              fill="none" stroke={lineColor} strokeWidth={1.5} />
         <line x1={csx + csA - csF1 - csD1 / 2 - csP} y1={csy + csB + csL4 - csP}
               x2={csx + csA - csF1 + csD1 / 2 + csP} y2={csy + csB + csL4 - csP}
-              stroke="#004290" strokeWidth={2} />
+              stroke={lineColor} strokeWidth={2} />
         <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 - 2 * csP}
               x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 - 2 * csP}
-              stroke="#004290" strokeWidth={1} />
+              stroke={lineColor} strokeWidth={1} />
 
         {/* b dimension — below cross-section */}
         <line x1={csx} y1={csy + csB + csL4 + 10}
@@ -3365,19 +3369,19 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // ── Cross-section c×a ("maly z tylu") ──
     const csX = 190 + push_x, csY = 20 + push_y;
-    els.push(<rect key={K()} x={sx(csX-p)} y={sy(csY-p)} width={sx(a+2*p)} height={sy(c+2*p)} fill="none" stroke="#004290" strokeWidth={0.5}/>);
-    els.push(<rect key={K()} x={sx(csX)} y={sy(csY)} width={sx(a)} height={sy(c)} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<rect key={K()} x={sx(csX-p)} y={sy(csY-p)} width={sx(a+2*p)} height={sy(c+2*p)} fill="none" stroke={lineColor} strokeWidth={0.5}/>);
+    els.push(<rect key={K()} x={sx(csX)} y={sy(csY)} width={sx(a)} height={sy(c)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── Cross-section d×a ("maly z przodu") ──
     const cs0Y = 20 + push_y + c + f + j - d - g - k;
-    els.push(<rect key={K()} x={sx(csX-p)} y={sy(cs0Y-p)} width={sx(a+2*p)} height={sy(d+2*p)} fill="none" stroke="#004290" strokeWidth={0.5}/>);
-    els.push(<rect key={K()} x={sx(csX)} y={sy(cs0Y)} width={sx(a)} height={sy(d)} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<rect key={K()} x={sx(csX-p)} y={sy(cs0Y-p)} width={sx(a+2*p)} height={sy(d+2*p)} fill="none" stroke={lineColor} strokeWidth={0.5}/>);
+    els.push(<rect key={K()} x={sx(csX)} y={sy(cs0Y)} width={sx(a)} height={sy(d)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── Body rect (g+k tall, "pod tymi powyzej") ──
     const p02Y = 20 + push_y + c + f + j - g - k;
-    els.push(<rect key={K()} x={sx(csX)} y={sy(p02Y)} width={sx(a)} height={sy(g+k)} fill="none" stroke="#004290" strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(p02Y+g+k)} x2={sx(csX+a+p)} y2={sy(p02Y+g+k)} stroke="#004290" strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(p02Y+g+k-p)} x2={sx(csX+a+p)} y2={sy(p02Y+g+k-p)} stroke="#004290" strokeWidth={0.5}/>);
+    els.push(<rect key={K()} x={sx(csX)} y={sy(p02Y)} width={sx(a)} height={sy(g+k)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
+    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(p02Y+g+k)} x2={sx(csX+a+p)} y2={sy(p02Y+g+k)} stroke={lineColor} strokeWidth={0.5}/>);
+    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(p02Y+g+k-p)} x2={sx(csX+a+p)} y2={sy(p02Y+g+k-p)} stroke={lineColor} strokeWidth={0.5}/>);
 
     // ── "b" dim on body rect ──
     {const dy=p02Y+g+k+15;
@@ -3388,11 +3392,11 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // ── Left branch d×m ("poziomy") ──
     const lbX = 20+push_x, lbY = 20+push_y+c+f+j-d-g-k;
-    els.push(<rect key={K()} x={sx(lbX)} y={sy(lbY)} width={sx(m)} height={sy(d)} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<rect key={K()} x={sx(lbX)} y={sy(lbY)} width={sx(m)} height={sy(d)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(lbX+m)} y1={sy(lbY+1)} x2={sx(lbX+m)} y2={sy(lbY+d-1)} stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
     // flange
-    els.push(<line key={K()} x1={sx(lbX)} y1={sy(lbY-p)} x2={sx(lbX)} y2={sy(lbY+d+p)} stroke="#004290" strokeWidth={0.8}/>);
-    els.push(<line key={K()} x1={sx(lbX+p)} y1={sy(lbY-p)} x2={sx(lbX+p)} y2={sy(lbY+d+p)} stroke="#004290" strokeWidth={0.4}/>);
+    els.push(<line key={K()} x1={sx(lbX)} y1={sy(lbY-p)} x2={sx(lbX)} y2={sy(lbY+d+p)} stroke={lineColor} strokeWidth={0.8}/>);
+    els.push(<line key={K()} x1={sx(lbX+p)} y1={sy(lbY-p)} x2={sx(lbX+p)} y2={sy(lbY+d+p)} stroke={lineColor} strokeWidth={0.4}/>);
 
     // ── d dim ──
     {const dx=lbX-15;
@@ -3411,11 +3415,11 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // ── g-arc: C# DrawArc(lbX+m-g, lbY+d, 2g, 2g, 270, 90) ──
     // center=(lbX+m, lbY+d+g), start 270°=(0,-g)→top, sweep 90° CW →(g,0)=right
     const gCx = lbX+m, gCy = lbY+d+g;
-    els.push(<path key={K()} d={`M ${sx(gCx)},${sy(gCy-g)} A ${sx(g)},${sy(g)} 0 0,1 ${sx(gCx+g)},${sy(gCy)}`} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<path key={K()} d={`M ${sx(gCx)},${sy(gCy-g)} A ${sx(g)},${sy(g)} 0 0,1 ${sx(gCx+g)},${sy(gCy)}`} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── k-line (vertical after arc) ──
     const klX = gCx+g, klY1 = gCy, klY2 = gCy+k;
-    els.push(<line key={K()} x1={sx(klX)} y1={sy(klY1)} x2={sx(klX)} y2={sy(klY2)} stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<line key={K()} x1={sx(klX)} y1={sy(klY1)} x2={sx(klX)} y2={sy(klY2)} stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── g label ──
     els.push(<line key={K()} x1={sx(klX)} y1={sy(klY1-g)} x2={sx(klX-g/2)} y2={sy(klY1-g/2)} stroke="#333" strokeWidth={0.4}/>);
@@ -3432,9 +3436,9 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const qX = klX, qY = klY2;
 
     // ── b-line + flanges ──
-    els.push(<line key={K()} x1={sx(qX)} y1={sy(qY)} x2={sx(qX+b)} y2={sy(qY)} stroke="#004290" strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(qX-p)} y1={sy(qY)} x2={sx(qX+b+p)} y2={sy(qY)} stroke="#004290" strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(qX-p)} y1={sy(qY-p)} x2={sx(qX+b+p)} y2={sy(qY-p)} stroke="#004290" strokeWidth={0.5}/>);
+    els.push(<line key={K()} x1={sx(qX)} y1={sy(qY)} x2={sx(qX+b)} y2={sy(qY)} stroke={lineColor} strokeWidth={1.2}/>);
+    els.push(<line key={K()} x1={sx(qX-p)} y1={sy(qY)} x2={sx(qX+b+p)} y2={sy(qY)} stroke={lineColor} strokeWidth={0.5}/>);
+    els.push(<line key={K()} x1={sx(qX-p)} y1={sy(qY-p)} x2={sx(qX+b+p)} y2={sy(qY-p)} stroke={lineColor} strokeWidth={0.5}/>);
 
     // ── "a" dim (C# labels b-section as "a") ──
     {const ady=qY+15;
@@ -3445,7 +3449,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // ── j-line (vertical from qwe+b upward by j) ──
     const jX = qX+b;
-    els.push(<line key={K()} x1={sx(jX)} y1={sy(qY-j)} x2={sx(jX)} y2={sy(qY)} stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<line key={K()} x1={sx(jX)} y1={sy(qY-j)} x2={sx(jX)} y2={sy(qY)} stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── j dim ──
     {const jdx=jX+15;
@@ -3458,7 +3462,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // center=(jX+f, qY-j-f+f)=(jX+f, qY-j), start 180°=(-f,0)=left, sweep 90° CW to 270°=(0,-f)=up
     // Actually GDI: 180°=left, 270°=up. Start at left, end at top.
     // start: (jX, qY-j), end: (jX+f, qY-j-f)
-    els.push(<path key={K()} d={`M ${sx(jX)},${sy(qY-j)} A ${sx(f)},${sy(f)} 0 0,1 ${sx(jX+f)},${sy(qY-j-f)}`} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<path key={K()} d={`M ${sx(jX)},${sy(qY-j)} A ${sx(f)},${sy(f)} 0 0,1 ${sx(jX+f)},${sy(qY-j-f)}`} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── f label ──
     els.push(<line key={K()} x1={sx(jX)} y1={sy(qY-j-f)} x2={sx(jX+f/2)} y2={sy(qY-j-f/2)} stroke="#333" strokeWidth={0.4}/>);
@@ -3466,11 +3470,11 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // ── Right branch c×i ──
     const rbX = jX+f, rbY = qY-j-f-c;
-    els.push(<rect key={K()} x={sx(rbX)} y={sy(rbY)} width={sx(ii)} height={sy(c)} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<rect key={K()} x={sx(rbX)} y={sy(rbY)} width={sx(ii)} height={sy(c)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY+1)} x2={sx(rbX)} y2={sy(rbY+c-1)} stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
     // flange
-    els.push(<line key={K()} x1={sx(rbX+ii)} y1={sy(rbY-p)} x2={sx(rbX+ii)} y2={sy(rbY+c+p)} stroke="#004290" strokeWidth={0.8}/>);
-    els.push(<line key={K()} x1={sx(rbX+ii-p)} y1={sy(rbY-p)} x2={sx(rbX+ii-p)} y2={sy(rbY+c+p)} stroke="#004290" strokeWidth={0.4}/>);
+    els.push(<line key={K()} x1={sx(rbX+ii)} y1={sy(rbY-p)} x2={sx(rbX+ii)} y2={sy(rbY+c+p)} stroke={lineColor} strokeWidth={0.8}/>);
+    els.push(<line key={K()} x1={sx(rbX+ii-p)} y1={sy(rbY-p)} x2={sx(rbX+ii-p)} y2={sy(rbY+c+p)} stroke={lineColor} strokeWidth={0.4}/>);
 
     // ── c dim ──
     {const cdx=rbX+ii+15;
@@ -3515,8 +3519,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const oLR = g+d, oRR = c+f;
     const lArc = gdiArc(oLx, oLy, oLR, lStart, lSweep);
     const rArc = gdiArc(oRx, oRy, oRR, rStart, rSweep);
-    if (lArc) els.push(<path key={K()} d={lArc} fill="none" stroke="#004290" strokeWidth={1.2}/>);
-    if (rArc) els.push(<path key={K()} d={rArc} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    if (lArc) els.push(<path key={K()} d={lArc} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
+    if (rArc) els.push(<path key={K()} d={rArc} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     return <g>{els}</g>;
   };
@@ -3579,30 +3583,30 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const csY0 = 20 + push_y + l - d - g - ii;
     // punkty13: flange around cross-section
     els.push(<rect key={K()} x={sx(csX-p)} y={sy(csY0-p)} width={sx(a+2*p)} height={sy(d+2*p)}
-      fill="none" stroke="#004290" strokeWidth={0.5}/>);
+      fill="none" stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<rect key={K()} x={sx(csX)} y={sy(csY0)} width={sx(a)} height={sy(d)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // punkty14: body section below flange → bottom of fitting
     const bodyY = csY0 + d;
     els.push(<rect key={K()} x={sx(csX)} y={sy(bodyY+p)} width={sx(a)} height={sy(ii+g-p)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Bottom flange lines at Y = bodyY+ii+g = 20+push_y+l
     els.push(<line key={K()} x1={sx(csX-p)} y1={sy(bodyY+ii+g)} x2={sx(csX+a+p)} y2={sy(bodyY+ii+g)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(csX)} y1={sy(bodyY+ii+g-p)} x2={sx(csX+a)} y2={sy(bodyY+ii+g-p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // punkty15: top section from top of fitting to d-section
     const topY = 20 + push_y;
     const topH = l - d - ii - g - p;
     els.push(<rect key={K()} x={sx(csX)} y={sy(topY)} width={sx(a)} height={sy(topH)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Top flange: outer extended, inner not extended
     els.push(<line key={K()} x1={sx(csX-p)} y1={sy(topY)} x2={sx(csX+a+p)} y2={sy(topY)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(csX)} y1={sy(topY+p)} x2={sx(csX+a)} y2={sy(topY+p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // "b" dim label (C# labels the a-parameter as "b")
     {const dy2 = topY - 15;
@@ -3617,15 +3621,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // punkty2: j×d left branch rect (poziomy z lewej)
     const lbX = 20 + push_x, lbY = csY0;
     els.push(<rect key={K()} x={sx(lbX)} y={sy(lbY)} width={sx(j)} height={sy(d)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Centerline on right edge of branch
     els.push(<line key={K()} x1={sx(lbX+j)} y1={sy(lbY+1)} x2={sx(lbX+j)} y2={sy(lbY+d-1)}
       stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
     // Left flange: inner line NOT extended
     els.push(<line key={K()} x1={sx(lbX)} y1={sy(lbY-p)} x2={sx(lbX)} y2={sy(lbY+d+p)}
-      stroke="#004290" strokeWidth={0.8}/>);
+      stroke={lineColor} strokeWidth={0.8}/>);
     els.push(<line key={K()} x1={sx(lbX+p)} y1={sy(lbY)} x2={sx(lbX+p)} y2={sy(lbY+d)}
-      stroke="#004290" strokeWidth={0.4}/>);
+      stroke={lineColor} strokeWidth={0.4}/>);
 
     // j dim
     {const my = lbY - 15;
@@ -3651,7 +3655,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // C# DrawArc(lbX+j-g, csY0+d, 2g, 2g, 270, 90) → top to right
     const p0x = lbX + j, p0y = lbY + d + g;
     els.push(<path key={K()} d={`M ${sx(p0x)},${sy(p0y-g)} A ${sx(g)},${sy(g)} 0 0,1 ${sx(p0x+g)},${sy(p0y)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // g label: diagonal line from (p0x+g, p0y-g) to center (p0x, p0y)
     els.push(<line key={K()} x1={sx(p0x+g)} y1={sy(p0y-g)} x2={sx(p0x)} y2={sy(p0y)}
       stroke="#333" strokeWidth={0.4}/>);
@@ -3660,15 +3664,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // punkty22: b×i horizontal section at bottom of arc
     const bx1 = p0x + g, by1 = p0y;
     els.push(<rect key={K()} x={sx(bx1)} y={sy(by1)} width={sx(b)} height={sy(ii)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Centerline on top edge
     els.push(<line key={K()} x1={sx(bx1+1)} y1={sy(by1)} x2={sx(bx1+b-1)} y2={sy(by1)}
       stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
     // Bottom flanges: inner NOT extended, outer extended
     els.push(<line key={K()} x1={sx(bx1)} y1={sy(by1+ii-p)} x2={sx(bx1+b)} y2={sy(by1+ii-p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(bx1-p)} y1={sy(by1+ii)} x2={sx(bx1+b+p)} y2={sy(by1+ii)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // "a" dim (C# labels the b-section width as "a")
     {const ady = by1 + ii + 15;
@@ -3703,15 +3707,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // Right vertical line from top of fitting to b-section
     const rbX = bx1 + b, rbY = by1 - (l - ii);
     els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY)} x2={sx(rbX)} y2={sy(by1)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     // c-branch horizontal at top
     els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY)} x2={sx(rbX-c)} y2={sy(rbY)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     // Top flanges: outer extended, inner NOT extended
     els.push(<line key={K()} x1={sx(rbX+p)} y1={sy(rbY)} x2={sx(rbX-c-p)} y2={sy(rbY)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY+p)} x2={sx(rbX-c)} y2={sy(rbY+p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // c dim
     {const cdy = rbY - 15;
@@ -3731,7 +3735,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       const qwe21Y = oArcCy - Math.trunc(Math.sqrt(discrim));
       // Vertical connection line from c-branch to arc intersection
       els.push(<line key={K()} x1={sx(qwe11X)} y1={sy(rbY)} x2={sx(qwe11X)} y2={sy(qwe21Y)}
-        stroke="#004290" strokeWidth={1.2}/>);
+        stroke={lineColor} strokeWidth={1.2}/>);
       const x2 = qwe11X - oArcCx;
       const y2 = oArcCy - qwe21Y;
       const alfa2 = Math.trunc(Math.atan(y2 / (x2 || 1)) * 180 / Math.PI);
@@ -3741,7 +3745,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       const arcSx = oArcCx + r2 * Math.cos(startA), arcSy = oArcCy + r2 * Math.sin(startA);
       const arcEx = oArcCx + r2 * Math.cos(endA), arcEy = oArcCy + r2 * Math.sin(endA);
       els.push(<path key={K()} d={`M ${sx(arcSx)},${sy(arcSy)} A ${sx(r2)},${sy(r2)} 0 0,1 ${sx(arcEx)},${sy(arcEy)}`}
-        fill="none" stroke="#004290" strokeWidth={1.2}/>);
+        fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     }
 
     return <g>{els}</g>;
@@ -3808,15 +3812,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // punkty: e×k rect
     const sX = 190 + push_x, sY = 20 + push_y;
     els.push(<rect key={K()} x={sx(sX)} y={sy(sY)} width={sx(ee)} height={sy(k)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Centerline at bottom of stub
     els.push(<line key={K()} x1={sx(sX+1)} y1={sy(sY+k)} x2={sx(sX+ee-1)} y2={sy(sY+k)}
       stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
     // Top flange: outer extended, inner at +p
     els.push(<line key={K()} x1={sx(sX-p)} y1={sy(sY)} x2={sx(sX+ee+p)} y2={sy(sY)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(sX)} y1={sy(sY+p)} x2={sx(sX+ee)} y2={sy(sY+p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // e dim
     {const edy = sY - 15;
@@ -3845,7 +3849,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     const p1_2x = p1_3x + b, p1_2y = p1_3y;
 
     els.push(<polygon key={K()} points={`${sx(p1_0x)},${sy(p1_0y)} ${sx(p1_1x)},${sy(p1_1y)} ${sx(p1_2x)},${sy(p1_2y)} ${sx(p1_3x)},${sy(p1_3y)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Center lines
     els.push(<line key={K()} x1={sx(p1_0x+1)} y1={sy(p1_0y)} x2={sx(p1_1x-1)} y2={sy(p1_1y)}
       stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
@@ -3854,15 +3858,15 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // ── Bottom rect: b×j (punkty12) ──
     els.push(<rect key={K()} x={sx(p1_3x)} y={sy(p1_3y)} width={sx(b)} height={sy(j)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Center line at top of bottom rect
     els.push(<line key={K()} x1={sx(p1_3x+1)} y1={sy(p1_3y)} x2={sx(p1_2x-1)} y2={sy(p1_2y)}
       stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
     // Bottom flanges
     els.push(<line key={K()} x1={sx(p1_3x-p)} y1={sy(p1_3y+j)} x2={sx(p1_3x+b+p)} y2={sy(p1_3y+j)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(p1_3x)} y1={sy(p1_3y+j-p)} x2={sx(p1_3x+b)} y2={sy(p1_3y+j-p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // j dim
     {const jdx = p1_3x - 15;
@@ -3914,7 +3918,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     p2[6] = [p2[5][0] - a, p2[5][1]];
 
     const polyPts = p2.map(([x,y]) => `${sx(x)},${sy(y)}`).join(' ');
-    els.push(<polygon key={K()} points={polyPts} fill="none" stroke="#004290" strokeWidth={1.2}/>);
+    els.push(<polygon key={K()} points={polyPts} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // Center lines (dashed)
     els.push(<line key={K()} x1={sx(p2[0][0]+1)} y1={sy(p2[0][1])} x2={sx(p2[1][0]-1)} y2={sy(p2[1][1])}
@@ -3926,39 +3930,39 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // 0-1 nasadka (c section flanges, goes UP by k)
     els.push(<line key={K()} x1={sx(p2[0][0])} y1={sy(p2[0][1]-k)} x2={sx(p2[0][0])} y2={sy(p2[0][1])}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[1][0])} y1={sy(p2[1][1]-k)} x2={sx(p2[1][0])} y2={sy(p2[1][1])}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[0][0])} y1={sy(p2[0][1]-k)} x2={sx(p2[1][0])} y2={sy(p2[1][1]-k)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[0][0]-p)} y1={sy(p2[0][1]-k)} x2={sx(p2[1][0]+p)} y2={sy(p2[1][1]-k)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(p2[0][0])} y1={sy(p2[0][1]-k+p)} x2={sx(p2[1][0])} y2={sy(p2[1][1]-k+p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // 3-4 nasadka (d section flanges, goes UP by k)
     els.push(<line key={K()} x1={sx(p2[3][0])} y1={sy(p2[3][1]-k)} x2={sx(p2[3][0])} y2={sy(p2[3][1])}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[4][0])} y1={sy(p2[4][1]-k)} x2={sx(p2[4][0])} y2={sy(p2[4][1])}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[3][0])} y1={sy(p2[3][1]-k)} x2={sx(p2[4][0])} y2={sy(p2[4][1]-k)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[3][0]-p)} y1={sy(p2[3][1]-k)} x2={sx(p2[4][0]+p)} y2={sy(p2[4][1]-k)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(p2[3][0])} y1={sy(p2[3][1]-k+p)} x2={sx(p2[4][0])} y2={sy(p2[4][1]-k+p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // 6-5 nasadka (a section flanges, goes DOWN by j)
     els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(p2[6][1])} x2={sx(p2[6][0])} y2={sy(p2[6][1]+j)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[5][0])} y1={sy(p2[5][1])} x2={sx(p2[5][0])} y2={sy(p2[5][1]+j)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(p2[6][1]+j)} x2={sx(p2[5][0])} y2={sy(p2[5][1]+j)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
     els.push(<line key={K()} x1={sx(p2[6][0]-p)} y1={sy(p2[6][1]+j)} x2={sx(p2[5][0]+p)} y2={sy(p2[5][1]+j)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(p2[6][1]+j-p)} x2={sx(p2[5][0])} y2={sy(p2[5][1]+j-p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // a dim
     {const ady2 = p2[6][1] + j + 15;
@@ -4126,7 +4130,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // 1. Body rect below cross-section (podmalym)
     els.push(<rect key={K()} x={sx(csX)} y={sy(csY + bProj)} width={sd(a)} height={sd(bodyH)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // 2. Filled flange rect (covers body overlap, C# FillPolygon)
     els.push(<rect key={K()} x={sx(csX - p)} y={sy(csY - p)}
@@ -4135,12 +4139,12 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // 3. Inner cross-section rect
     els.push(<rect key={K()} x={sx(csX)} y={sy(csY)} width={sd(a)} height={sd(bProj)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // 4. Outer flange rect
     els.push(<rect key={K()} x={sx(csX - p)} y={sy(csY - p)}
       width={sd(a + 2 * p)} height={sd(bProj + 2 * p)}
-      fill="none" stroke="#004290" strokeWidth={0.5}/>);
+      fill="none" stroke={lineColor} strokeWidth={0.5}/>);
 
     // 5. "b" dim above cross-section
     {
@@ -4158,7 +4162,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // 6. "f" line and dim below body
     {
       els.push(<line key={K()} x1={sx(fX1)} y1={sy(fBotY)} x2={sx(fX2)} y2={sy(fBotY)}
-        stroke="#004290" strokeWidth={1.2}/>);
+        stroke={lineColor} strokeWidth={1.2}/>);
       const fDimY = fBotY + 15;
       els.push(<line key={K()} x1={sx(fX1)} y1={sy(fDimY)} x2={sx(fX2)} y2={sy(fDimY)}
         stroke="#333" strokeWidth={0.4}/>);
@@ -4173,24 +4177,24 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // 7. Parallelogram (side view)
     els.push(<polygon key={K()}
       points={`${sx(p2x0)},${sy(p2y0)} ${sx(p2x1)},${sy(p2y1)} ${sx(p2x2)},${sy(p2y2)} ${sx(p2x3)},${sy(p2y3)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // 8. Flanges on edge 0→1
     {
       // Inner flange (both pts shifted +fi, +fj)
       els.push(<line key={K()}
         x1={sx(p2x0 + fi)} y1={sy(p2y0 + fj)} x2={sx(p2x1 + fi)} y2={sy(p2y1 + fj)}
-        stroke="#004290" strokeWidth={0.5}/>);
+        stroke={lineColor} strokeWidth={0.5}/>);
       // Outer flange (pt0: -fi,+fj; pt1: +fi,-fj)
       els.push(<line key={K()}
         x1={sx(p2x0 - fi)} y1={sy(p2y0 + fj)} x2={sx(p2x1 + fi)} y2={sy(p2y1 - fj)}
-        stroke="#004290" strokeWidth={0.5}/>);
+        stroke={lineColor} strokeWidth={0.5}/>);
     }
 
     // 9. "e" line and dim below parallelogram
     {
       els.push(<line key={K()} x1={sx(eX1)} y1={sy(p2y3)} x2={sx(eX2)} y2={sy(p2y2)}
-        stroke="#004290" strokeWidth={1.2}/>);
+        stroke={lineColor} strokeWidth={1.2}/>);
       const eDimY = p2y3 + 15;
       els.push(<line key={K()} x1={sx(eX1)} y1={sy(eDimY)} x2={sx(eX2)} y2={sy(eDimY)}
         stroke="#333" strokeWidth={0.4}/>);
@@ -4340,24 +4344,24 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // ── Right side: top flange lines ──
     // Horizontal line from (r0x-p) to (r1x+p) at r0y
     els.push(<line key={K()} x1={sx(r0x - p)} y1={sy(r0y)} x2={sx(r1x + p)} y2={sy(r0y)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     // Horizontal line at r0y+p
     els.push(<line key={K()} x1={sx(r0x)} y1={sy(r0y + p)} x2={sx(r1x)} y2={sy(r1y + p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // Right side: main rect (a×l)
     els.push(<rect key={K()} x={sx(r0x)} y={sy(r0y)} width={sd(a)} height={sd(l)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── Left side: top flange lines ──
     els.push(<line key={K()} x1={sx(s0x - p)} y1={sy(s0y)} x2={sx(s1x + p)} y2={sy(s0y)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     els.push(<line key={K()} x1={sx(s0x)} y1={sy(s0y + p)} x2={sx(s1x)} y2={sy(s1y + p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // Left side: main rect (b×l)
     els.push(<rect key={K()} x={sx(s0x)} y={sy(s0y)} width={sd(b)} height={sd(l)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── "b" dim above right side (C# labels this "b") ──
     {
@@ -4375,7 +4379,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // ── "f" line + dim below right side ──
     {
       els.push(<line key={K()} x1={sx(fX1)} y1={sy(r3y)} x2={sx(fX2)} y2={sy(r2y)}
-        stroke="#004290" strokeWidth={1.2}/>);
+        stroke={lineColor} strokeWidth={1.2}/>);
       const fDimY = r3y + 15;
       els.push(<line key={K()} x1={sx(fX1)} y1={sy(fDimY)} x2={sx(fX2)} y2={sy(fDimY)}
         stroke="#333" strokeWidth={0.4}/>);
@@ -4418,7 +4422,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // ── "e" line + dim below left side ──
     {
       els.push(<line key={K()} x1={sx(eX1)} y1={sy(s3y)} x2={sx(eX2)} y2={sy(s2y)}
-        stroke="#004290" strokeWidth={1.2}/>);
+        stroke={lineColor} strokeWidth={1.2}/>);
       const eDimY = s3y + 15;
       els.push(<line key={K()} x1={sx(eX1)} y1={sy(eDimY)} x2={sx(eX2)} y2={sy(eDimY)}
         stroke="#333" strokeWidth={0.4}/>);
@@ -4563,33 +4567,33 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // ── Right side ──
     // punkty12: inner duct rect
     els.push(<rect key={K()} x={sx(p12_0x)} y={sy(p12_0y)} width={sd(a)} height={sd(h)}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // punkty13: outer flange rect
     els.push(<polygon key={K()}
       points={`${sx(p13_0x)},${sy(p13_0y)} ${sx(p13_1x)},${sy(p13_1y)} ${sx(p13_2x)},${sy(p13_2y)} ${sx(p13_3x)},${sy(p13_3y)}`}
-      fill="none" stroke="#004290" strokeWidth={0.5}/>);
+      fill="none" stroke={lineColor} strokeWidth={0.5}/>);
 
     // punkty14: below duct rect
     els.push(<polygon key={K()}
       points={`${sx(p14_0x)},${sy(p14_0y)} ${sx(p14_1x)},${sy(p14_1y)} ${sx(p14_2x)},${sy(p14_2y)} ${sx(p14_3x)},${sy(p14_3y)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // punkty14 bottom flange: horizontal line at p14_3y with ±p
     els.push(<line key={K()} x1={sx(p14_3x - p)} y1={sy(p14_3y)} x2={sx(p14_2x + p)} y2={sy(p14_2y)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     // punkty14 inner flange: line at p14_3y - p
     els.push(<line key={K()} x1={sx(p14_3x)} y1={sy(p14_3y - p)} x2={sx(p14_2x)} y2={sy(p14_2y - p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // punkty15: above duct rect
     els.push(<polygon key={K()}
       points={`${sx(p15_0x)},${sy(p15_0y)} ${sx(p15_1x)},${sy(p15_1y)} ${sx(p15_2x)},${sy(p15_2y)} ${sx(p15_3x)},${sy(p15_3y)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // punkty15 top flange: horizontal line at p15_0y with ±p
     els.push(<line key={K()} x1={sx(p15_0x - p)} y1={sy(p15_0y)} x2={sx(p15_1x + p)} y2={sy(p15_1y)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     // punkty15 inner flange: line at p15_0y + p
     els.push(<line key={K()} x1={sx(p15_0x)} y1={sy(p15_0y + p)} x2={sx(p15_1x)} y2={sy(p15_1y + p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // "a" dim above right side
     {
@@ -4607,16 +4611,16 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // ── Left side: horizontal duct (punkty2) ──
     els.push(<polygon key={K()}
       points={`${sx(s2_0x)},${sy(s2_0y)} ${sx(s2_1x)},${sy(s2_1y)} ${sx(s2_2x)},${sy(s2_2y)} ${sx(s2_3x)},${sy(s2_3y)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Colored line on right edge (punkty2[1]→punkty2[2])
     els.push(<line key={K()} x1={sx(s2_1x)} y1={sy(s2_1y)} x2={sx(s2_2x)} y2={sy(s2_2y)}
       stroke="#8a2048" strokeWidth={0.5}/>);
     // Left flange: vertical inner line at x+p
     els.push(<line key={K()} x1={sx(s2_0x + p)} y1={sy(s2_0y)} x2={sx(s2_3x + p)} y2={sy(s2_3y)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     // Left flange: outer vertical line extended ±p
     els.push(<line key={K()} x1={sx(s2_0x)} y1={sy(s2_0y - p)} x2={sx(s2_3x)} y2={sy(s2_3y + p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // "p" dim above horizontal duct
     {
@@ -4650,7 +4654,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       // center = (s2_2x, s2_2y+q), start at top (s2_2x, s2_2y), end at right (s2_2x+q, s2_2y+q)
       els.push(<path key={K()}
         d={`M ${sx(s2_2x)},${sy(s2_2y)} A ${sd(q)},${sd(q)} 0 0,1 ${sx(s2_2x + q)},${sy(s2_2y + q)}`}
-        fill="none" stroke="#004290" strokeWidth={1.0}/>);
+        fill="none" stroke={lineColor} strokeWidth={1.0}/>);
       // q radius line: from (center+q, center-q) to center
       const qcx = s2_2x, qcy = s2_2y + q;
       els.push(<line key={K()} x1={sx(qcx + q)} y1={sy(qcy - q)} x2={sx(qcx)} y2={sy(qcy)}
@@ -4662,16 +4666,16 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     // ── Bottom branch (punkty22: d×j) ──
     els.push(<polygon key={K()}
       points={`${sx(p22_0x)},${sy(p22_0y)} ${sx(p22_1x)},${sy(p22_1y)} ${sx(p22_2x)},${sy(p22_2y)} ${sx(p22_3x)},${sy(p22_3y)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Top colored line
     els.push(<line key={K()} x1={sx(p22_0x + 1)} y1={sy(p22_0y)} x2={sx(p22_1x - 1)} y2={sy(p22_1y)}
       stroke="#8a2048" strokeWidth={0.5}/>);
     // Bottom branch flange: inner horizontal at y-p
     els.push(<line key={K()} x1={sx(p22_3x)} y1={sy(p22_3y - p)} x2={sx(p22_2x)} y2={sy(p22_2y - p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     // Bottom branch flange: outer horizontal with ±p
     els.push(<line key={K()} x1={sx(p22_3x - p)} y1={sy(p22_3y)} x2={sx(p22_2x + p)} y2={sy(p22_2y)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // "d" dim below bottom branch
     {
@@ -4702,21 +4706,21 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
 
     // ── Connecting line from punkty22[1] up to punkty23[2] ──
     els.push(<line key={K()} x1={sx(lineTopX)} y1={sy(lineTopY)} x2={sx(p22_1x)} y2={sy(p22_1y)}
-      stroke="#004290" strokeWidth={1.2}/>);
+      stroke={lineColor} strokeWidth={1.2}/>);
 
     // ── Upper-right branch (punkty23: b×i) ──
     els.push(<polygon key={K()}
       points={`${sx(p23_0x)},${sy(p23_0y)} ${sx(p23_1x)},${sy(p23_1y)} ${sx(p23_2x)},${sy(p23_2y)} ${sx(p23_3x)},${sy(p23_3y)}`}
-      fill="none" stroke="#004290" strokeWidth={1.2}/>);
+      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
     // Bottom colored line (punkty23[3]→punkty23[2])
     els.push(<line key={K()} x1={sx(p23_3x + 1)} y1={sy(p23_3y)} x2={sx(p23_2x - 1)} y2={sy(p23_2y)}
       stroke="#8a2048" strokeWidth={0.5}/>);
     // Top flange: outer horizontal with ±p
     els.push(<line key={K()} x1={sx(p23_0x - p)} y1={sy(p23_0y)} x2={sx(p23_1x + p)} y2={sy(p23_1y)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
     // Top flange: inner horizontal at y+p
     els.push(<line key={K()} x1={sx(p23_0x)} y1={sy(p23_0y + p)} x2={sx(p23_1x)} y2={sy(p23_1y + p)}
-      stroke="#004290" strokeWidth={0.5}/>);
+      stroke={lineColor} strokeWidth={0.5}/>);
 
     // "i" dim right of upper-right branch
     {
@@ -4767,10 +4771,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       // end (90° = bottom in GDI+): (p23_3x - r, p23_3y + r)
       els.push(<path key={K()}
         d={`M ${sx(p23_3x)},${sy(p23_3y)} A ${sd(r)},${sd(r)} 0 0,1 ${sx(p23_3x - r)},${sy(p23_3y + r)}`}
-        fill="none" stroke="#004290" strokeWidth={1.0}/>);
+        fill="none" stroke={lineColor} strokeWidth={1.0}/>);
       // Connecting line from arc end to horizontal duct right edge (punkty2[1])
       els.push(<line key={K()} x1={sx(p23_3x - r)} y1={sy(p23_3y + r)} x2={sx(s2_1x)} y2={sy(s2_1y)}
-        stroke="#004290" strokeWidth={1.2}/>);
+        stroke={lineColor} strokeWidth={1.2}/>);
       // r label: line from (p23_3x - r, p23_3y) to (p23_3x, p23_3y + r)
       els.push(<line key={K()} x1={sx(p23_3x - r)} y1={sy(p23_3y)} x2={sx(p23_3x)} y2={sy(p23_3y + r)}
         stroke="#333" strokeWidth={0.4}/>);
@@ -5700,7 +5704,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   };
 
   return (
-    <div className="shape-diagram">
+    <div className="shape-diagram" style={backgroundColor ? { backgroundColor } : undefined}>
       <svg viewBox={viewBox} style={{ width: '100%', height: 'auto' }}>
         <defs>
           <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto">

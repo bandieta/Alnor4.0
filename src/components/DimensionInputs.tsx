@@ -18,6 +18,8 @@ interface DimensionInputsProps {
   showErrors?: boolean;
   /** Per-field min/max — value is clamped into range on blur and the range is shown as a hint. */
   ranges?: FieldRanges;
+  /** Enter in any dimension field triggers Add (Form1.cs — Enter = Dodaj everywhere). */
+  onEnter?: () => void;
 }
 
 const SCROLL_STEP = 10;
@@ -52,6 +54,7 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({
   errors = [],
   showErrors = false,
   ranges = {},
+  onEnter,
 }) => {
   const leftLabels = labels.slice(0, 8);
   const rightLabels = labels.slice(8);
@@ -106,10 +109,40 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({
 
   // Reject non-numeric characters before they reach the field, so the caret
   // never jumps. sanitizeNumeric() in handleChange still covers paste / autofill.
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Also: Enter = Add, Up/Down move between fields (Form1.cs's per-field
+  // keyboard shortcuts — Enter everywhere = Dodaj, ↓/↑ = SendKeys "{Tab}" /
+  // "+{Tab}", the latter jumping back to the designation field from the
+  // first dimension field).
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onEnter?.();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = document.querySelector<HTMLInputElement>(`[data-testid="dim-${index + 1}"]`);
+      next?.focus();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (index === 0) {
+        document.querySelector<HTMLInputElement>('.oznaczenie-input')?.focus();
+      } else {
+        document.querySelector<HTMLInputElement>(`[data-testid="dim-${index - 1}"]`)?.focus();
+      }
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey || e.key.length > 1) return;
     if (/[0-9]/.test(e.key) || e.key === '.' || e.key === ',') return;
     e.preventDefault();
+  }, [onEnter]);
+
+  // Auto-select the whole value on focus, so typing immediately replaces it
+  // (Form1.cs fields all call SelectAll() on focus).
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.select();
   }, []);
 
   const step = useCallback(
@@ -145,7 +178,8 @@ const DimensionInputs: React.FC<DimensionInputsProps> = ({
                 className={`dimension-value${hasVisibleError ? ' dimension-error' : ''}`}
                 value={values[index] || ''}
                 onChange={(e) => handleChange(index, e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={(e) => handleKeyDown(e, index)}
+                onFocus={handleFocus}
                 onBlur={(e) => handleBlur(index, e.currentTarget.value)}
                 onWheel={(e) => handleWheel(e, index)}
               />

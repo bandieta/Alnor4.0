@@ -92,6 +92,45 @@ export function isBlachaThicknessAtLeast(material: string, wykonanie: string, cu
   return curIdx >= reqIdx;
 }
 
+// The "bok" (side) used throughout thickness/frame/symbol auto-suggestion —
+// max(a,b), widened for a few reduction shapes that also check c/d
+// (Form1.cs:11304-11318).
+export function computeBok(symbol: string, tab: number[]): number {
+  const a = tab[0] ?? 0;
+  const b = tab[1] ?? 0;
+  let max = Math.max(a, b);
+  if (symbol === 'QPR6a' || symbol === 'QPR2a') {
+    max = Math.max(max, tab[2] ?? 0, tab[3] ?? 0);
+  } else if (symbol === 'QBFRa' || symbol === 'QPR4a') {
+    max = Math.max(max, tab[2] ?? 0);
+  }
+  return max;
+}
+
+// Frame (Ramki) size band, ported from `sprawdz_standard_ramek1/2/3()`
+// (Form1.cs:11220-11291) and their auto-correct callers
+// (comboBox7/8/9_SelectedIndexChanged, ~28429-28450/28660-28684): the
+// legacy app silently upgrades an undersized frame to the band standard,
+// never downgrades an oversized one. All three frames (WL/WYL/Od) share the
+// same size bands; only the "which side feeds the check" differs slightly
+// per shape for WYL (QBRa/QBR1a/QBFRa compare against a different side) —
+// simplified here to the general max(a,b) rule used by every other shape.
+export function frameBandStandard(bok: number): 'P20' | 'P30' | 'P40' {
+  if (bok <= 1000) return 'P20';
+  if (bok <= 2501) return 'P30';
+  return 'P40';
+}
+
+const FRAME_ORDER = ['P20', 'P30', 'P40'];
+
+/** Is `current` at least as large as `required`, per P20 < P30 < P40? */
+export function isFrameAtLeast(current: string, required: string): boolean {
+  const curIdx = FRAME_ORDER.indexOf(current);
+  const reqIdx = FRAME_ORDER.indexOf(required);
+  if (curIdx === -1 || reqIdx === -1) return true;
+  return curIdx >= reqIdx;
+}
+
 // Surface area calculation functions (Blacha.cs port)
 // All return area in m²
 
@@ -369,26 +408,156 @@ export function calculateInsulatedArea(symbol: string, tab: number[], gg: number
 }
 
 // Generate the full symbol string for a shape
-export function generateSymbol(
-  shapeSymbol: string,
-  material: string,
-  wykonanie: string,
-  tab: number[],
-  isChemo?: boolean
-): string {
-  let materialCode: string;
-  let wykonanieCode: string;
+// "m5" instead of "-5" for a negative dimension — legacy's convention across
+// several PelnySymbol* templates, since "-" is already the field separator.
+function mNum(v: number): string {
+  return v < 0 ? `m${Math.abs(v)}` : String(v);
+}
 
-  if (isChemo) {
-    materialCode = material; // PVC, PP, PPs, PE
-    wykonanieCode = wykonanie === 'Mufy' ? 'M' : 'K';
-  } else {
-    materialCode = material === 'Aluminium' ? 'A' : material === 'Kwasówka' ? 'KW' : 'OCY';
-    wykonanieCode = wykonanie === 'Niskociśnieniowe' ? 'N' : 'S';
+// Per-shape dimension block for the order code, ported field-for-field from
+// each `PelnySymbol*` method (Form1.cs:26730-27814). Field order/grouping is
+// shape-specific (not a generic dump of `tab`) — indices below were
+// cross-referenced against each shape's `SHAPE_DEFINITIONS[].labels` order,
+// which is what `tab`/`dimensionValues` are actually indexed by.
+//
+// Two legacy bugs fixed rather than replicated (both due to a missing `{}`
+// or a copy-paste slip in the C# — see docs/LEGACY_FEATURE_PARITY.md §15):
+// QPR2a/PR7a's `ee`/`f` formatting (the `else` only bound to the first
+// statement, so the negative-marker branch always ran too) now uses the
+// same "non-negative literal, negative -> mN" convention every other shape
+// uses; TR8a's trailing field is appended once (its label is "i=j[mm]" —
+// legacy prints the same value twice by habit since i and j are always
+// equal for this shape, which is harmless but redundant).
+function symbolDimensionBlock(symbol: string, tab: number[]): string {
+  const t = (i: number) => tab[i] ?? 0;
+  switch (symbol) {
+    case 'QDa':
+      return `${t(0)}x${t(1)}-${t(2)}`;
+    case 'QBa':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(3)}-${t(4)}-90`;
+    case 'QBNa':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(3)}-${t(4)}-${t(5)}`;
+    case 'QPR6a':
+      return `${t(0)}x${t(1)}-${t(2)}x${t(3)}-${t(5)}-${t(6)}-${t(4)}`;
+    case 'PR1a':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(4)}-${t(5)}-${t(3)}`;
+    case 'PR7a':
+      return `${t(0)}x${t(1)}-${t(2)}-${mNum(t(4))}-${mNum(t(5))}-${t(6)}-${t(7)}-${t(3)}`;
+    case 'QPR2a':
+      return `${t(0)}x${t(1)}-${t(2)}x${t(3)}-${mNum(t(7))}-${mNum(t(8))}-${t(5)}-${t(6)}-${t(4)}`;
+    case 'QBRa':
+      return `${t(0)}x${t(2)}-${t(1)}-${t(3)}-${t(4)}-${t(5)}-${t(6)}`;
+    case 'QBR1a':
+      return `${t(0)}x${t(3)}-${t(2)}x${t(1)}-${t(4)}-${t(5)}-${t(6)}-${t(8)}-${mNum(t(7))}`;
+    case 'QBFRa':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(3)}-${t(4)}-${t(5)}-90`;
+    case 'QBFa':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(3)}-${t(4)}-90`;
+    case 'QESa':
+      return `${t(0)}x${t(1)}-${t(2)}`;
+    case 'TR1a':
+      return `${t(1)}x${t(0)}-${t(4)}-${t(3)}x${t(2)}-${t(5)}-${t(6)}-${t(7)}`;
+    case 'TR2a':
+      return `${t(1)}x${t(0)}-${t(3)}-${t(2)}-${t(5)}-${t(6)}-${t(4)}`;
+    case 'TRa':
+      return `${t(0)}-${t(1)}-${t(2)}-${t(3)}-${t(4)}-${t(7)}-${t(8)}-${t(5)}-${t(6)}`;
+    case 'QPR3a':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(5)}-${t(4)}-${t(3)}`;
+    case 'QPR4a':
+      return `${t(0)}x${t(1)}-${t(2)}-${mNum(t(3))}-${t(6)}-${t(5)}-${t(4)}`;
+    case 'TR6a':
+      return `${t(0)}-${t(3)}-${t(1)}x${t(2)}-${t(4)}`;
+    case 'CZ1a':
+      return `${t(1)}x${t(0)}-${t(4)}-${t(3)}x${t(2)}-${t(9)}-${t(10)}-${t(11)}-${t(6)}x${t(5)}-${t(7)}-${t(8)}-${t(12)}`;
+    case 'CZ2a':
+      return `${t(1)}x${t(0)}-${t(3)}-${t(2)}-${t(7)}-${t(8)}-${t(9)}-${t(4)}-${t(5)}-${t(6)}-${t(10)}`;
+    case 'TR3a':
+      // legacy's "ee" here is a hardcoded constant (`int ee = 100;`), not a
+      // user-editable field — not part of `tab` at all.
+      return `${t(1)}x${t(0)}-${t(2)}-${t(3)}-100-${t(9)}-${t(8)}-90-90-${t(7)}-${t(5)}-${t(6)}-${t(4)}`;
+    case 'TR4a':
+      return `${t(1)}x${t(0)}-${t(2)}-${t(3)}-${t(4)}-${t(5)}-90-${t(6)}-${t(7)}`;
+    case 'TR5a':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(3)}-${t(4)}-${t(5)}-${t(7)}-${mNum(t(6))}-${mNum(t(8))}-${t(9)}-${t(10)}`;
+    case 'QD1a':
+      return `${t(1)}x${t(0)}-${t(2)}-${t(3)}-${t(4)}x${t(5)}`;
+    case 'QD2a':
+      return `${t(1)}x${t(0)}-${t(2)}-90-${t(3)}x${t(4)}`;
+    case 'TR7a':
+      return `${t(0)}-${t(1)}-${t(2)}-${t(4)}-${t(3)}-${t(7)}-${t(8)}-${t(9)}-${t(6)}-${t(5)}`;
+    case 'TR8a':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(3)}-${t(4)}-${t(5)}-${t(6)}-${t(7)}-${mNum(t(8))}-${mNum(t(9))}-${t(10)}-${t(11)}-${t(12)}-${t(12)}`;
+    case 'TR9a':
+      return `${t(0)}x${t(1)}-${t(2)}-${t(3)}-${t(4)}-${t(5)}-${t(6)}-${mNum(t(7))}-${mNum(t(8))}-${t(9)}-${t(10)}-${t(11)}-${t(12)}`;
+    default:
+      return tab.filter((v) => v > 0).join('-');
   }
-  
-  const dims = tab.filter(v => v > 0).join('-');
-  return `${shapeSymbol}-${wykonanieCode}-${materialCode}-${dims}`;
+}
+
+export interface FullSymbolParams {
+  symbol: string;
+  tab: number[];
+  /** Max side/relevant dimension for this shape — same `bok` used for thickness/frame auto-suggestion. */
+  bok: number;
+  isChemo: boolean;
+  material: string; // Ocynk/Kwasówka/Aluminium (blacha mode)
+  materialChemo: string; // PVC/PP/PPs/PE (chemo mode)
+  gruboscChemo: string; // chemo thickness (chemo mode)
+  wykonanie: string; // Niskociśnieniowe/Średniociśnieniowe (blacha mode)
+  blacha: string; // sheet thickness (blacha mode)
+  izolowana: boolean;
+  plaszcz: string; // jacket material name, or 'Bez Płaszcza'
+  klasaSzczelnosci: string;
+  lwzmoc: string;
+  ramkiWL: string;
+  ramkiWYL: string;
+}
+
+/**
+ * The full order code ("pełny symbol"), field-for-field faithful to the
+ * legacy `PelnySymbol*` methods + `MaterialWSybolu()` (Form1.cs:26730-27814,
+ * 26762-26785) and `Decoder.decodeSymbol()` (Class1.cs) — see
+ * docs/LEGACY_FEATURE_PARITY.md §15 for the reasoning and known deviations.
+ */
+export function generateFullSymbol(p: FullSymbolParams): string {
+  let out = `${p.symbol}-`;
+
+  if (p.isChemo) {
+    out += `${p.materialChemo}-${p.gruboscChemo}`;
+  } else {
+    out += p.wykonanie === 'Niskociśnieniowe' ? 'N-' : 'S-';
+    const letter = p.material === 'Ocynk' ? 'C' : p.material === 'Kwasówka' ? 'K' : 'A';
+    out += letter;
+    if (p.izolowana) out += '-I';
+    if (p.izolowana && p.plaszcz && p.plaszcz !== 'Bez Płaszcza' && p.plaszcz !== p.material) {
+      const jacketLetter = p.plaszcz === 'Ocynk' ? 'C' : p.plaszcz === 'Kwasówka' ? 'K' : 'A';
+      out += `-${jacketLetter}`;
+    }
+  }
+
+  // Non-standard-thickness marker ("#0,8"). Chemo has no such concept in
+  // legacy (comboBox2 is the blacha-mode thickness combo) — always "-".
+  const isStandardThickness = p.isChemo
+    ? true
+    : blachaBandStandard(p.material, p.wykonanie, p.bok) === p.blacha;
+  out += isStandardThickness ? '-' : `#${p.blacha}-`;
+
+  out += symbolDimensionBlock(p.symbol, p.tab);
+
+  out += ' ';
+  // Note: this is an *exact* mismatch check (`sprawdz_standard_ramek1/2()`),
+  // not the "at least" comparison the auto-upgrade effect uses — legacy
+  // flags a deliberately oversized frame in the symbol too, it just never
+  // auto-corrects one down.
+  const frameStandard = p.bok > 0 ? frameBandStandard(p.bok) : null;
+  if (frameStandard && p.ramkiWL !== frameStandard) out += `-WL${p.ramkiWL.slice(1)}`;
+  if (frameStandard && p.ramkiWYL !== frameStandard) out += `-WYL${p.ramkiWYL.slice(1)}`;
+  // RamkiOd's suffix is dead even in legacy (the line is commented out) —
+  // intentionally not appended here either.
+  if (p.klasaSzczelnosci !== 'A') out += '-Kl.B';
+  if (p.lwzmoc !== 'standard') out += `-Wzm.${p.lwzmoc}`;
+
+  return out;
 }
 
 // Generate cross-section string

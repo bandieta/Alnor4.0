@@ -8,6 +8,7 @@ interface ToolbarProps {
   onSave: () => void;
   onLoad: () => void;
   onOpenProjectInfo: () => void;
+  onExport: () => void;
   sumaBlachyReport: string;
   t: (text: string) => string;
 }
@@ -19,6 +20,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onSave,
   onLoad,
   onOpenProjectInfo,
+  onExport,
   sumaBlachyReport,
   t,
 }) => {
@@ -69,6 +71,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button className="btn btn-primary" data-testid="btn-new" onClick={onNew}>{t('Nowy')}</button>
         <button className="btn btn-primary" data-testid="btn-load" onClick={onLoad}>{t('Pobierz')}</button>
         <button className="btn btn-primary" data-testid="btn-save" onClick={onSave}>{t('Zapisz')}</button>
+        <button className="btn btn-primary" data-testid="btn-export" onClick={onExport}>{t('Eksportuj')}</button>
       </div>
 
       <button className="btn btn-secondary" onClick={onOpenProjectInfo} data-testid="btn-project-info">{t('Dane osobowe i opisowe')} ...</button>

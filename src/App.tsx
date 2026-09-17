@@ -9,6 +9,7 @@ import type { ValidationContext } from './validation';
 import { exportProject, importProject } from './legacyFormat';
 import PropertiesPanel from './components/PropertiesPanel';
 import ProjectInfoDialog from './components/ProjectInfoDialog';
+import InfoDialog from './components/InfoDialog';
 import KotInfo from './components/KotInfo';
 import ShapeDiagram from './components/ShapeDiagram';
 import ShapeDiagram3D from './components/ShapeDiagram3D';
@@ -29,7 +30,7 @@ import {
   PLASZCZ_OPTIONS,
   GRUBOSC_IZOLACJI_OPTIONS,
 } from './data';
-import { calculateArea, calculateInsulatedArea, generateSymbol, generatePrzekroj, kotReport, blachaBandStandard, isBlachaThicknessAtLeast } from './calculations';
+import { calculateArea, calculateInsulatedArea, generateFullSymbol, generatePrzekroj, kotReport, blachaBandStandard, isBlachaThicknessAtLeast, computeBok } from './calculations';
 import type { GridRow, SystemType, MaterialType, Ksztaltka, ProjectInfo } from './types';
 import { parseDictionary, translate, isAppLanguage, type AppLanguage, type DictionaryMap } from './i18n';
 import './App.css';
@@ -363,6 +364,28 @@ function App() {
   });
   const [oznaczenieEnabled, setOznaczenieEnabled] = useState(true);
 
+  // "Kolory" menu (Form1.cs tłoToolStripMenuItem_Click / kreskaToolStripMenuItem_Click)
+  // — 2D drawing outline + background color. Legacy doesn't persist these
+  // across launches; we do, since it costs nothing and is strictly nicer.
+  const [diagramLineColor, setDiagramLineColor] = useState(
+    () => { try { return localStorage.getItem('alnor-cam-line-color') || '#004290'; } catch { return '#004290'; } }
+  );
+  const [diagramBackgroundColor, setDiagramBackgroundColor] = useState(
+    () => { try { return localStorage.getItem('alnor-cam-bg-color') || '#ffffff'; } catch { return '#ffffff'; } }
+  );
+  useEffect(() => {
+    try { localStorage.setItem('alnor-cam-line-color', diagramLineColor); } catch { /* ignore */ }
+  }, [diagramLineColor]);
+  useEffect(() => {
+    try { localStorage.setItem('alnor-cam-bg-color', diagramBackgroundColor); } catch { /* ignore */ }
+  }, [diagramBackgroundColor]);
+
+  // "Pamiętaj wartości przy zmianie elementu" vs the default "Przywróć
+  // domyślne ustawienia po zmianie elementu" (Form1.cs ~30599-30614): when
+  // enabled, a/b carry over to the next shape instead of every field
+  // clearing on shape change.
+  const [rememberValues, setRememberValues] = useState(false);
+
   // Dimension values (up to 17 values)
   const [dimensionValues, setDimensionValues] = useState<string[]>(Array(17).fill(''));
 
@@ -428,21 +451,10 @@ function App() {
   // chemo has its own thickness scale with no minimum-thickness table.
   const [blachaWarning, setBlachaWarning] = useState<string | null>(null);
 
-  const bok = useMemo(() => {
-    const a = parseFloat(dimensionValues[0]) || 0;
-    const b = parseFloat(dimensionValues[1]) || 0;
-    let max = Math.max(a, b);
-    // Legacy also widens the check against c/d for these shapes (Form1.cs:11304-11318).
-    if (selectedSymbol === 'QPR6a' || selectedSymbol === 'QPR2a') {
-      const c = parseFloat(dimensionValues[2]) || 0;
-      const d = parseFloat(dimensionValues[3]) || 0;
-      max = Math.max(max, c, d);
-    } else if (selectedSymbol === 'QBFRa' || selectedSymbol === 'QPR4a') {
-      const d = parseFloat(dimensionValues[2]) || 0;
-      max = Math.max(max, d);
-    }
-    return max;
-  }, [selectedSymbol, dimensionValues]);
+  const bok = useMemo(
+    () => computeBok(selectedSymbol, dimensionValues.map((v) => parseFloat(v) || 0)),
+    [selectedSymbol, dimensionValues]
+  );
 
   // `blacha` is deliberately read via a ref rather than a dependency here:
   // this effect's own `setBlacha(required)` call must not immediately
@@ -488,6 +500,29 @@ function App() {
     if (value !== 'Ocynk') setWykonanie('Niskociśnieniowe');
   }, []);
 
+  // NOTE: legacy silently auto-upgrades an undersized frame (no warning) —
+  // see `frameBandStandard()`/`isFrameAtLeast()` in calculations.ts, still
+  // used for the symbol-suffix comparison in generateFullSymbol(). A live
+  // auto-correct effect was tried here too, but this codebase already has a
+  // deliberate, tested "block Add + show a hint with a suggestion chip"
+  // pattern for frame sizing (`checkFrames()` — same pattern as the radius
+  // and minimum-L rules, see e2e/validation.spec.ts's ramka test) that
+  // predates this session. Auto-correcting silently would fire before that
+  // hint ever has a chance to show, which regresses an existing, deliberate
+  // UX choice rather than filling a gap — so frames are left to that
+  // existing validation path instead of a second, conflicting mechanism.
+
+  // Chemo "Kołnierze" (flanges) forces all three frames to P30
+  // (Form1.cs:31643-31653).
+  const handleWykonanieChange = useCallback((value: string) => {
+    setWykonanie(value);
+    if (isChemo && value === 'Kołnierze') {
+      setRamkiWL('P30');
+      setRamkiWYL('P30');
+      setRamkiOd('P30');
+    }
+  }, [isChemo]);
+
   // User element fields (visible when element_uzytkownika)
   const [userNazwa, setUserNazwa] = useState('');
   const [userSymbol, setUserSymbol] = useState('');
@@ -510,6 +545,8 @@ function App() {
     } catch { return { nazwa: '', zamawia: '', data: '' }; }
   });
   const [showProjectInfo, setShowProjectInfo] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     try {
@@ -659,8 +696,27 @@ function App() {
   // Generate full symbol
   const fullSymbol = useMemo(() => {
     const numValues = dimensionValues.map((v) => parseFloat(v) || 0);
-    return generateSymbol(selectedSymbol, material, wykonanie, numValues, isChemo);
-  }, [selectedSymbol, material, wykonanie, dimensionValues, isChemo]);
+    return generateFullSymbol({
+      symbol: selectedSymbol,
+      tab: numValues,
+      bok,
+      isChemo,
+      material,
+      materialChemo: material,
+      gruboscChemo: blacha,
+      wykonanie,
+      blacha,
+      izolowana: isIzolowane,
+      plaszcz,
+      klasaSzczelnosci,
+      lwzmoc,
+      ramkiWL,
+      ramkiWYL,
+    });
+  }, [
+    selectedSymbol, material, wykonanie, dimensionValues, isChemo, bok, blacha,
+    isIzolowane, plaszcz, klasaSzczelnosci, lwzmoc, ramkiWL, ramkiWYL,
+  ]);
 
   // Shape name for display
   const shapeName = useMemo(() => {
@@ -673,8 +729,34 @@ function App() {
   // Handle shape selection
   const handleSelectShape = useCallback((symbol: string) => {
     setSelectedSymbol(symbol);
-    setDimensionValues(Array(17).fill(''));
-  }, []);
+    setDimensionValues((prev) => {
+      const next = Array(17).fill('');
+      if (rememberValues) {
+        next[0] = prev[0] || '';
+        next[1] = prev[1] || '';
+      }
+      return next;
+    });
+  }, [rememberValues]);
+
+  // PgUp/PgDn = previous/next shape in the catalogue (Form1.cs:30767-30776).
+  useEffect(() => {
+    if (isUserElement) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'PageUp' && e.key !== 'PageDown') return;
+      const target = e.target as HTMLElement | null;
+      if (target?.tagName === 'TEXTAREA') return;
+      if (showProjectInfo || showAbout || showHelp) return;
+      e.preventDefault();
+      const idx = SHAPE_DEFINITIONS.findIndex((s) => s.symbol === selectedSymbol);
+      if (idx === -1) return;
+      const delta = e.key === 'PageDown' ? 1 : -1;
+      const next = SHAPE_DEFINITIONS[(idx + delta + SHAPE_DEFINITIONS.length) % SHAPE_DEFINITIONS.length];
+      handleSelectShape(next.symbol);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isUserElement, selectedSymbol, showProjectInfo, showAbout, showHelp, handleSelectShape]);
 
   const handleToggleOznaczenieEnabled = useCallback((enabled: boolean) => {
     setOznaczenieEnabled(enabled);
@@ -1092,6 +1174,38 @@ function App() {
     })();
   }, [gridRows, projectInfo]);
 
+  // "Eksportuj" — a modern replacement for the legacy hack (select the
+  // hidden 31-column grid, copy it to the clipboard as tab-separated text,
+  // save the clipboard as a ".xls" that isn't really Excel format —
+  // Form1.cs:31386-31402). Same idea (a tabular dump of every row for use
+  // outside the app), delivered as an actual openable .csv instead.
+  const handleExport = useCallback(() => {
+    const header = ['Oznaczenie', 'Nazwa', 'Symbol', 'Sztuk', 'Materiał', 'Blacha', 'Powierzchnia', 'Powierzchnia całkowita', 'Przekrój', 'Uwagi'];
+    const csvEscape = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const lines = [header.map(csvEscape).join(',')];
+    for (const row of gridRows) {
+      lines.push([
+        row.oznaczenie,
+        row.nazwa,
+        row.symbol,
+        String(row.sztuk),
+        row.material,
+        row.ksztaltka?.blacha || '',
+        row.m2.toFixed(2),
+        (row.m2 * row.sztuk).toFixed(2),
+        row.przekroj,
+        row.uwagi,
+      ].map((v) => csvEscape(String(v))).join(','));
+    }
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'alnorcam-export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [gridRows]);
+
   // Load project — tries the legacy AES+XML format first (files from either
   // app), falling back to the old self-invented JSON format so project files
   // saved by earlier versions of this app still load. No fixed extension:
@@ -1164,10 +1278,30 @@ function App() {
         const numValues = row.tab.map((v) => parseFloat(v) || 0);
         const area = calculateArea(row.shapeSymbol, numValues);
         const unitArea = Math.max(area, parseFloat(minM2) || 0);
+        const k = row.ksztaltka;
+        const rowBok = computeBok(row.shapeSymbol, numValues);
         return {
           ...row,
           m2: unitArea,
-          symbol: generateSymbol(row.shapeSymbol, row.material, row.ksztaltka?.wykonanie || wykonanie, numValues, row.ksztaltka?.isChemo),
+          symbol: k
+            ? generateFullSymbol({
+                symbol: row.shapeSymbol,
+                tab: numValues,
+                bok: rowBok,
+                isChemo: k.isChemo,
+                material: k.material,
+                materialChemo: k.materialChemo,
+                gruboscChemo: k.gruboscChemo,
+                wykonanie: k.wykonanie || wykonanie,
+                blacha: k.blacha,
+                izolowana: k.izolowana,
+                plaszcz: k.plaszcz,
+                klasaSzczelnosci: k.klasa_szczelnosci,
+                lwzmoc: k.l_wzmoc,
+                ramkiWL: k.ramkawl,
+                ramkiWYL: k.ramkawyl,
+              })
+            : row.symbol,
         };
       })
     );
@@ -1183,6 +1317,24 @@ function App() {
         <div className="left-panel">
           <div className="sidebar-header">
             <span className="logo">Alnor<span className="logo-accent">CAM</span></span>
+            <div className="header-info-buttons">
+              <button
+                type="button"
+                className="header-info-btn"
+                title={t('Opis programu')}
+                onClick={() => setShowHelp(true)}
+              >
+                ?
+              </button>
+              <button
+                type="button"
+                className="header-info-btn"
+                title={t('O programie')}
+                onClick={() => setShowAbout(true)}
+              >
+                i
+              </button>
+            </div>
           </div>
           <Toolbar
             systemType={systemType}
@@ -1191,6 +1343,7 @@ function App() {
             onSave={handleSave}
             onLoad={handleLoad}
             onOpenProjectInfo={() => setShowProjectInfo(true)}
+            onExport={handleExport}
             sumaBlachyReport={sumaBlachyReport}
             t={t}
           />
@@ -1201,6 +1354,31 @@ function App() {
               onClose={() => setShowProjectInfo(false)}
               t={t}
             />
+          )}
+          {showAbout && (
+            <InfoDialog title={t('O programie')} onClose={() => setShowAbout(false)}>
+              <div className="info-modal-logo">Alnor<span className="logo-accent" style={{ color: '#ce0015' }}>CAM</span></div>
+              <p>{t('CAD/CAM do projektowania kształtek blaszanych i chemoodpornych instalacji wentylacyjnych.')}</p>
+              <p>© ALNOR Sp. z o.o.</p>
+            </InfoDialog>
+          )}
+          {showHelp && (
+            <InfoDialog title={t('Opis programu')} onClose={() => setShowHelp(false)}>
+              <p>{t('Wygenerowany plik zestawienia należy przesłać do ALNOR Sp. z o.o.')}</p>
+              <p>
+                <a href="mailto:alnor@alnor.com.pl">alnor@alnor.com.pl</a>
+                {'\n'}tel. 022 737 40 00
+              </p>
+              <p>{t('Zamówienie na preferencyjnych warunkach, ze względu na przesłanie danych przygotowanych na produkcję.')}</p>
+              <p>{t('Aby zachować zgodność z obliczeniami powierzchni, prowadzonymi w ALNORze należy w polu zaokrągleń "m2" zachować wartość 1.0 m2.')}</p>
+              <p>{t('Po wybraniu elementu z listy podajemy jego główne wymiary np. dla łuku podajemy tylko przekrój A i B, resztę wymiarów i parametrów wygeneruje program, można je oczywiście zmienić.')}</p>
+              <p>{t('Przycisk "Odśwież" spowoduje odnowienie rysunku elementu wg. podanych wymiarów.')}</p>
+              <p>{t('Zdefiniowany wymiarowo element umieszczamy w zestawieniu przyciskając "Dodaj". Pozycje możemy też usuwać z zestawienia ("Usuń"), pobierać z zestawienia do edycji ("Edytuj"). Możemy też wstawić element w środek zestawienia przyciskiem "Wstaw za".')}</p>
+              <p>{t('Do wybrania elementu z listy kształtek można też zamiast myszki użyć klawiszy PgDn/PgUp.')}</p>
+              <p>{t('Aby obracać widok trójwymiarowy elementu, najeżdżamy na niego myszką i przeciągamy. Możemy też powiększać i zmniejszać widok trójwymiarowy kółkiem myszy.')}</p>
+              <p>{t('Gotowe zestawienie, po podaniu "Danych osobowych i opisowych", należy zapisać w pliku ("Zapisz") i przesłać do ALNOR Sp. z o.o. na adres podany powyżej, jako załącznik do e-maila.')}</p>
+              <p>{t('Zestawienie można również wyeksportować do pliku CSV na własne potrzeby (uwaga, ten format nie służy do przesłania do Alnora).')}</p>
+            </InfoDialog>
           )}
           <input
             type="file"
@@ -1215,6 +1393,8 @@ function App() {
             onSelect={handleSelectShape}
             disabled={isUserElement}
             t={t}
+            rememberValues={rememberValues}
+            onToggleRememberValues={setRememberValues}
           />
         </div>
 
@@ -1302,6 +1482,10 @@ function App() {
                       className="oznaczenie-input"
                       value={oznaczenie}
                       onChange={(e) => setOznaczenie(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+                      }}
+                      onFocus={(e) => e.currentTarget.select()}
                       disabled={!oznaczenieEnabled}
                     />
                   </div>
@@ -1316,12 +1500,32 @@ function App() {
                 values={dimensionValues.map((v) => parseFloat(v) || 0)}
                 t={t}
               />
-              <ShapeDiagram
-                symbol={selectedSymbol}
-                values={dimensionValues.map((v) => parseFloat(v) || 0)}
-                labels={currentShape.labels}
-                t={t}
-              />
+              <div className="shape-diagram-wrapper">
+                <div className="diagram-color-controls" title={t('Kolory')}>
+                  <label title={t('Kreska rysunku')}>
+                    <input
+                      type="color"
+                      value={diagramLineColor}
+                      onChange={(e) => setDiagramLineColor(e.target.value)}
+                    />
+                  </label>
+                  <label title={t('Tło rysunku')}>
+                    <input
+                      type="color"
+                      value={diagramBackgroundColor}
+                      onChange={(e) => setDiagramBackgroundColor(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <ShapeDiagram
+                  symbol={selectedSymbol}
+                  values={dimensionValues.map((v) => parseFloat(v) || 0)}
+                  labels={currentShape.labels}
+                  t={t}
+                  lineColor={diagramLineColor}
+                  backgroundColor={diagramBackgroundColor}
+                />
+              </div>
             </div>
 
             {/* Row 2: oznaczenie + shape name + symbol */}
@@ -1340,6 +1544,14 @@ function App() {
                   className="oznaczenie-input"
                   value={oznaczenie}
                   onChange={(e) => setOznaczenie(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+                    else if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      document.querySelector<HTMLInputElement>('[data-testid="dim-0"]')?.focus();
+                    }
+                  }}
+                  onFocus={(e) => e.currentTarget.select()}
                   disabled={!oznaczenieEnabled}
                 />
               </div>
@@ -1356,6 +1568,7 @@ function App() {
                 errors={validationErrors}
                 showErrors={showValidation}
                 ranges={fieldRanges}
+                onEnter={handleAdd}
               />
               <div className="summary-fields">
                 <div className="summary-row">
@@ -1420,7 +1633,7 @@ function App() {
                 material={material}
                 onMaterialChange={handleMaterialChange}
                 wykonanie={wykonanie}
-                onWykonanieChange={setWykonanie}
+                onWykonanieChange={handleWykonanieChange}
                 klasaSzczelnosci={klasaSzczelnosci}
                 onKlasaSzczelnosciChange={setKlasaSzczelnosci}
                 lwzmoc={lwzmoc}

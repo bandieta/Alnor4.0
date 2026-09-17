@@ -52,6 +52,33 @@ body {
   justify-content: space-between;
 }
 
+.header-info-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.header-info-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: transparent;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.header-info-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .logo {
   font-size: 20px;
   font-weight: 700;
@@ -141,6 +168,21 @@ body {
 
 .shape-filter-input:focus {
   border-color: #004290;
+}
+
+.remember-values-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-values-toggle input {
+  margin: 0;
 }
 
 .shape-list-header {
@@ -339,8 +381,15 @@ body {
   flex: 1 1 auto;
 }
 
-.diagrams-row .shape-diagram {
+.diagrams-row .shape-diagram-wrapper {
   flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.diagrams-row .shape-diagram {
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -349,6 +398,28 @@ body {
 .diagrams-row .shape-diagram svg {
   flex: 1;
   min-height: 200px;
+}
+
+.diagram-color-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.diagram-color-controls label {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.diagram-color-controls input[type="color"] {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
 }
 
 .shape-diagram {
@@ -1571,6 +1642,42 @@ select:focus {
   gap: 8px;
   padding: 12px 16px;
   border-top: 1px solid #e5e5e5;
+}
+
+.info-modal {
+  width: 480px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: scaleIn 0.2s ease-out;
+}
+
+.info-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1e1e1e;
+  white-space: pre-line;
+}
+
+.info-modal-body p {
+  margin: 0 0 10px;
+}
+
+.info-modal-body a {
+  color: #004290;
+}
+
+.info-modal-logo {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 10px;
 }
 
 .shape-3d-placeholder {
