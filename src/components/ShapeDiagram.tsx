@@ -76,6 +76,18 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     setViewBox((prev) => (prev === next ? prev : next));
   }, [symbol, valuesKey, t]);
 
+  // Dimension line in the shared style. The arrowheads are 8 units long, so on a line
+  // shorter than ~20 units they overlap into a dotted-looking blob; such short lines get
+  // their end ticks only.
+  const dimLine = (x1: number, y1: number, x2: number, y2: number) => {
+    const withArrows = Math.hypot(x2 - x1, y2 - y1) >= 20;
+    return (
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#9b9b9b" strokeWidth={0.9}
+        markerEnd={withArrows ? 'url(#arrowhead)' : undefined}
+        markerStart={withArrows ? 'url(#arrowhead-start)' : undefined} />
+    );
+  };
+
   const renderShape = () => {
     switch (symbol) {
       case 'QDa': return renderRectangularDuct();
@@ -217,15 +229,13 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
           fill="none" stroke={lineColor} strokeWidth={1.6} />
 
         {/* a dimension (top of right view) */}
-        <line x1={small.x0} y1={aDimY} x2={small.x1} y2={aDimY}
-          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        {dimLine(small.x0, aDimY, small.x1, aDimY)}
         <line x1={small.x0} y1={aDimY - 3} x2={small.x0} y2={aDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
         <line x1={small.x1} y1={aDimY - 3} x2={small.x1} y2={aDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
         <text x={(small.x0 + small.x1) / 2} y={aDimY - 11} textAnchor="middle" fontSize={10} fill="#555555">a</text>
 
         {/* L dimension (below side view) */}
-        <line x1={sidePoly.x1} y1={lDimY} x2={sidePoly.x0} y2={lDimY}
-          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        {dimLine(sidePoly.x1, lDimY, sidePoly.x0, lDimY)}
         <line x1={sidePoly.x1} y1={lDimY - 3} x2={sidePoly.x1} y2={lDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
         <line x1={sidePoly.x0} y1={lDimY - 3} x2={sidePoly.x0} y2={lDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
         <text x={(sidePoly.x0 + sidePoly.x1) / 2} y={lDimY + 16} textAnchor="middle" fontSize={10} fill="#555555">L</text>
@@ -234,8 +244,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
             tick marks, not between them and the cross-section view: that gap is only
             ~15 units wide (independent of a/b/L), too narrow to fit the glyph next to
             the neighboring flange rect without the two colliding. */}
-        <line x1={bDimX} y1={side.y0} x2={bDimX} y2={bDimY2}
-          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
+        {dimLine(bDimX, side.y0, bDimX, bDimY2)}
         <line x1={bDimX - 3} y1={side.y0} x2={bDimX + 3} y2={side.y0} stroke="#9b9b9b" strokeWidth={0.9} />
         <line x1={bDimX - 3} y1={bDimY2} x2={bDimX + 3} y2={bDimY2} stroke="#9b9b9b" strokeWidth={0.9} />
         <text x={bDimX - 6} y={(side.y0 + bDimY2) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">b</text>
@@ -244,7 +253,10 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
   };
 
   const renderQBa = () => {
-    // QBa port aligned with Form1.cs geometry block.
+    // QBa port of the Form1.cs `if (symbol == "QBa")` GDI block (kolano / łuk symetryczny).
+    // Legacy layout: plan view on the left (inlet leg of length f pointing left, 90° bend of
+    // inner radius r, outlet leg of length e pointing down, both legs b wide), and an end
+    // view on the right (a×b section inside its flange, with the r+e extent hanging below).
     const rawA = values[0] || 200;
     const rawB = values[1] || 200;
     const rawE = values[2] || 150;
@@ -257,6 +269,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     let b = Math.max(toInt(rawB), 1);
     let e = Math.max(toInt(rawE), 1);
     let f = Math.max(toInt(rawF), 1);
+    // Form1: `if (r < 100) r = 0;` — a sharp inner corner below 100 mm.
     let r = rawR < 100 ? 0 : Math.max(toInt(rawR), 0);
 
     let p = 25;
@@ -283,20 +296,8 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
     if (pushX < 0) pushX = -pushX;
     const pushY = toInt((90 - b) / 2) + 5;
 
-    const small = {
-      x0: 190 + pushX,
-      y0: 20 + pushY,
-      x1: 190 + a + pushX,
-      y1: 20 + pushY + b,
-    };
-
-    const big = {
-      x0: 190 - p + pushX,
-      y0: 20 - p + pushY,
-      x1: 190 + p + a + pushX,
-      y1: 20 + p + b + pushY,
-    };
-
+    // ---- plan view -------------------------------------------------------------
+    // punkty2: inlet leg, f long, b wide.
     const left = {
       x0: 20 + pushX,
       y0: 20 + pushY,
@@ -304,21 +305,7 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       y1: 20 + b + pushY,
     };
 
-    // Right-side lower section present in legacy technical drawing.
-    const underSmall = {
-      x0: small.x0,
-      y0: small.y1,
-      x1: small.x1,
-      y1: small.y1 + r,
-    };
-
-    const underSmallE = {
-      x0: underSmall.x0,
-      y0: underSmall.y1,
-      x1: underSmall.x1,
-      y1: underSmall.y1 + e,
-    };
-
+    // punkty3: outlet leg, b wide, e long, hanging r below/right of the inlet leg's corner.
     const lower = {
       x0: left.x1 + r,
       y0: left.y1 + r,
@@ -326,14 +313,17 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       y1: left.y1 + r + e,
     };
 
-      const innerRect = r === 0
-        ? { x: left.x1 - b, y: left.y0, w: 2 * b, h: 2 * b }
-        : {
-            x: 2 * left.x1 - lower.x0,
-            y: left.y1,
-            w: 2 * (lower.x0 - left.x1),
-            h: 2 * (lower.y0 - left.y1),
-          };
+    // Both arcs are centred on (left.x1, lower.y0); inner radius r, outer radius r+b.
+    // Form1's r==0 special case draws a single arc of radius b centred on the inlet's
+    // bottom-right corner (a sharp inner corner, rounded outside) and skips the outer arc.
+    const innerRect = r === 0
+      ? { x: left.x1 - b, y: left.y0, w: 2 * b, h: 2 * b }
+      : {
+          x: 2 * left.x1 - lower.x0,
+          y: left.y1,
+          w: 2 * (lower.x0 - left.x1),
+          h: 2 * (lower.y0 - left.y1),
+        };
 
     const outerRect = {
       x: 2 * left.x1 - lower.x1,
@@ -342,5366 +332,2770 @@ const ShapeDiagram: React.FC<ShapeDiagramProps> = ({ symbol, values, labels: _la
       h: 2 * (lower.y0 - left.y0),
     };
 
+    // DrawArc(rect, 270, 90): from the top of the ellipse clockwise to its right.
     const quarterArcPath = (rect: { x: number; y: number; w: number; h: number }) => {
       const rx = rect.w / 2;
       const ry = rect.h / 2;
       const cx = rect.x + rx;
       const cy = rect.y + ry;
-      const startX = cx;
-      const startY = cy - ry;
-      const endX = cx + rx;
-      const endY = cy;
-      return `M ${startX} ${startY} A ${rx} ${ry} 0 0 1 ${endX} ${endY}`;
+      return `M ${cx} ${cy - ry} A ${rx} ${ry} 0 0 1 ${cx + rx} ${cy}`;
     };
+
+    // Form1 draws each leg as a closed polygon and then overdraws the edge shared with
+    // the bend (inlet's right side, outlet's top side) with the background pen (myPen2 =
+    // colorDialog1 = pictureBox2.BackColor), so the legs run seamlessly into the arcs.
+    // Draw them as open three-sided paths for the same result.
+    const inletPath = `M ${left.x1} ${left.y0} L ${left.x0} ${left.y0} L ${left.x0} ${left.y1} L ${left.x1} ${left.y1}`;
+    const outletPath = `M ${lower.x0} ${lower.y0} L ${lower.x0} ${lower.y1} L ${lower.x1} ${lower.y1} L ${lower.x1} ${lower.y0}`;
+
+    // Dimensions. f above the inlet, b left of the inlet (both as in Form1); e sits to the
+    // right of the outlet leg as in Form1 (which offsets it by a+r+10 from the leg's left
+    // edge — a fixed 15 past the leg's right edge keeps the same side without the drift).
+    const fDimY = left.y0 - 15;
+    const bDimX = left.x0 - 15;
+    const eDimX = lower.x1 + 15;
+
+    // ---- end view --------------------------------------------------------------
+    // Form1 pins the section at x=190; nudge it right only if the plan view's "e"
+    // callout would otherwise run into the flange rect (large f together with large r+b).
+    const eLabelRight = eDimX + 14;
+    const sectionShift = Math.max(0, eLabelRight - (190 - p + pushX) + 6);
+    const sx = 190 + pushX + sectionShift;
+
+    // punkty: a×b section; punkty1: its flange, p wider on every side.
+    const small = { x0: sx, y0: 20 + pushY, x1: sx + a, y1: 20 + pushY + b };
+    const big = { x0: sx - p, y0: 20 - p + pushY, x1: sx + a + p, y1: 20 + p + b + pushY };
+
+    // podmalym + podmalyme: the r and e extents stacked under the section. Form1 erases
+    // the divider between them with the background pen, and FillPolygon(myBrush, punkty1)
+    // paints the flange rect over the top of the r block, so what remains visible is one
+    // a×(r+e) outline emerging from under the flange.
+    const underBottom = small.y1 + r + e;
+    const underTop = Math.min(big.y1, underBottom);
+    const underPath = `M ${small.x0} ${underTop} L ${small.x0} ${underBottom} L ${small.x1} ${underBottom} L ${small.x1} ${underTop}`;
+    const underFlangeY = underBottom - p;
+
+    const aDimY = Math.min(small.y0 - 15, big.y0 - 8);
 
     return (
       <g>
-        <rect x={left.x0} y={left.y0} width={left.x1 - left.x0} height={left.y1 - left.y0}
-          fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {/* ---- plan view ---- */}
+        <path d={inletPath} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {/* Inlet flange: face line at the open end (±p past the duct) and its inner edge p in. */}
+        <line x1={left.x0} y1={left.y0 - p} x2={left.x0} y2={left.y1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={left.x0 + p} y1={left.y0} x2={left.x0 + p} y2={left.y1} stroke={lineColor} strokeWidth={1.2} />
 
-        <rect x={underSmall.x0} y={underSmall.y0} width={underSmall.x1 - underSmall.x0} height={underSmall.y1 - underSmall.y0}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-        <rect x={underSmallE.x0} y={underSmallE.y0} width={underSmallE.x1 - underSmallE.x0} height={underSmallE.y1 - underSmallE.y0}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-
-        <rect x={lower.x0} y={lower.y0} width={lower.x1 - lower.x0} height={lower.y1 - lower.y0}
-          fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <path d={outletPath} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {/* Outlet flange: face line at the open end (±p past the duct) and its inner edge p in. */}
+        <line x1={lower.x0 - p} y1={lower.y1} x2={lower.x1 + p} y2={lower.y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={lower.x0} y1={lower.y1 - p} x2={lower.x1} y2={lower.y1 - p} stroke={lineColor} strokeWidth={1.2} />
 
         <path d={quarterArcPath(innerRect)} fill="none" stroke={lineColor} strokeWidth={1.6} />
         {r !== 0 && <path d={quarterArcPath(outerRect)} fill="none" stroke={lineColor} strokeWidth={1.6} />}
 
+        {/* r leader from the arc centre out along 45°, label past the outer arc. */}
         <line x1={left.x1} y1={lower.y0} x2={left.x1 + r} y2={left.y1}
           stroke="#9b9b9b" strokeWidth={0.9} />
-        {/* Label sits further out along the same 45° leader direction than either the
-            outer arc's radius (r+b) or the leader line's own endpoint (r*sqrt(2) from
-            the arc center) — whichever reaches further. b tiny relative to r means the
-            line's endpoint is the further of the two, so the arc radius alone isn't a
-            safe clearance distance. */}
         <text
           x={left.x1 + (Math.max(r * Math.SQRT2, r + b) + 10) * Math.SQRT1_2}
           y={lower.y0 - (Math.max(r * Math.SQRT2, r + b) + 10) * Math.SQRT1_2}
           fontSize={10} fill="#555555">r</text>
+
+        {/* f dimension (above inlet leg) */}
+        {dimLine(left.x0, fDimY, left.x1, fDimY)}
+        <line x1={left.x0} y1={fDimY - 3} x2={left.x0} y2={fDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <line x1={left.x1} y1={fDimY - 3} x2={left.x1} y2={fDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={(left.x0 + left.x1) / 2} y={fDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+
+        {/* b dimension (left of inlet leg) */}
+        {dimLine(bDimX, left.y0, bDimX, left.y1)}
+        <line x1={bDimX - 3} y1={left.y0} x2={bDimX + 3} y2={left.y0} stroke="#9b9b9b" strokeWidth={0.9} />
+        <line x1={bDimX - 3} y1={left.y1} x2={bDimX + 3} y2={left.y1} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={bDimX - 6} y={(left.y0 + left.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">b</text>
+
+        {/* e dimension (right of outlet leg) */}
+        {dimLine(eDimX, lower.y0, eDimX, lower.y1)}
+        <line x1={eDimX - 3} y1={lower.y0} x2={eDimX + 3} y2={lower.y0} stroke="#9b9b9b" strokeWidth={0.9} />
+        <line x1={eDimX - 3} y1={lower.y1} x2={eDimX + 3} y2={lower.y1} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={eDimX + 6} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">e</text>
+
+        {/* ---- end view ---- */}
+        <path d={underPath} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        {underFlangeY > big.y1 && (
+          <line x1={small.x0} y1={underFlangeY} x2={small.x1} y2={underFlangeY} stroke={lineColor} strokeWidth={1.2} />
+        )}
+        <line x1={small.x0 - p} y1={underBottom} x2={small.x1 + p} y2={underBottom} stroke={lineColor} strokeWidth={1.4} />
 
         <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
           fill="none" stroke={lineColor} strokeWidth={1.2} />
         <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
           fill="none" stroke={lineColor} strokeWidth={1.6} />
 
-        <line x1={left.x0} y1={left.y0 - 15} x2={left.x1} y2={left.y0 - 15}
-          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(left.x0 + left.x1) / 2} y={left.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">f</text>
-
-        <line x1={left.x0 - 15} y1={left.y0} x2={left.x0 - 15} y2={left.y1}
-          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={left.x0 - 24} y={(left.y0 + left.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        <line x1={lower.x0 - 15} y1={lower.y0} x2={lower.x0 - 15} y2={lower.y1}
-          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={lower.x0 - 24} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
-
-        <line x1={small.x0} y1={small.y0 - 15} x2={small.x1} y2={small.y0 - 15}
-          stroke="#9b9b9b" strokeWidth={0.9} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(small.x0 + small.x1) / 2} y={small.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        {/* a dimension (above the section) */}
+        {dimLine(small.x0, aDimY, small.x1, aDimY)}
+        <line x1={small.x0} y1={aDimY - 3} x2={small.x0} y2={aDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <line x1={small.x1} y1={aDimY - 3} x2={small.x1} y2={aDimY + 3} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={(small.x0 + small.x1) / 2} y={aDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
       </g>
     );
   };
 
   const renderSymmetricBend = () => {
-    // QBNa: symmetric bend — variable angle — parameters: a, b, e, f, r, alfa (degrees)
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const e = values[2] || 150;
-    const f = values[3] || 150;
-    const r = values[4] || 200;
+    // QBNa port of the Form1.cs `if (symbol == "QBNa")` GDI block: the QBa elbow with a
+    // variable bend angle. Plan view on the left (outlet leg of length e pointing down,
+    // bend of inner radius r sweeping alfa degrees, inlet leg of length f leaving the
+    // bend at that angle), end view on the right (a-wide box whose height is Form1's
+    // sin(alfa)-projected f+b extent, with the projected r and the e extents below it).
+    const rawA = values[0] || 200;
+    const rawB = values[1] || 200;
+    const rawE = values[2] || 150;
+    const rawF = values[3] || 150;
+    const rawR = values[4] || 200;
     const alfa = values[5] || 60;
+
+    const toInt = (v: number) => Math.trunc(v);
     const alfaRad = (alfa * Math.PI) / 180;
+    const sin = Math.sin(alfaRad);
+    const cos = Math.cos(alfaRad);
 
-    // --- Left part: side view of the bend (use ~60% of width) ---
-    const bendAreaW = width * 0.6;
+    let a = Math.max(toInt(rawA), 1);
+    let b = Math.max(toInt(rawB), 1);
+    let e = Math.max(toInt(rawE), 1);
+    let f = Math.max(toInt(rawF), 1);
+    let r = Math.max(toInt(rawR), 0);
 
-    // F-leg direction (tangent at arc end)
-    const fDirX = -Math.sin(alfaRad); // in drawing coords: left-ish
-    const fDirY = Math.cos(alfaRad);  // in drawing coords: down-ish
+    let p = 25;
+    const maxAB = Math.max(a, b);
+    if (maxAB > 1000) p = 30;
+    if (maxAB > 2501) p = 40;
 
-    // Compute bounding box of the bend in real units (before scaling)
-    // E-leg: extends from (r, 0) to (r+b, -e) — always vertical up
-    // Arc: from angle 0 to alfa, radius r to r+b
-    // F-leg: from arc end, extends along fDir by length f
-    const arcEndIx = r * Math.cos(alfaRad);
-    const arcEndIy = r * Math.sin(alfaRad);
-    const arcEndOx = (r + b) * Math.cos(alfaRad);
-    const arcEndOy = (r + b) * Math.sin(alfaRad);
-    const fEndIx = arcEndIx + fDirX * f;
-    const fEndIy = arcEndIy + fDirY * f;
-    const fEndOx = arcEndOx + fDirX * f;
-    const fEndOy = arcEndOy + fDirY * f;
+    let maxNorm = Math.max(a, b);
+    maxNorm += r + e;
+    if (p > maxNorm) maxNorm = p;
+    if (f > maxNorm) maxNorm = f;
+    if (e > maxNorm) maxNorm = e;
 
-    // Gather all x,y points to find bounds
-    const allX = [r, r + b, arcEndIx, arcEndOx, fEndIx, fEndOx, 0];
-    const allY = [-e, 0, arcEndIy, arcEndOy, fEndIy, fEndOy, r + b];
-    // Add arc extremes
-    for (let i = 0; i <= 20; i++) {
-      const ang = (i / 20) * alfaRad;
-      allX.push((r + b) * Math.cos(ang));
-      allY.push((r + b) * Math.sin(ang));
-    }
+    const mnoznik = 80;
+    a = toInt((a / maxNorm) * mnoznik);
+    b = toInt((b / maxNorm) * mnoznik);
+    p = toInt((p / maxNorm) * mnoznik);
+    e = toInt((e / maxNorm) * mnoznik);
+    f = toInt((f / maxNorm) * mnoznik);
+    r = toInt((r / maxNorm) * mnoznik);
+    // Form1: `if (r < 1) r = 1;` — unlike QBa there is no sharp-corner special case.
+    if (r < 1) r = 1;
 
-    const realMinX = Math.min(...allX);
-    const realMaxX = Math.max(...allX);
-    const realMinY = Math.min(...allY);
-    const realMaxY = Math.max(...allY);
-    const realW = realMaxX - realMinX;
-    const realH = realMaxY - realMinY;
+    const l = 3;
+    let pushX = toInt(((110 - a - l) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - b) / 2) + 5;
 
-    const labelMarginV = 44;
-    const labelMarginH = 30;
-    const sc = Math.min(
-      (height - labelMarginV) / realH,
-      (bendAreaW - labelMarginH) / realW
+    // Form1 truncates each sin(alfa)-scaled length to int before using it.
+    const sB = toInt(sin * b);
+    const sR = toInt(sin * r);
+    const sF = toInt(sin * f);
+
+    // ---- plan view -------------------------------------------------------------
+    // punkty3: outlet leg, b wide, e long, pointing straight down.
+    const lower = {
+      x0: 20 + pushX + f + r,
+      y0: 20 + pushY + sB + sR,
+      x1: 20 + pushX + f + r + b,
+      y1: 20 + pushY + sB + sR + e,
+    };
+
+    // Both arcs are centred r to the left of the outlet leg's top-left corner and sweep
+    // from -alfa (up-right of the centre) clockwise to 0 (the outlet leg's top edge).
+    const cx = lower.x0 - r;
+    const cy = lower.y0;
+    const innerStart = { x: cx + r * cos, y: cy - r * sin };
+    const outerStart = { x: cx + (r + b) * cos, y: cy - (r + b) * sin };
+    const innerArc = `M ${innerStart.x} ${innerStart.y} A ${r} ${r} 0 0 1 ${lower.x0} ${lower.y0}`;
+    const outerArc = `M ${outerStart.x} ${outerStart.y} A ${r + b} ${r + b} 0 0 1 ${lower.x1} ${lower.y0}`;
+
+    // punkty2 (as Form1 recomputes it before drawing): inlet leg, b wide, f long, running
+    // from the arc start points away from the bend along (-sin, -cos).
+    const legDir = { x: sin, y: cos };          // from the open end toward the bend
+    const acrossDir = { x: cos, y: -sin };      // from the inner edge toward the outer edge
+    const p3 = innerStart;                      // inner edge, bend end
+    const p2 = outerStart;                      // outer edge, bend end
+    const p0 = { x: p3.x - legDir.x * f, y: p3.y - legDir.y * f }; // inner edge, open end
+    const p1 = { x: p2.x - legDir.x * f, y: p2.y - legDir.y * f }; // outer edge, open end
+
+    // Form1 draws each leg as a closed polygon, then overdraws the edge it shares with
+    // the bend (inlet: p3–p2, outlet: its top edge) with the background pen so the legs
+    // run seamlessly into the arcs. Draw them as open three-sided paths instead.
+    const inletPath = `M ${p3.x} ${p3.y} L ${p0.x} ${p0.y} L ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+    const outletPath = `M ${lower.x0} ${lower.y0} L ${lower.x0} ${lower.y1} L ${lower.x1} ${lower.y1} L ${lower.x1} ${lower.y0}`;
+
+    // Inlet flange: face line at the open end (p past each edge) and its inner edge p in.
+    const inletFace = {
+      x1: p0.x - acrossDir.x * p, y1: p0.y - acrossDir.y * p,
+      x2: p1.x + acrossDir.x * p, y2: p1.y + acrossDir.y * p,
+    };
+    const inletInner = {
+      x1: p0.x + legDir.x * p, y1: p0.y + legDir.y * p,
+      x2: p1.x + legDir.x * p, y2: p1.y + legDir.y * p,
+    };
+
+    // b dimension: across the inlet's open end, 15 outside it (Form1's qwe1/qwe2 -15 step).
+    const bDim = {
+      x1: p0.x - legDir.x * 15, y1: p0.y - legDir.y * 15,
+      x2: p1.x - legDir.x * 15, y2: p1.y - legDir.y * 15,
+    };
+    // f dimension: along the inlet's outer edge, 15 outside it.
+    const fDim = {
+      x1: p1.x + acrossDir.x * 15, y1: p1.y + acrossDir.y * 15,
+      x2: p2.x + acrossDir.x * 15, y2: p2.y + acrossDir.y * 15,
+    };
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
     );
-    const sb = b * sc;
-    const se = e * sc;
-    const sf = f * sc;
-    const sr = r * sc;
 
-    // Scaled bounds
-    const sMinX = realMinX * sc;
-    const sMaxX = realMaxX * sc;
-    const sMinY = realMinY * sc;
-    const sMaxY = realMaxY * sc;
-    const sW = sMaxX - sMinX;
-    const sH = sMaxY - sMinY;
+    // e dimension: right of the outlet leg (Form1 offsets it by a+r+10 from the leg's
+    // left edge — a fixed 15 past its right edge keeps the same side without the drift).
+    const eDimX = lower.x1 + 15;
 
-    // Origin (arc center) in SVG coords — center the drawing in the left area
-    const ox = (bendAreaW - sW) / 2 - sMinX + 5;
-    const oy = (height - sH) / 2 - sMinY + 8;
+    // r leader from the arc centre along the bend's bisector to the inner arc, label
+    // just past the outer arc on the same ray.
+    const bis = { x: Math.cos(alfaRad / 2), y: -Math.sin(alfaRad / 2) };
+    const rLabelDist = r + b + 10;
 
-    // Arc segments
-    const arcSteps = 20;
-    const innerArc: string[] = [];
-    const outerArc: string[] = [];
-    for (let i = 0; i <= arcSteps; i++) {
-      const angle = (i / arcSteps) * alfaRad;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      innerArc.push(`${ox + sr * cos},${oy + sr * sin}`);
-      outerArc.push(`${ox + (sr + sb) * cos},${oy + (sr + sb) * sin}`);
-    }
+    // ---- end view --------------------------------------------------------------
+    const eLabelRight = eDimX + 14;
+    const sectionShift = Math.max(0, eLabelRight - (190 - p + pushX) + 6);
+    const sx = 190 + pushX + sectionShift;
 
-    // E-leg (vertical, at angle=0 direction → extends in -y)
-    const vInnerX = ox + sr;
-    const vOuterX = ox + sr + sb;
-    const vTop = oy;
-    const vTopEnd = vTop - se;
+    // punkty: Form1 stretches the box from sin(alfa)·f above the QBa baseline to
+    // sin(alfa)·b below it; punkty1 is its flange, p wider on every side.
+    const small = { x0: sx, y0: 20 + pushY - sF, x1: sx + a, y1: 20 + pushY + sB };
+    const big = { x0: sx - p, y0: small.y0 - p, x1: sx + a + p, y1: small.y1 + p };
 
-    // F-leg (along alfa direction)
-    const fIStartX = ox + sr * Math.cos(alfaRad);
-    const fIStartY = oy + sr * Math.sin(alfaRad);
-    const fOStartX = ox + (sr + sb) * Math.cos(alfaRad);
-    const fOStartY = oy + (sr + sb) * Math.sin(alfaRad);
-    const sfDirX = -Math.sin(alfaRad);
-    const sfDirY = Math.cos(alfaRad);
-    const fIEndX = fIStartX + sfDirX * sf;
-    const fIEndY = fIStartY + sfDirY * sf;
-    const fOEndX = fOStartX + sfDirX * sf;
-    const fOEndY = fOStartY + sfDirY * sf;
+    // podmalym + podmalyme: sin(alfa)·r and e extents stacked under the box. Form1 erases
+    // the divider between them with the background pen and FillPolygon(myBrush, punkty1)
+    // paints the flange rect over the top of the r block, so what remains visible is one
+    // outline emerging from under the flange.
+    const underBottom = small.y1 + sR + e;
+    const underTop = Math.min(big.y1, underBottom);
+    const underPath = `M ${small.x0} ${underTop} L ${small.x0} ${underBottom} L ${small.x1} ${underBottom} L ${small.x1} ${underTop}`;
+    const underFlangeY = underBottom - p;
 
-    // Flange perpendicular direction at f-leg end
-    const flangeNX = Math.cos(alfaRad);
-    const flangeNY = Math.sin(alfaRad);
-
-    // --- Right part: cross-section (a × b) ---
-    const crossAreaX = bendAreaW + 10;
-    const crossAreaW = width - crossAreaX - 10;
-    const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / Math.max(a, b);
-    const ca = Math.max(a * crossScale, 14);
-    const cb = Math.max(b * crossScale, 14);
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - ca) / 2;
-    const crossY = (height - cb) / 2 + 4;
+    const aDimY = Math.min(small.y0 - 15, big.y0 - 8);
 
     return (
       <g>
-        {/* === SIDE VIEW (left) === */}
-        {/* Outer wall: e-leg → arc → f-leg */}
-        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={outerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={`${fOStartX},${fOStartY} ${fOEndX},${fOEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        {/* ---- plan view ---- */}
+        <path d={inletPath} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={inletFace.x1} y1={inletFace.y1} x2={inletFace.x2} y2={inletFace.y2} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={inletInner.x1} y1={inletInner.y1} x2={inletInner.x2} y2={inletInner.y2} stroke={lineColor} strokeWidth={1.2} />
 
-        {/* Inner wall: e-leg → arc → f-leg */}
-        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={innerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={`${fIStartX},${fIStartY} ${fIEndX},${fIEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
+        <path d={outletPath} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={lower.x0 - p} y1={lower.y1} x2={lower.x1 + p} y2={lower.y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={lower.x0} y1={lower.y1 - p} x2={lower.x1} y2={lower.y1 - p} stroke={lineColor} strokeWidth={1.2} />
 
-        {/* Flanges */}
-        {/* E-leg flange (perpendicular to leg = horizontal) */}
-        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke={lineColor} strokeWidth={2} />
-        {/* F-leg flange (perpendicular to f-direction) */}
-        <line x1={fIEndX - flangeNX * 3} y1={fIEndY - flangeNY * 3}
-              x2={fOEndX + flangeNX * 3} y2={fOEndY + flangeNY * 3} stroke={lineColor} strokeWidth={2} />
+        <path d={innerArc} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <path d={outerArc} fill="none" stroke={lineColor} strokeWidth={1.6} />
 
-        {/* b dimension — across duct at e-leg top */}
-        <line x1={vInnerX} y1={vTopEnd - 10} x2={vOuterX} y2={vTopEnd - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(vInnerX + vOuterX) / 2} y={vTopEnd - 13} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        <line x1={cx} y1={cy} x2={cx + bis.x * r} y2={cy + bis.y * r} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={cx + bis.x * rLabelDist} y={cy + bis.y * rLabelDist + 4} textAnchor="middle" fontSize={10} fill="#555555">r</text>
 
-        {/* e dimension — along e-leg (right side) */}
-        <line x1={vOuterX + 12} y1={vTopEnd} x2={vOuterX + 12} y2={vTop}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={vOuterX + 22} y={(vTopEnd + vTop) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+        {/* b dimension (across the inlet's open end) */}
+        {dimLine(bDim.x1, bDim.y1, bDim.x2, bDim.y2)}
+        {tick(bDim.x1, bDim.y1, legDir.x, legDir.y)}
+        {tick(bDim.x2, bDim.y2, legDir.x, legDir.y)}
+        <text x={(bDim.x1 + bDim.x2) / 2 - legDir.x * 9} y={(bDim.y1 + bDim.y2) / 2 - legDir.y * 9 + 4}
+          textAnchor="middle" fontSize={10} fill="#555555">b</text>
 
-        {/* f dimension — along f-leg (offset outward) */}
-        {(() => {
-          const fOffset = 12;
-          const fDimStartX = fOStartX + flangeNX * fOffset;
-          const fDimStartY = fOStartY + flangeNY * fOffset;
-          const fDimEndX = fOEndX + flangeNX * fOffset;
-          const fDimEndY = fOEndY + flangeNY * fOffset;
-          const fLabelX = (fDimStartX + fDimEndX) / 2 + flangeNX * 10;
-          const fLabelY = (fDimStartY + fDimEndY) / 2 + flangeNY * 10;
-          return (
-            <>
-              <line x1={fDimStartX} y1={fDimStartY} x2={fDimEndX} y2={fDimEndY}
-                stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-              <text x={fLabelX} y={fLabelY} textAnchor="middle" fontSize={10} fill="#555555">f</text>
-            </>
-          );
-        })()}
+        {/* f dimension (along the inlet's outer edge) */}
+        {dimLine(fDim.x1, fDim.y1, fDim.x2, fDim.y2)}
+        {tick(fDim.x1, fDim.y1, acrossDir.x, acrossDir.y)}
+        {tick(fDim.x2, fDim.y2, acrossDir.x, acrossDir.y)}
+        <text x={(fDim.x1 + fDim.x2) / 2 + acrossDir.x * 9} y={(fDim.y1 + fDim.y2) / 2 + acrossDir.y * 9 + 4}
+          textAnchor="middle" fontSize={10} fill="#555555">f</text>
 
-        {/* r dimension — inner radius dashed line */}
-        {(() => {
-          const midAngle = alfaRad / 2;
-          return (
-            <>
-              <line x1={ox} y1={oy} x2={ox + sr * Math.cos(midAngle)} y2={oy + sr * Math.sin(midAngle)}
-                stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
-              <text x={ox + sr * 0.8 * Math.cos(alfaRad * 0.3)} y={oy + sr * 0.8 * Math.sin(alfaRad * 0.3)}
-                textAnchor="middle" fontSize={10} fill="#555555">r</text>
-            </>
-          );
-        })()}
+        {/* e dimension (right of outlet leg) */}
+        {dimLine(eDimX, lower.y0, eDimX, lower.y1)}
+        {tick(eDimX, lower.y0, 1, 0)}
+        {tick(eDimX, lower.y1, 1, 0)}
+        <text x={eDimX + 6} y={(lower.y0 + lower.y1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">e</text>
 
-        {/* alfa arc indicator (only for QBNa) */}
-        {alfa !== 90 && (() => {
-          const arcR = sr * 0.3;
-          const arcPts: string[] = [];
-          for (let i = 0; i <= 10; i++) {
-            const ang = (i / 10) * alfaRad;
-            arcPts.push(`${ox + arcR * Math.cos(ang)},${oy + arcR * Math.sin(ang)}`);
-          }
-          return (
-            <>
-              <polyline points={arcPts.join(' ')} fill="none" stroke="#9b9b9b" strokeWidth={0.6} />
-              <text x={vInnerX - 7} y={oy - 7}
-                textAnchor="end" fontSize={9} fill="#555555">{`α=${Math.round(alfa)}°`}</text>
-            </>
-          );
-        })()}
+        {/* ---- end view ---- */}
+        <path d={underPath} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        {underFlangeY > big.y1 && (
+          <line x1={small.x0} y1={underFlangeY} x2={small.x1} y2={underFlangeY} stroke={lineColor} strokeWidth={1.2} />
+        )}
+        <line x1={small.x0 - p} y1={underBottom} x2={small.x1 + p} y2={underBottom} stroke={lineColor} strokeWidth={1.4} />
 
-        {/* Centerline of bend (dashed) */}
-        <line x1={ox} y1={oy} x2={ox + sr + sb / 2} y2={oy} stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
-        <line x1={ox} y1={oy} x2={ox + (sr + sb / 2) * Math.cos(alfaRad)} y2={oy + (sr + sb / 2) * Math.sin(alfaRad)}
-          stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
+        <rect x={big.x0} y={big.y0} width={big.x1 - big.x0} height={big.y1 - big.y0}
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <rect x={small.x0} y={small.y0} width={small.x1 - small.x0} height={small.y1 - small.y0}
+          fill="none" stroke={lineColor} strokeWidth={1.6} />
 
-        {/* Side view label */}
-        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
+        {/* a dimension (above the box) */}
+        {dimLine(small.x0, aDimY, small.x1, aDimY)}
+        {tick(small.x0, aDimY, 0, 1)}
+        {tick(small.x1, aDimY, 0, 1)}
+        <text x={(small.x0 + small.x1) / 2} y={aDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+      </g>
+    );
+  };
 
-        {/* === CROSS-SECTION (right) === */}
-        <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
+  // ---------------------------------------------------------------------------
+  // Reducers: QPR6a, QPR2a, PR1a, PR7a. Form1.cs draws all four with one near-identical
+  // GDI sequence: side view on the left (small end + its m straight on the left, taper of
+  // length L, a×b end + its h straight on the right) and end view on the right (the a×b
+  // opening in its flange plus the small opening). Each renderer does its own Form1
+  // normalisation and hands the scaled integers to `renderReducerLike`.
+  // ---------------------------------------------------------------------------
+  type ReducerLayout = {
+    a: number; b: number; l: number; h: number; m: number; p: number;
+    pushX: number; pushY: number;
+    /** Small opening: its size and its top-left offset from the a×b opening's top-left. */
+    small: { w: number; h: number; offX: number; offY: number };
+    /** Round small end (PR1a/PR7a): circle in the end view, plain spigot, fold lines. */
+    round: boolean;
+    /** L runs from the small end's face (QPR6a/QPR2a) or only from the taper (PR1a/PR7a), as Form1 draws it. */
+    lFromFace: boolean;
+    /** Asymmetric variants (QPR2a/PR7a): a under the box, e/f offset dimensions in the end view. */
+    asym: boolean;
+  };
 
-        {/* a dimension (above cross-section) */}
-        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 14} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+  const renderReducerLike = (cfg: ReducerLayout) => {
+    const { a, b, l, h, m, p, pushX, pushY, small, round, lFromFace, asym } = cfg;
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
 
-        {/* b dimension (right of cross-section) */}
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+    // ---- side view -------------------------------------------------------------
+    const leftFace = 20 + pushX;
+    const left = leftFace + m;
+    const right = left + l;
+    const rightFace = right + h;
+    const yb0 = 20 + pushY;
+    const yb1 = yb0 + b;
+    const ys0 = yb0 + small.offY;
+    const ys1 = ys0 + small.h;
+    const yc = (ys0 + ys1) / 2;
 
-        {/* Cross-section label */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
+    // Form1 draws the taper closed and then overdraws the a×b end's vertical (and, for the
+    // rectangular reducers, the small end's too) with the background pen, so each end runs
+    // seamlessly into its straight. Drawn here as one open path per wall.
+    const topWall = `M ${leftFace} ${ys0} L ${left} ${ys0} L ${right} ${yb0} L ${rightFace} ${yb0}`;
+    const bottomWall = `M ${leftFace} ${ys1} L ${left} ${ys1} L ${right} ${yb1} L ${rightFace} ${yb1}`;
+    // ccc → punkty2[1] / punkty2[2]: fold lines of a square-to-round transition.
+    const folds = `M ${right} ${yb0} L ${left} ${yc} L ${right} ${yb1}`;
+
+    const dDimX = leftFace - 15;
+    const mDimY = Math.min(ys0 - 12, ys0 - p - 5);
+    const hDimY = Math.min(yb0 - 12, yb0 - p - 5);
+    const lDimY = Math.max(yb1, ys1) + Math.max(15, p + 8);
+    const lStart = lFromFace ? leftFace : left;
+    const bDimX = rightFace + 15;
+
+    // ---- end view --------------------------------------------------------------
+    const smallPad = round ? 0 : p;
+    const leftMostRel = Math.min(-p, small.offX - smallPad);
+    const sectionShift = Math.max(0, bDimX + 14 - (190 + pushX + leftMostRel) + 6);
+    const sx = 190 + pushX + sectionShift;
+
+    const box = { x0: sx, y0: yb0, x1: sx + a, y1: yb1 };
+    const boxFl = { x0: box.x0 - p, y0: box.y0 - p, x1: box.x1 + p, y1: box.y1 + p };
+    const sm = { x0: sx + small.offX, y0: yb0 + small.offY, x1: sx + small.offX + small.w, y1: yb0 + small.offY + small.h };
+    const smFl = { x0: sm.x0 - smallPad, y0: sm.y0 - smallPad, x1: sm.x1 + smallPad, y1: sm.y1 + smallPad };
+    const circle = { cx: (sm.x0 + sm.x1) / 2, cy: (sm.y0 + sm.y1) / 2, r: small.w / 2 };
+
+    const topMost = Math.min(boxFl.y0, smFl.y0);
+    const bottomMost = Math.max(boxFl.y1, smFl.y1);
+    const rightMost = Math.max(boxFl.x1, smFl.x1);
+
+    // Form1 puts a above the box for the symmetric reducers and below it for the
+    // asymmetric ones (their e sits right of the box and f above it); c goes under the
+    // small opening. The stacking keeps them clear of each other and of both flanges.
+    const cDimY = asym ? bottomMost + 15 : Math.max(sm.y1 + 15, bottomMost + 8);
+    const aDimY = asym
+      ? (round ? bottomMost + 15 : cDimY + 16)
+      : Math.min(box.y0 - 15, boxFl.y0 - 8);
+    const fDimY = topMost - 15;
+    const eDimX = rightMost + 15;
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={topWall} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <path d={bottomWall} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {round ? (
+          <>
+            <path d={folds} fill="none" stroke={lineColor} strokeWidth={1.2} />
+            {/* Round end: seam at the transition and a plain end line at the spigot (no flange). */}
+            <line x1={left} y1={ys0} x2={left} y2={ys1} stroke={lineColor} strokeWidth={1.2} />
+            <line x1={leftFace} y1={ys0} x2={leftFace} y2={ys1} stroke={lineColor} strokeWidth={1.4} />
+          </>
+        ) : (
+          <>
+            {/* Small end flange: face line (p past each wall) and its inner edge p in. */}
+            <line x1={leftFace} y1={ys0 - p} x2={leftFace} y2={ys1 + p} stroke={lineColor} strokeWidth={1.4} />
+            <line x1={leftFace + p} y1={ys0} x2={leftFace + p} y2={ys1} stroke={lineColor} strokeWidth={1.2} />
+          </>
+        )}
+        {/* a×b end flange. */}
+        <line x1={rightFace} y1={yb0 - p} x2={rightFace} y2={yb1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={rightFace - p} y1={yb0} x2={rightFace - p} y2={yb1} stroke={lineColor} strokeWidth={1.2} />
+
+        {/* d dimension (left of the small end) */}
+        {dimLine(dDimX, ys0, dDimX, ys1)}
+        {tick(dDimX, ys0, 1, 0)}
+        {tick(dDimX, ys1, 1, 0)}
+        <text x={dDimX - 6} y={(ys0 + ys1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">d</text>
+
+        {/* m dimension (above the small end's straight) */}
+        {m > 0 && (
+          <>
+            {dimLine(leftFace, mDimY, left, mDimY)}
+            {tick(leftFace, mDimY, 0, 1)}
+            {tick(left, mDimY, 0, 1)}
+            <text x={(leftFace + left) / 2} y={mDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">m</text>
+          </>
+        )}
+
+        {/* h dimension (above the a×b end's straight) */}
+        {h > 0 && (
+          <>
+            {dimLine(right, hDimY, rightFace, hDimY)}
+            {tick(right, hDimY, 0, 1)}
+            {tick(rightFace, hDimY, 0, 1)}
+            <text x={(right + rightFace) / 2} y={hDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">h</text>
+          </>
+        )}
+
+        {/* L dimension (under the side view, spanning what Form1 spans) */}
+        {dimLine(lStart, lDimY, rightFace, lDimY)}
+        {tick(lStart, lDimY, 0, 1)}
+        {tick(rightFace, lDimY, 0, 1)}
+        <text x={(lStart + rightFace) / 2} y={lDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">L</text>
+
+        {/* b dimension (right of the a×b end; Form1's own line stops 15 short — drawn full here) */}
+        {dimLine(bDimX, yb0, bDimX, yb1)}
+        {tick(bDimX, yb0, 1, 0)}
+        {tick(bDimX, yb1, 1, 0)}
+        <text x={bDimX + 6} y={(yb0 + yb1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">b</text>
+
+        {/* ---- end view ---- */}
+        {round ? (
+          // Form1 sizes this DrawArc(…, 0, 360) like the d×d flange rect and nudges it a
+          // pixel or two right; drawn here at diameter d in its true place.
+          <circle cx={circle.cx} cy={circle.cy} r={circle.r} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        ) : (
+          <>
+            <rect x={sm.x0} y={sm.y0} width={sm.x1 - sm.x0} height={sm.y1 - sm.y0}
+              fill="none" stroke={lineColor} strokeWidth={1.6} />
+            <rect x={smFl.x0} y={smFl.y0} width={smFl.x1 - smFl.x0} height={smFl.y1 - smFl.y0}
+              fill="none" stroke={lineColor} strokeWidth={1.2} />
+          </>
+        )}
+        <rect x={box.x0} y={box.y0} width={box.x1 - box.x0} height={box.y1 - box.y0}
+          fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <rect x={boxFl.x0} y={boxFl.y0} width={boxFl.x1 - boxFl.x0} height={boxFl.y1 - boxFl.y0}
+          fill="none" stroke={lineColor} strokeWidth={1.2} />
+
+        {/* a dimension */}
+        {dimLine(box.x0, aDimY, box.x1, aDimY)}
+        {tick(box.x0, aDimY, 0, 1)}
+        {tick(box.x1, aDimY, 0, 1)}
+        <text x={(box.x0 + box.x1) / 2} y={asym ? aDimY + 14 : aDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+
+        {/* c dimension (under the small rectangular opening) */}
+        {!round && (
+          <>
+            {dimLine(sm.x0, cDimY, sm.x1, cDimY)}
+            {tick(sm.x0, cDimY, 0, 1)}
+            {tick(sm.x1, cDimY, 0, 1)}
+            <text x={(sm.x0 + sm.x1) / 2} y={cDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">c</text>
+          </>
+        )}
+
+        {/* e / f: the small opening's offset from the box's top / left edge (asymmetric only) */}
+        {asym && Math.abs(sm.y0 - box.y0) >= 1 && (
+          <>
+            {dimLine(eDimX, box.y0, eDimX, sm.y0)}
+            {tick(eDimX, box.y0, 1, 0)}
+            {tick(eDimX, sm.y0, 1, 0)}
+            <text x={eDimX + 6} y={(box.y0 + sm.y0) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">e</text>
+          </>
+        )}
+        {asym && Math.abs(sm.x0 - box.x0) >= 1 && (
+          <>
+            {dimLine(box.x0, fDimY, sm.x0, fDimY)}
+            {tick(box.x0, fDimY, 0, 1)}
+            {tick(sm.x0, fDimY, 0, 1)}
+            <text x={(box.x0 + sm.x0) / 2} y={fDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+          </>
+        )}
       </g>
     );
   };
 
   const renderReducer = () => {
-    const a = values[0] || 200;   // front width
-    const b = values[1] || 200;   // front height
-    const c = values[2] || 150;   // rear width
-    const d = values[3] || 150;   // rear height
-    const l = values[4] || 500;   // total length
-    const h = values[5] || 80;    // front straight section
-    const m = values[6] || 80;    // rear straight section
+    // QPR6a — Form1.cs `if (symbol == "QPR6a")` (redukcja symetryczna): c×d end concentric
+    // in the a×b end, both flanged.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let c = Math.max(toInt(values[2] || 150), 1);
+    let d = Math.max(toInt(values[3] || 150), 1);
+    let l = Math.max(toInt(values[4] || 500), 1);
+    // h and m are legitimately 0 (no straight section), so no fallback for them.
+    let h = Math.max(toInt(values[5] ?? 0), 0);
+    let m = Math.max(toInt(values[6] ?? 0), 0);
 
-    const maxDim = Math.max(a, b, c, d, l);
-    const sc = 105 / maxDim;
-    const sb = Math.max(b * sc, 12);
-    const sd = Math.max(d * sc, 12);
-    const sl = Math.max(l * sc, 20);
-    const sh = h * sc;
-    const sm = m * sc;
-    const sa = Math.max(a * sc, 12);
-    const sCross = Math.max(c * sc, 8);
-
-    const p = Math.min(8, Math.max(4, sb * 0.1));
-
-    // Side view
-    const svX = 25;
-    const svCY = height / 2;
-    const svT1 = svCY - sb / 2;  // front top
-    const svB1 = svCY + sb / 2;  // front bottom
-    const svT2 = svCY - sd / 2;  // rear top
-    const svB2 = svCY + sd / 2;  // rear bottom
-
-    const dimTopY = Math.min(svT1, svT2) - p - 10;
-    const dimBotY = Math.max(svB1, svB2) + p + 15;
-
-    // Cross-section position
-    const crossX = svX + sl + 45;
-    const crossY = svCY - sb / 2;
-
-    return (
-      <g>
-        {/* View labels */}
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* === Side view === */}
-        {/* Front vertical + flange */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
-        {/* Front straight — top */}
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
-        {/* Front straight — bottom */}
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
-        {/* Taper — top */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Taper — bottom */}
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Rear straight — top */}
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Rear straight — bottom */}
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Rear vertical + flange */}
-        <line x1={svX + sl} y1={svT2 - p} x2={svX + sl} y2={svB2 + p} stroke={lineColor} strokeWidth={2.2} />
-
-        {/* Dashed division lines at h and L-m */}
-        {sh > 1 && (
-          <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-        {sm > 1 && (
-          <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-
-        {/* b dimension — left (front height) */}
-        <line x1={svX - 16} y1={svT1} x2={svX - 16} y2={svB1}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX - 20} y={svCY + 4} textAnchor="end" fontSize={11} fill="#555555">b</text>
-
-        {/* d dimension — right (rear height) */}
-        <line x1={svX + sl + 16} y1={svT2} x2={svX + sl + 16} y2={svB2}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl + 21} y={svCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
-
-        {/* L dimension — below */}
-        <line x1={svX} y1={dimBotY} x2={svX + sl} y2={dimBotY}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl / 2} y={dimBotY + 13} textAnchor="middle" fontSize={11} fill="#555555">L</text>
-
-        {/* h dimension — above front section */}
-        {sh > 3 && (
-          <>
-            <line x1={svX} y1={dimTopY} x2={svX + sh} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sh / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">h</text>
-          </>
-        )}
-
-        {/* m dimension — above rear section */}
-        {sm > 3 && (
-          <>
-            <line x1={svX + sl - sm} y1={dimTopY} x2={svX + sl} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sl - sm / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">m</text>
-          </>
-        )}
-
-        {/* === Cross-section: front a×b solid, rear c×d dashed === */}
-        <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        {/* Flange frame */}
-        <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-        {/* Rear opening c×d dashed inside */}
-        <rect x={crossX + (sa - sCross) / 2} y={crossY + (sb - sd) / 2} width={sCross} height={sd}
-          fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
-
-        {/* a dimension above cross-section */}
-        <line x1={crossX} y1={crossY - p - 12} x2={crossX + sa} y2={crossY - p - 12}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + sa / 2} y={crossY - p - 16} textAnchor="middle" fontSize={11} fill="#555555">a</text>
-
-        {/* c label near dashed inner rect */}
-        <text x={crossX + sa / 2} y={crossY + sb + p + 12}
-          textAnchor="middle" fontSize={10} fill="#555555">c</text>
-      </g>
-    );
-  };
-
-  const renderAsymReducer = () => {
-    // QPR2a: asymmetric reducer
-    // labels: a, b, c, d, L, h, m, e, f
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const c = values[2] || 150;
-    const d = values[3] || 150;
-    const l = values[4] || 500;
-    const h = values[5] || 80;
-    const m = values[6] || 80;
-    const e = values[7] || 20;  // offset from top
-    const f = values[8] || 20;  // offset from left
-
-    const maxDim = Math.max(a, b, c, d, l);
-    const sc = 105 / maxDim;
-    const sb = Math.max(b * sc, 12);
-    const sd = Math.max(d * sc, 12);
-    const sl = Math.max(l * sc, 20);
-    const sh = h * sc;
-    const sm = m * sc;
-    const sa = Math.max(a * sc, 12);
-    const sCross = Math.max(c * sc, 8);
-    const se = e * sc;
-    const sf = f * sc;
-
-    const p = Math.min(8, Math.max(4, sb * 0.1));
-
-    // Side view — rear rect is offset vertically by e
-    const svX = 25;
-    const svCY = height / 2;
-    const svT1 = svCY - sb / 2;
-    const svB1 = svCY + sb / 2;
-    // Rear rect top = front top + se, rear bottom = rear top + sd
-    const svT2 = svT1 + se;
-    const svB2 = svT2 + sd;
-
-    const dimTopY = Math.min(svT1, svT2) - p - 10;
-    const dimBotY = Math.max(svB1, svB2) + p + 15;
-
-    const crossX = svX + sl + 45;
-    const crossY = svCY - sb / 2;
-
-    return (
-      <g>
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* Front vertical + flange */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
-        {/* Asymmetric taper */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX + sl} y1={svT2 - p} x2={svX + sl} y2={svB2 + p} stroke={lineColor} strokeWidth={2.2} />
-
-        {sh > 1 && (
-          <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-        {sm > 1 && (
-          <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-
-        {/* b dimension — left */}
-        <line x1={svX - 16} y1={svT1} x2={svX - 16} y2={svB1}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX - 20} y={svCY + 4} textAnchor="end" fontSize={11} fill="#555555">b</text>
-
-        {/* d dimension — right */}
-        <line x1={svX + sl + 16} y1={svT2} x2={svX + sl + 16} y2={svB2}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl + 28} y={(svT2 + svB2) / 2 + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
-
-        {/* L dimension */}
-        <line x1={svX} y1={dimBotY} x2={svX + sl} y2={dimBotY}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl / 2} y={dimBotY + 13} textAnchor="middle" fontSize={11} fill="#555555">L</text>
-
-        {sh > 3 && (
-          <>
-            <line x1={svX} y1={dimTopY} x2={svX + sh} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sh / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">h</text>
-          </>
-        )}
-        {sm > 3 && (
-          <>
-            <line x1={svX + sl - sm} y1={dimTopY} x2={svX + sl} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sl - sm / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">m</text>
-          </>
-        )}
-
-        {/* Cross-section: front a×b solid, rear c×d dashed offset */}
-        <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-        {/* Rear c×d dashed offset by e,f */}
-        <rect x={crossX + sf} y={crossY + se} width={sCross} height={sd}
-          fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
-
-        {/* a dimension */}
-        <line x1={crossX} y1={crossY - p - 12} x2={crossX + sa} y2={crossY - p - 12}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + sa / 2} y={crossY - p - 16} textAnchor="middle" fontSize={11} fill="#555555">a</text>
-
-        {/* e dimension (right side) */}
-        {se > 2 && (
-          <>
-            <line x1={crossX + sf + sCross + 6} y1={crossY} x2={crossX + sf + sCross + 6} y2={crossY + se}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={crossX + sf + sCross + 12} y={crossY + se / 2 + 4} textAnchor="start" fontSize={9} fill="#9b9b9b">e</text>
-          </>
-        )}
-        {/* f dimension (bottom) */}
-        {sf > 2 && (
-          <>
-            <line x1={crossX} y1={crossY + se + sd + 8} x2={crossX + sf} y2={crossY + se + sd + 8}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={crossX + sf / 2} y={crossY + se + sd + 20} textAnchor="middle" fontSize={9} fill="#9b9b9b">f</text>
-          </>
-        )}
-      </g>
-    );
-  };
-
-  const renderSquareToRoundReducer = () => {
-    // PR1a: square-to-round symmetric reducer
-    // labels: a [mm], b [mm], d [mm], L [mm], h [mm], m [mm]
-    const a = values[0] || 200;   // front width
-    const b = values[1] || 200;   // front height
-    const d = values[2] || 150;   // rear circle diameter
-    const l = values[3] || 500;   // total length
-    const h = values[4] || 80;    // front straight section
-    const m = values[5] || 80;    // rear straight section
-
-    const maxDim = Math.max(a, b, d, l);
-    const sc = 100 / maxDim;
-    const sb = Math.max(b * sc, 12);
-    const sd = Math.max(d * sc, 8);
-    const sl = Math.max(l * sc, 20);
-    const sh = h * sc;
-    const sm = m * sc;
-    const sa = Math.max(a * sc, 12);
-    const sr = sd / 2; // radius in drawing
-
-    const p = Math.min(8, Math.max(4, sb * 0.1));
-
-    // Side view
-    const svX = 25;
-    const svCY = height / 2;
-    const svT1 = svCY - sb / 2;  // front top
-    const svB1 = svCY + sb / 2;  // front bottom
-    const svT2 = svCY - sd / 2;  // rear top (circle diameter)
-    const svB2 = svCY + sd / 2;  // rear bottom
-
-    const dimTopY = Math.min(svT1, svT2) - p - 10;
-    const dimBotY = Math.max(svB1, svB2) + p + 15;
-
-    // Cross-section position (right part)
-    const crossX = svX + sl + 45;
-    const crossY = svCY - sb / 2;
-
-    return (
-      <g>
-        {/* View labels */}
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* === Side view === */}
-        {/* Front vertical + flange */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
-        {/* Front straight — top */}
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
-        {/* Front straight — bottom */}
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
-        {/* Taper — top */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Taper — bottom */}
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Rear straight — top */}
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Rear straight — bottom */}
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        {/* Rear — circle symbol (small arc/ellipse at rear end) */}
-        <ellipse cx={svX + sl} cy={svCY} rx={3} ry={sd / 2}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-
-        {/* Dashed division lines at h and L-m */}
-        {sh > 1 && (
-          <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-        {sm > 1 && (
-          <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-
-        {/* b dimension — left (front height) */}
-        <line x1={svX - 16} y1={svT1} x2={svX - 16} y2={svB1}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX - 20} y={svCY + 4} textAnchor="end" fontSize={11} fill="#555555">b</text>
-
-        {/* d dimension — right (rear diameter) */}
-        <line x1={svX + sl + 18} y1={svT2} x2={svX + sl + 18} y2={svB2}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl + 23} y={svCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
-
-        {/* L dimension — below */}
-        <line x1={svX} y1={dimBotY} x2={svX + sl} y2={dimBotY}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl / 2} y={dimBotY + 13} textAnchor="middle" fontSize={11} fill="#555555">L</text>
-
-        {/* h dimension — above front section */}
-        {sh > 3 && (
-          <>
-            <line x1={svX} y1={dimTopY} x2={svX + sh} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sh / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">h</text>
-          </>
-        )}
-
-        {/* m dimension — above rear section */}
-        {sm > 3 && (
-          <>
-            <line x1={svX + sl - sm} y1={dimTopY} x2={svX + sl} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sl - sm / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">m</text>
-          </>
-        )}
-
-        {/* === Cross-section: front a×b rectangle + rear circle dashed === */}
-        <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        {/* Flange frame */}
-        <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-        {/* Rear circular opening dashed inside */}
-        <circle cx={crossX + sa / 2} cy={svCY} r={sr}
-          fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
-
-        {/* a dimension above cross-section */}
-        <line x1={crossX} y1={crossY - p - 12} x2={crossX + sa} y2={crossY - p - 12}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + sa / 2} y={crossY - p - 16} textAnchor="middle" fontSize={11} fill="#555555">a</text>
-      </g>
-    );
-  };
-
-  const renderAsymSquareToRoundReducer = () => {
-    // PR7a: asymmetric square-to-round reducer
-    // labels: a [mm], b [mm], d [mm], L [mm], e [mm], f [mm], h [mm], m [mm]
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const d = values[2] || 150;
-    const l = values[3] || 500;
-    const e = values[4] || 30;    // offset from top edge to circle edge
-    const f = values[5] || 30;    // offset from left edge to circle edge
-    const h = values[6] || 80;
-    const m = values[7] || 80;
-
-    const maxDim = Math.max(a, b, d, l);
-    const sc = 100 / maxDim;
-    const sb = Math.max(b * sc, 12);
-    const sd = Math.max(d * sc, 8);
-    const sl = Math.max(l * sc, 20);
-    const sh = h * sc;
-    const sm = m * sc;
-    const sa = Math.max(a * sc, 12);
-    const se = e * sc;
-    const sf = f * sc;
-    const sr = sd / 2;
-
-    const p = Math.min(8, Math.max(4, sb * 0.1));
-
-    // Side view: circle is offset so rear top/bottom are asymmetric
-    const svX = 25;
-    const svCY = height / 2;
-    const svT1 = svCY - sb / 2;
-    const svB1 = svCY + sb / 2;
-    // Circle center offset from rectangle center in drawing Y: topEdge + e + r = svT1 + se + sr
-    const cirCY = svT1 + se + sr;
-    const svT2 = cirCY - sr;  // rear top
-    const svB2 = cirCY + sr;  // rear bottom
-
-    const dimTopY = Math.min(svT1, svT2) - p - 10;
-    const dimBotY = Math.max(svB1, svB2) + p + 15;
-
-    const crossX = svX + sl + 45;
-    const crossY = svCY - sb / 2;
-    // Circle center in cross-section
-    const cirCrossX = crossX + sf + sr;
-    const cirCrossY = crossY + se + sr;
-
-    return (
-      <g>
-        <text x={svX + sl / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
-        <text x={crossX + sa / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* === Side view === */}
-        <line x1={svX} y1={svT1 - p} x2={svX} y2={svB1 + p} stroke={lineColor} strokeWidth={2.2} />
-        <line x1={svX} y1={svT1} x2={svX + sh} y2={svT1} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX} y1={svB1} x2={svX + sh} y2={svB1} stroke={lineColor} strokeWidth={1.8} />
-        {/* Asymmetric taper */}
-        <line x1={svX + sh} y1={svT1} x2={svX + sl - sm} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX + sh} y1={svB1} x2={svX + sl - sm} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svT2} x2={svX + sl} y2={svT2} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={svX + sl - sm} y1={svB2} x2={svX + sl} y2={svB2} stroke={lineColor} strokeWidth={1.8} />
-        <ellipse cx={svX + sl} cy={cirCY} rx={3} ry={sr}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-
-        {sh > 1 && (
-          <line x1={svX + sh} y1={svT1} x2={svX + sh} y2={svB1}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-        {sm > 1 && (
-          <line x1={svX + sl - sm} y1={svT2} x2={svX + sl - sm} y2={svB2}
-            stroke={lineColor} strokeWidth={0.7} strokeDasharray="3 2" />
-        )}
-
-        {/* b dimension — left */}
-        <line x1={svX - 16} y1={svT1} x2={svX - 16} y2={svB1}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX - 20} y={svCY + 4} textAnchor="end" fontSize={11} fill="#555555">b</text>
-
-        {/* d dimension — right */}
-        <line x1={svX + sl + 18} y1={svT2} x2={svX + sl + 18} y2={svB2}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl + 23} y={cirCY + 4} textAnchor="start" fontSize={11} fill="#555555">d</text>
-
-        {/* L dimension */}
-        <line x1={svX} y1={dimBotY} x2={svX + sl} y2={dimBotY}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={svX + sl / 2} y={dimBotY + 13} textAnchor="middle" fontSize={11} fill="#555555">L</text>
-
-        {sh > 3 && (
-          <>
-            <line x1={svX} y1={dimTopY} x2={svX + sh} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sh / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">h</text>
-          </>
-        )}
-        {sm > 3 && (
-          <>
-            <line x1={svX + sl - sm} y1={dimTopY} x2={svX + sl} y2={dimTopY}
-              stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={svX + sl - sm / 2} y={dimTopY - 3} textAnchor="middle" fontSize={10} fill="#555555">m</text>
-          </>
-        )}
-
-        {/* === Cross-section === */}
-        <rect x={crossX} y={crossY} width={sa} height={sb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - p} y={crossY - p} width={sa + 2 * p} height={sb + 2 * p}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-        {/* Asymmetric circle (offset by e,f) */}
-        <circle cx={cirCrossX} cy={cirCrossY} r={sr}
-          fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
-
-        {/* a dimension */}
-        <line x1={crossX} y1={crossY - p - 12} x2={crossX + sa} y2={crossY - p - 12}
-          stroke="#9b9b9b" strokeWidth={1} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + sa / 2} y={crossY - p - 16} textAnchor="middle" fontSize={11} fill="#555555">a</text>
-
-        {/* e dimension — from top of rect to top of circle (in cross-section) */}
-        {se > 2 && (
-          <>
-            <line x1={cirCrossX + sr + 8} y1={crossY} x2={cirCrossX + sr + 8} y2={cirCrossY - sr}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={cirCrossX + sr + 14} y={crossY + se / 2 + 4} textAnchor="start" fontSize={9} fill="#9b9b9b">e</text>
-          </>
-        )}
-
-        {/* f dimension — from left of rect to left of circle (in cross-section) */}
-        {sf > 2 && (
-          <>
-            <line x1={crossX} y1={cirCrossY + sr + 8} x2={cirCrossX - sr} y2={cirCrossY + sr + 8}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={crossX + sf / 2} y={cirCrossY + sr + 20} textAnchor="middle" fontSize={9} fill="#9b9b9b">f</text>
-          </>
-        )}
-      </g>
-    );
-  };
-
-  const renderReductionBendParametric = () => {
-    // QBRa: reduction bend — params: a, d, b, e, f, r, alfa
-    const a = values[0] || 200;
-    const d = values[1] || 150;
-    const b = values[2] || 200;
-    const e = values[3] || 150;
-    const f = values[4] || 150;
-    const r = values[5] || 200;
-    const alfa = values[6] || 90;
-    const alfaRad = (alfa * Math.PI) / 180;
-
-    const bendAreaW = width * 0.6;
-
-    const eDirX = -Math.sin(alfaRad);
-    const eDirY = Math.cos(alfaRad);
-
-    // Arc end points (inner at r, outer at r+d)
-    const arcEndIx = r * Math.cos(alfaRad);
-    const arcEndIy = r * Math.sin(alfaRad);
-    const arcEndOx = (r + d) * Math.cos(alfaRad);
-    const arcEndOy = (r + d) * Math.sin(alfaRad);
-    const eEndIx = arcEndIx + eDirX * e;
-    const eEndIy = arcEndIy + eDirY * e;
-    const eEndOx = arcEndOx + eDirX * e;
-    const eEndOy = arcEndOy + eDirY * e;
-
-    // Bounding box
-    const allX = [r, r + b, arcEndIx, arcEndOx, eEndIx, eEndOx, 0];
-    const allY = [-f, 0, arcEndIy, arcEndOy, eEndIy, eEndOy, r + b];
-    for (let i = 0; i <= 20; i++) {
-      const ang = (i / 20) * alfaRad;
-      const t = i / 20;
-      const outerR = r + b + (d - b) * t;
-      allX.push(outerR * Math.cos(ang));
-      allY.push(outerR * Math.sin(ang));
-    }
-    const realMinX = Math.min(...allX);
-    const realMaxX = Math.max(...allX);
-    const realMinY = Math.min(...allY);
-    const realMaxY = Math.max(...allY);
-    const realW = realMaxX - realMinX;
-    const realH = realMaxY - realMinY;
-
-    const labelMarginV = 44;
-    const labelMarginH = 30;
-    const sc = Math.min(
-      (height - labelMarginV) / realH,
-      (bendAreaW - labelMarginH) / realW
-    );
-    const sb = b * sc;
-    const sd = d * sc;
-    const se = e * sc;
-    const sf = f * sc;
-    const sr = r * sc;
-
-    const sMinX = realMinX * sc;
-    const sMaxX = realMaxX * sc;
-    const sMinY = realMinY * sc;
-    const sMaxY = realMaxY * sc;
-    const sW = sMaxX - sMinX;
-    const sH = sMaxY - sMinY;
-
-    const ox = (bendAreaW - sW) / 2 - sMinX + 5;
-    const oy = (height - sH) / 2 - sMinY + 8;
-
-    // Arc segments with interpolated outer radius
-    const arcSteps = 20;
-    const innerArc: string[] = [];
-    const outerArc: string[] = [];
-    for (let i = 0; i <= arcSteps; i++) {
-      const angle = (i / arcSteps) * alfaRad;
-      const t = i / arcSteps;
-      const outerR = sr + sb + (sd - sb) * t;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      innerArc.push(`${ox + sr * cos},${oy + sr * sin}`);
-      outerArc.push(`${ox + outerR * cos},${oy + outerR * sin}`);
-    }
-
-    // F-leg (bottom, at angle=0, width b)
-    const vInnerX = ox + sr;
-    const vOuterX = ox + sr + sb;
-    const vTop = oy;
-    const vTopEnd = vTop - sf;
-
-    // E-leg (tangent at angle alfa, width d)
-    const eIStartX = ox + sr * Math.cos(alfaRad);
-    const eIStartY = oy + sr * Math.sin(alfaRad);
-    const eOStartX = ox + (sr + sd) * Math.cos(alfaRad);
-    const eOStartY = oy + (sr + sd) * Math.sin(alfaRad);
-    const sfDirX = -Math.sin(alfaRad);
-    const sfDirY = Math.cos(alfaRad);
-    const eIEndX = eIStartX + sfDirX * se;
-    const eIEndY = eIStartY + sfDirY * se;
-    const eOEndX = eOStartX + sfDirX * se;
-    const eOEndY = eOStartY + sfDirY * se;
-
-    const flangeNX = Math.cos(alfaRad);
-    const flangeNY = Math.sin(alfaRad);
-
-    // Cross-section
-    const crossAreaX = bendAreaW + 10;
-    const crossAreaW = width - crossAreaX - 10;
-    const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / Math.max(a, b);
-    const ca = Math.max(a * crossScale, 14);
-    const cb = Math.max(b * crossScale, 14);
-    const cd = Math.max(d * crossScale, 14);
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - ca) / 2;
-    const crossY = (height - cb) / 2 + 4;
-
-    return (
-      <g>
-        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
-
-        {/* Outer wall: f-leg → arc → e-leg */}
-        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={outerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={`${eOStartX},${eOStartY} ${eOEndX},${eOEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Inner wall: f-leg → arc → e-leg */}
-        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={innerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={`${eIStartX},${eIStartY} ${eIEndX},${eIEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Flanges */}
-        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke={lineColor} strokeWidth={2} />
-        <line x1={eIEndX - flangeNX * 3} y1={eIEndY - flangeNY * 3}
-              x2={eOEndX + flangeNX * 3} y2={eOEndY + flangeNY * 3} stroke={lineColor} strokeWidth={2} />
-
-        {/* b dimension — f-leg width */}
-        <line x1={vInnerX} y1={vTopEnd - 10} x2={vOuterX} y2={vTopEnd - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(vInnerX + vOuterX) / 2} y={vTopEnd - 13} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        {/* d dimension — e-leg width */}
-        {(() => {
-          const dOff = 12;
-          const dStartX = eIEndX + flangeNX * dOff;
-          const dStartY = eIEndY + flangeNY * dOff;
-          const dEndX = eOEndX + flangeNX * dOff;
-          const dEndY = eOEndY + flangeNY * dOff;
-          const dLabelX = (dStartX + dEndX) / 2 + sfDirX * 4;
-          const dLabelY = (dStartY + dEndY) / 2 + sfDirY * 4 + 3.8;
-          return (
-            <>
-              <line x1={dStartX} y1={dStartY} x2={dEndX} y2={dEndY}
-                stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-              <text x={dLabelX} y={dLabelY} textAnchor="end" fontSize={10} fill="#555555">d</text>
-            </>
-          );
-        })()}
-
-        {/* f dimension — f-leg length */}
-        <line x1={vOuterX + 12} y1={vTopEnd} x2={vOuterX + 12} y2={vTop}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={vOuterX + 22} y={(vTopEnd + vTop) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">f</text>
-
-        {/* e dimension — e-leg length */}
-        {(() => {
-          const eOff = 12;
-          const eDimStartX = eOStartX + flangeNX * eOff;
-          const eDimStartY = eOStartY + flangeNY * eOff;
-          const eDimEndX = eOEndX + flangeNX * eOff;
-          const eDimEndY = eOEndY + flangeNY * eOff;
-          const eLabelX = (eDimStartX + eDimEndX) / 2 + flangeNX * 13;
-          const eLabelY = (eDimStartY + eDimEndY) / 2 + flangeNY * 13;
-          return (
-            <>
-              <line x1={eDimStartX} y1={eDimStartY} x2={eDimEndX} y2={eDimEndY}
-                stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-              <text x={eLabelX} y={eLabelY} textAnchor="middle" fontSize={10} fill="#555555">e</text>
-            </>
-          );
-        })()}
-
-        {/* r dimension */}
-        {(() => {
-          const midAngle = alfaRad / 2;
-          return (
-            <>
-              <line x1={ox} y1={oy} x2={ox + sr * Math.cos(midAngle)} y2={oy + sr * Math.sin(midAngle)}
-                stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
-              <text x={ox + sr * 0.45 * Math.cos(midAngle) + 3 + 5 * Math.sin(midAngle)} y={oy + sr * 0.45 * Math.sin(midAngle) - 5 * Math.cos(midAngle)} fontSize={10} fill="#555555">r</text>
-            </>
-          );
-        })()}
-
-        {/* alfa arc indicator */}
-        {alfa !== 90 && (() => {
-          const arcR = sr * 0.3;
-          const arcPts: string[] = [];
-          for (let i = 0; i <= 10; i++) {
-            const ang = (i / 10) * alfaRad;
-            arcPts.push(`${ox + arcR * Math.cos(ang)},${oy + arcR * Math.sin(ang)}`);
-          }
-          return (
-            <>
-              <polyline points={arcPts.join(' ')} fill="none" stroke="#9b9b9b" strokeWidth={0.6} />
-              <text x={ox + arcR * 1.3 * Math.cos(alfaRad / 2)} y={oy + arcR * 1.3 * Math.sin(alfaRad / 2)}
-                textAnchor="middle" fontSize={9} fill="#555555">{`α=${Math.round(alfa)}°`}</text>
-            </>
-          );
-        })()}
-
-        {/* Centerlines */}
-        <line x1={ox} y1={oy} x2={ox + sr + sb / 2} y2={oy} stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
-        <line x1={ox} y1={oy} x2={ox + (sr + sd / 2) * Math.cos(alfaRad)} y2={oy + (sr + sd / 2) * Math.sin(alfaRad)}
-          stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
-
-        {/* Cross-section */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-        {/* Solid: a×b (inlet) */}
-        <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-        {/* Dashed: a×d (outlet, centered vertically) */}
-        <rect x={crossX} y={crossY + (cb - cd) / 2} width={ca} height={cd}
-          fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
-
-        {/* a dimension */}
-        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 14} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-
-        {/* b dimension */}
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        {/* d dimension (inside cross-section, right side) */}
-        {cd < cb - 4 && (
-          <>
-            <line x1={crossX + ca + 4} y1={crossY + (cb - cd) / 2} x2={crossX + ca + 4} y2={crossY + (cb + cd) / 2}
-              stroke="#9b9b9b" strokeWidth={0.6} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={crossX + ca + (cp + 8) / 2} y={crossY + cb / 2 + 4} textAnchor="middle" fontSize={9} fill="#9b9b9b">d</text>
-          </>
-        )}
-      </g>
-    );
-  };
-
-  const renderDiffuserBend = () => {
-    // QBR1a: diffuser bend — params: a, d(inlet depth), c, b(outlet depth), e, f, r, g, alfa
-    const aVal = values[0] || 200;   // inlet z-width
-    const dVal = values[1] || 200;   // inlet radial depth (inner-to-outer)
-    const cVal = values[2] || 250;   // outlet z-width
-    const bVal = values[3] || 150;   // outlet radial depth
-    const eVal = values[4] || 150;   // e-leg length
-    const fVal = values[5] || 150;   // f-leg length
-    const rVal = values[6] || 200;   // inner bend radius
-    const gVal = values[7] || 0;     // z-offset control
-    const alfa = values[8] || 90;
-    const alfaRad = (alfa * Math.PI) / 180;
-
-    const bendAreaW = width * 0.6;
-
-    const eDirX = -Math.sin(alfaRad);
-    const eDirY = Math.cos(alfaRad);
-
-    // Arc end points — inner at r, outer transitions from r+dVal to r+bVal
-    const arcEndIx = rVal * Math.cos(alfaRad);
-    const arcEndIy = rVal * Math.sin(alfaRad);
-    const arcEndOx = (rVal + bVal) * Math.cos(alfaRad);
-    const arcEndOy = (rVal + bVal) * Math.sin(alfaRad);
-    const eEndIx = arcEndIx + eDirX * eVal;
-    const eEndIy = arcEndIy + eDirY * eVal;
-    const eEndOx = arcEndOx + eDirX * eVal;
-    const eEndOy = arcEndOy + eDirY * eVal;
-
-    // Bounding box
-    const allX = [rVal, rVal + dVal, arcEndIx, arcEndOx, eEndIx, eEndOx, 0];
-    const allY = [-fVal, 0, arcEndIy, arcEndOy, eEndIy, eEndOy, rVal + dVal];
-    for (let i = 0; i <= 20; i++) {
-      const ang = (i / 20) * alfaRad;
-      const t = i / 20;
-      const outerR = rVal + dVal + (bVal - dVal) * t;
-      allX.push(outerR * Math.cos(ang));
-      allY.push(outerR * Math.sin(ang));
-    }
-    const realMinX = Math.min(...allX);
-    const realMaxX = Math.max(...allX);
-    const realMinY = Math.min(...allY);
-    const realMaxY = Math.max(...allY);
-    const realW = realMaxX - realMinX;
-    const realH = realMaxY - realMinY;
-
-    const labelMarginV = 44;
-    const labelMarginH = 30;
-    const sc = Math.min(
-      (height - labelMarginV) / realH,
-      (bendAreaW - labelMarginH) / realW
-    );
-    const sd = dVal * sc;
-    const sb = bVal * sc;
-    const se = eVal * sc;
-    const sf = fVal * sc;
-    const sr = rVal * sc;
-
-    const sMinX = realMinX * sc;
-    const sMaxX = realMaxX * sc;
-    const sMinY = realMinY * sc;
-    const sMaxY = realMaxY * sc;
-    const sW = sMaxX - sMinX;
-    const sH = sMaxY - sMinY;
-
-    const ox = (bendAreaW - sW) / 2 - sMinX + 5;
-    const oy = (height - sH) / 2 - sMinY + 8;
-
-    // Arc segments with interpolated outer radius
-    const arcSteps = 20;
-    const innerArc: string[] = [];
-    const outerArc: string[] = [];
-    for (let i = 0; i <= arcSteps; i++) {
-      const angle = (i / arcSteps) * alfaRad;
-      const t = i / arcSteps;
-      const outerR = sr + sd + (sb - sd) * t;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      innerArc.push(`${ox + sr * cos},${oy + sr * sin}`);
-      outerArc.push(`${ox + outerR * cos},${oy + outerR * sin}`);
-    }
-
-    // F-leg (bottom, width dVal)
-    const vInnerX = ox + sr;
-    const vOuterX = ox + sr + sd;
-    const vTop = oy;
-    const vTopEnd = vTop - sf;
-
-    // E-leg (tangent at alfa, width bVal)
-    const eIStartX = ox + sr * Math.cos(alfaRad);
-    const eIStartY = oy + sr * Math.sin(alfaRad);
-    const eOStartX = ox + (sr + sb) * Math.cos(alfaRad);
-    const eOStartY = oy + (sr + sb) * Math.sin(alfaRad);
-    const sfDirX = -Math.sin(alfaRad);
-    const sfDirY = Math.cos(alfaRad);
-    const eIEndX = eIStartX + sfDirX * se;
-    const eIEndY = eIStartY + sfDirY * se;
-    const eOEndX = eOStartX + sfDirX * se;
-    const eOEndY = eOStartY + sfDirY * se;
-
-    const flangeNX = Math.cos(alfaRad);
-    const flangeNY = Math.sin(alfaRad);
-
-    // Cross-section
-    const crossAreaX = bendAreaW + 10;
-    const crossAreaW = width - crossAreaX - 10;
-    const maxCross = Math.max(aVal, cVal, dVal, bVal);
-    const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / maxCross;
-    const ca = Math.max(aVal * crossScale, 14);
-    const cd = Math.max(dVal * crossScale, 14);
-    const cc = Math.max(cVal * crossScale, 14);
-    const cbv = Math.max(bVal * crossScale, 14);
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - Math.max(ca, cc)) / 2;
-    const crossY = (height - Math.max(cd, cbv)) / 2 + 4;
-
-    // Outlet z-offset for cross-section
-    let gg = 0;
-    if (cVal <= aVal) {
-      gg = (aVal - cVal) / 2 - gVal;
-    } else {
-      gg = (cVal - aVal) / 2 + gVal;
-    }
-    const crossGg = gg * crossScale;
-    // Outlet rect position in cross-section (offset from inlet)
-    const outX = crossX + (ca - cc) / 2 - crossGg;
-    const outY = crossY + (cd - cbv) / 2;
-
-    return (
-      <g>
-        <text x={bendAreaW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
-
-        {/* Outer wall */}
-        <polyline points={`${vOuterX},${vTopEnd} ${vOuterX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={outerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={`${eOStartX},${eOStartY} ${eOEndX},${eOEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Inner wall */}
-        <polyline points={`${vInnerX},${vTopEnd} ${vInnerX},${vTop}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={innerArc.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={`${eIStartX},${eIStartY} ${eIEndX},${eIEndY}`} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Flanges */}
-        <line x1={vInnerX - 3} y1={vTopEnd} x2={vOuterX + 3} y2={vTopEnd} stroke={lineColor} strokeWidth={2} />
-        <line x1={eIEndX - flangeNX * 3} y1={eIEndY - flangeNY * 3}
-              x2={eOEndX + flangeNX * 3} y2={eOEndY + flangeNY * 3} stroke={lineColor} strokeWidth={2} />
-
-        {/* d dimension — f-leg width (inlet radial) */}
-        <line x1={vInnerX} y1={vTopEnd - 10} x2={vOuterX} y2={vTopEnd - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(vInnerX + vOuterX) / 2} y={vTopEnd - 13} textAnchor="middle" fontSize={10} fill="#555555">d</text>
-
-        {/* b dimension — e-leg width (outlet radial) */}
-        {(() => {
-          const dOff = 12;
-          const dStartX = eIEndX + flangeNX * dOff;
-          const dStartY = eIEndY + flangeNY * dOff;
-          const dEndX = eOEndX + flangeNX * dOff;
-          const dEndY = eOEndY + flangeNY * dOff;
-          const dLabelX = (dStartX + dEndX) / 2 + sfDirX * 8;
-          const dLabelY = (dStartY + dEndY) / 2 + sfDirY * 8 + 3.5;
-          return (
-            <>
-              <line x1={dStartX} y1={dStartY} x2={dEndX} y2={dEndY}
-                stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-              <text x={dLabelX} y={dLabelY} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-            </>
-          );
-        })()}
-
-        {/* f dimension */}
-        <line x1={vOuterX + 12} y1={vTopEnd} x2={vOuterX + 12} y2={vTop}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={vOuterX + 22} y={(vTopEnd + vTop) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">f</text>
-
-        {/* e dimension */}
-        {(() => {
-          const eOff = 12;
-          const eDimStartX = eOStartX + flangeNX * eOff;
-          const eDimStartY = eOStartY + flangeNY * eOff;
-          const eDimEndX = eOEndX + flangeNX * eOff;
-          const eDimEndY = eOEndY + flangeNY * eOff;
-          const eLabelX = (eDimStartX + eDimEndX) / 2 + flangeNX * 14;
-          const eLabelY = (eDimStartY + eDimEndY) / 2 + flangeNY * 14;
-          return (
-            <>
-              <line x1={eDimStartX} y1={eDimStartY} x2={eDimEndX} y2={eDimEndY}
-                stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-              <text x={eLabelX} y={eLabelY} textAnchor="middle" fontSize={10} fill="#555555">e</text>
-            </>
-          );
-        })()}
-
-        {/* r dimension */}
-        {(() => {
-          const midAngle = alfaRad / 2;
-          return (
-            <>
-              <line x1={ox} y1={oy} x2={ox + sr * Math.cos(midAngle)} y2={oy + sr * Math.sin(midAngle)}
-                stroke="#9b9b9b" strokeWidth={0.8} strokeDasharray="3 2" />
-              <text x={ox + sr * 0.45 * Math.cos(midAngle) + Math.sin(midAngle) * 9} y={oy + sr * 0.45 * Math.sin(midAngle) - Math.cos(midAngle) * 9 + 3.5} textAnchor="middle" fontSize={10} fill="#555555">r</text>
-            </>
-          );
-        })()}
-
-        {/* alfa arc indicator */}
-        {alfa !== 90 && (() => {
-          const arcR = sr * 0.3;
-          const arcPts: string[] = [];
-          for (let i = 0; i <= 10; i++) {
-            const ang = (i / 10) * alfaRad;
-            arcPts.push(`${ox + arcR * Math.cos(ang)},${oy + arcR * Math.sin(ang)}`);
-          }
-          return (
-            <>
-              <polyline points={arcPts.join(' ')} fill="none" stroke="#9b9b9b" strokeWidth={0.6} />
-              <text x={ox + arcR * 1.3 * Math.cos(alfaRad / 2)} y={oy + arcR * 1.3 * Math.sin(alfaRad / 2)}
-                textAnchor="middle" fontSize={9} fill="#555555">{`α=${Math.round(alfa)}°`}</text>
-            </>
-          );
-        })()}
-
-        {/* Centerlines */}
-        <line x1={ox} y1={oy} x2={ox + sr + sd / 2} y2={oy} stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
-        <line x1={ox} y1={oy} x2={ox + (sr + sb / 2) * Math.cos(alfaRad)} y2={oy + (sr + sb / 2) * Math.sin(alfaRad)}
-          stroke="#9b9b9b" strokeWidth={0.5} strokeDasharray="2 2" />
-
-        {/* Cross-section */}
-        <text x={crossX + Math.max(ca, cc) / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-        {/* Solid: a×d (inlet) */}
-        <rect x={crossX} y={crossY} width={ca} height={cd}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cd + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-        {/* Dashed: c×b (outlet, offset) */}
-        <rect x={outX} y={outY} width={cc} height={cbv}
-          fill="none" stroke="#9b9b9b" strokeWidth={1} strokeDasharray="3 2" />
-
-        {/* a dimension */}
-        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 14} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-
-        {/* d dimension (right of cross-section) */}
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cd}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cd / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">d</text>
-
-        {/* c dimension (below outlet dashed rect) */}
-        {cc > 8 && (
-          <>
-            <line x1={outX} y1={outY + cbv + 8} x2={outX + cc} y2={outY + cbv + 8}
-              stroke="#9b9b9b" strokeWidth={0.6} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={outX + cc / 2} y={outY + cbv + 20} textAnchor="middle" fontSize={9} fill="#9b9b9b">c</text>
-          </>
-        )}
-      </g>
-    );
-  };
-
-  const renderReductionElbow = () => {
-    // QBFRa: L-shaped 90° reduction elbow (matching C# Form1.cs)
-    // Params: a (depth), b (wider duct width, b≥d), d (narrower duct width),
-    //         e (straight section on d-side), f (straight section on b-side), r (inner bend radius)
-    // L-shape layout: outer rect (e+b) wide × (d+f) tall, inner corner at (e, d)
-    // Left opening: duct d×a. Bottom opening: duct b×a.
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const d = values[2] || 150;
-    const e = values[3] || 150;
-    const f = values[4] || 150;
-    const r = values[5] || 100;
-
-    const sideW = width * 0.6;
-    const totalW = e + b;
-    const totalH = d + f;
-
-    const sc = Math.min(
-      (height - 60) / totalH,
-      (sideW - 55) / totalW
-    );
-    const sb = b * sc, sd = d * sc, se = e * sc, sf = f * sc, sr = r * sc;
-    const sp = Math.min(6, Math.max(3, Math.min(sb, sd) * 0.1));
-
-    // Origin (top-left of L-shape outer boundary)
-    const ox = 38;
-    const oy = 18;
-
-    // Inner corner at (ox+se, oy+sd)
-    const icx = ox + se;
-    const icy = oy + sd;
-
-    // Key coordinates
-    const rightX = ox + se + sb;
-    const botY = oy + sd + sf;
-
-    // Arc center at (icx-sr, icy+sr); tangents: top (icx-sr, icy), right (icx, icy+sr)
-    const arcCX = icx - sr;
-    const arcCY = icy + sr;
-
-    // Generate inner arc points: from (icx-sr, icy) CW to (icx, icy+sr)
-    const arcSteps = 12;
-    const innerArcPts: string[] = [];
-    for (let i = 0; i <= arcSteps; i++) {
-      const ang = (Math.PI / 2) * (i / arcSteps);
-      const px = arcCX + sr * Math.sin(ang);
-      const py = arcCY - sr * Math.cos(ang);
-      innerArcPts.push(`${px},${py}`);
-    }
-
-    // Cross-section panel (right side): a×d rectangle
-    const crossAreaX = sideW + 10;
-    const crossAreaW = width - crossAreaX - 10;
-    const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / Math.max(a, d);
-    const ca = Math.max(a * crossScale, 14);
-    const cd = Math.max(d * crossScale, 14);
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - ca) / 2;
-    const crossY = (height - cd) / 2;
-
-    return (
-      <g>
-        {/* === LEFT VIEW: L-shape front view === */}
-
-        {/* Outer walls */}
-        <line x1={ox} y1={oy} x2={rightX} y2={oy} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={rightX} y1={oy} x2={rightX} y2={botY} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={rightX} y1={botY} x2={icx} y2={botY} stroke={lineColor} strokeWidth={1.8} />
-        <line x1={ox} y1={oy} x2={ox} y2={icy} stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Inner walls + arc */}
-        <line x1={ox} y1={icy} x2={arcCX} y2={icy} stroke={lineColor} strokeWidth={1.8} />
-        <polyline points={innerArcPts.join(' ')} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <line x1={icx} y1={arcCY} x2={icx} y2={botY} stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Left flange (d-opening at x=ox) */}
-        <line x1={ox} y1={oy - sp} x2={ox} y2={icy + sp} stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sp} y1={oy} x2={ox + sp} y2={icy} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Bottom flange (b-opening at y=botY) */}
-        <line x1={icx - sp} y1={botY} x2={rightX + sp} y2={botY} stroke={lineColor} strokeWidth={2} />
-        <line x1={icx} y1={botY - sp} x2={rightX} y2={botY - sp} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* d dimension — left side, top to inner corner */}
-        <line x1={ox - 12} y1={oy} x2={ox - 12} y2={icy}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 22} y={(oy + icy) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">d</text>
-
-        {/* f dimension — left side, inner corner to bottom */}
-        <line x1={ox - 12} y1={icy} x2={ox - 12} y2={botY}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 22} y={(icy + botY) / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">f</text>
-
-        {/* e dimension — bottom, left edge to inner corner */}
-        <line x1={ox} y1={botY + 12} x2={icx} y2={botY + 12}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(ox + icx) / 2} y={botY + 24} textAnchor="middle" fontSize={10} fill="#555555">e</text>
-
-        {/* b dimension — bottom, inner corner to right edge */}
-        <line x1={icx} y1={botY + 12} x2={rightX} y2={botY + 12}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(icx + rightX) / 2} y={botY + 24} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        {/* r dimension — dashed line from arc center to inner corner */}
-        {sr > 4 && (
-          <>
-            <line x1={arcCX} y1={arcCY} x2={icx} y2={icy}
-              stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2" />
-            <text x={icx + 2} y={icy - 4} textAnchor="start" fontSize={9} fill="#555555">r</text>
-          </>
-        )}
-
-        {/* === RIGHT PANEL: Cross-section a×d === */}
-        <text x={crossX + ca / 2} y={crossY - cp - 22} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        <rect x={crossX} y={crossY} width={ca} height={cd}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cd + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-
-        {/* a dimension on cross-section */}
-        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 14} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-
-        {/* d dimension on cross-section */}
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cd}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cd / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">d</text>
-      </g>
-    );
-  };
-
-  const renderAngleBend = () => {
-    // QBFa: symmetric 90° L-shaped elbow (d = b)
-    // Left: L-shape front view. Right: cross-section a×b.
-    // L outline (clockwise from top-left):
-    //   (ox,oy)→(ox+e+b,oy)→(ox+e+b,oy+b+f)→(ox+e,oy+b+f)→
-    //   inner vertical up to arc → ARC → inner horizontal to (ox,oy+b)→close
-    // Arc center at (corner.x - r, corner.y + r) where corner = (ox+e, oy+b)
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const e = values[2] || 150;
-    const f = values[3] || 150;
-    const r = values[4] || 100;
-
-    const sideW = width * 0.58;
-    const totalW = e + b;
-    const totalH = b + f;
-    const sc = Math.min((height - 44) / totalH, (sideW - 36) / totalW);
-    const sb = b * sc, se = e * sc, sf = f * sc, sr = r * sc;
-
-    // Origin: top-left of outer L bounding box
-    const ox = Math.max(16, (sideW - (se + sb)) / 2);
-    const oy = Math.max(10, (height - (sb + sf)) / 2);
-
-    // Inner corner point (where the L turns)
-    const cornerX = ox + se;
-    const cornerY = oy + sb;
-
-    // Arc center: offset from inner corner by radius
-    const arcCX = cornerX - sr;
-    const arcCY = cornerY + sr;
-    const fp = Math.min(8, Math.max(3, sb * 0.1)); // flange protrusion
-
-    // Arc tangent points:
-    // Top tangent: (arcCX, cornerY) = (ox+se-sr, oy+sb) — connects to horizontal inner line
-    // Right tangent: (cornerX, arcCY) = (ox+se, oy+sb+sr) — connects to vertical inner line
-    const arcSteps = 12;
-    const innerArcPts: string[] = [];
-    for (let i = 0; i <= arcSteps; i++) {
-      const angle = -Math.PI / 2 + (Math.PI / 2) * (i / arcSteps); // -90°→0°
-      innerArcPts.push(`${(arcCX + sr * Math.cos(angle)).toFixed(1)},${(arcCY + sr * Math.sin(angle)).toFixed(1)}`);
-    }
-    // [0] = (arcCX, arcCY-sr) = (ox+se-sr, oy+sb) = top tangent
-    // [last] = (arcCX+sr, arcCY) = (ox+se, oy+sb+sr) = right tangent
-
-    // L-shape outline as a closed polygon (outer edges only)
-    const outerPts = [
-      `${ox},${oy}`,                                                  // top-left
-      `${(ox + se + sb).toFixed(1)},${oy}`,                          // top-right
-      `${(ox + se + sb).toFixed(1)},${(oy + sb + sf).toFixed(1)}`,  // bottom-right
-      `${cornerX.toFixed(1)},${(oy + sb + sf).toFixed(1)}`,         // inner bottom-right
-    ].join(' ');
-
-    // Inner boundary: vertical from inner-bottom up to arc, arc, then horizontal to left, then left edge up
-    const innerPts = [
-      ...innerArcPts.reverse(),     // arc from right-tangent to top-tangent (right→up)
-      `${ox},${cornerY.toFixed(1)}`, // horizontal to left wall
-      `${ox},${oy}`,                 // left edge up to start (closes polygon)
-    ].join(' ');
-
-    // Cross section (right panel)
-    const crossAreaX = sideW + 8;
-    const crossAreaW = width - crossAreaX - 8;
-    const csc = Math.min(crossAreaW * 0.72, (height - 44) * 0.72) / Math.max(a, b, 1);
-    const ca = Math.max(a * csc, 12), cb = Math.max(b * csc, 12);
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - ca) / 2;
-    const crossY = (height - cb) / 2 + 4;
-
-    return (
-      <g>
-        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z przodu')}</text>
-
-        {/* Outer boundary: top→right→bottom-right→inner-bottom, then inner boundary back to start */}
-        <polyline points={outerPts} fill="none" stroke={lineColor} strokeWidth={1.8} />
-        {/* Inner vertical: from inner-bottom-right up to arc right-tangent */}
-        <line x1={cornerX} y1={oy + sb + sf} x2={cornerX} y2={arcCY}
-          stroke={lineColor} strokeWidth={1.8} />
-        {/* Arc + horizontal inner + left edge */}
-        <polyline points={innerPts} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Flanges at the two duct openings */}
-        {/* Left vertical flange (inlet): at left edge, height = b */}
-        <line x1={ox - fp} y1={oy} x2={ox - fp} y2={cornerY}
-          stroke={lineColor} strokeWidth={2.2} />
-        <line x1={ox + fp} y1={oy} x2={ox + fp} y2={cornerY}
-          stroke={lineColor} strokeWidth={1} />
-        {/* Bottom horizontal flange (outlet): at bottom edge of right arm, width = b */}
-        <line x1={cornerX} y1={oy + sb + sf + fp} x2={ox + se + sb} y2={oy + sb + sf + fp}
-          stroke={lineColor} strokeWidth={2.2} />
-        <line x1={cornerX} y1={oy + sb + sf - fp} x2={ox + se + sb} y2={oy + sb + sf - fp}
-          stroke={lineColor} strokeWidth={1} />
-
-        {/* e — horizontal leg dimension (bottom, spanning e width) */}
-        <line x1={ox} y1={oy + sb + sf + fp + 13} x2={ox + se} y2={oy + sb + sf + fp + 13}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + se / 2} y={oy + sb + sf + fp + 24}
-          textAnchor="middle" fontSize={10} fill="#555555">e</text>
-
-        {/* b — upper portion on left (d=b) */}
-        {sb > 8 && (
-          <>
-            <line x1={ox - fp - 13} y1={oy} x2={ox - fp - 13} y2={cornerY}
-              stroke="#9b9b9b" strokeWidth={0.8}
-              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={ox - fp - 22} y={oy + sb / 2 + 4}
-              textAnchor="middle" fontSize={10} fill="#555555">b</text>
-          </>
-        )}
-
-        {/* f — lower portion on left */}
-        {sf > 8 && (
-          <>
-            <line x1={ox - fp - 13} y1={cornerY} x2={ox - fp - 13} y2={oy + sb + sf}
-              stroke="#9b9b9b" strokeWidth={0.8}
-              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={ox - fp - 22} y={cornerY + sf / 2 + 4}
-              textAnchor="middle" fontSize={9} fill="#555555">f</text>
-          </>
-        )}
-
-        {/* r — radius line from arc center to arc */}
-        {sr > 6 && (
-          <>
-            <line x1={arcCX} y1={arcCY}
-              x2={arcCX + sr * Math.cos(-Math.PI / 4)} y2={arcCY + sr * Math.sin(-Math.PI / 4)}
-              stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2" />
-            <text x={cornerX + 2} y={cornerY - 1}
-              textAnchor="start" fontSize={9} fill="#555555">r</text>
-          </>
-        )}
-
-        {/* Cross section (right panel) */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-        <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 14}
-          textAnchor="middle" fontSize={10} fill="#555555">a</text>
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
-          textAnchor="start" fontSize={10} fill="#555555">b</text>
-      </g>
-    );
-  };
-
-  const renderEndCap = () => {
-    // QESa: rectangular end cap — params: a [mm], b [mm], e [mm] (depth)
-    const a = values[0] || 200;
-    const b = values[1] || 200;
-    const e = values[2] || 30;
-
-    // Left 58%: side view showing e (depth) × b
-    const sideW = width * 0.58;
-    const sc = Math.min((height - 44) / b, (sideW - 48) / Math.max(e, 1));
-    const sb = Math.max(b * sc, 12);
-    const se = Math.max(e * sc, 8);
-    const fp = Math.min(8, Math.max(4, sb * 0.1)); // flange protrusion
-
-    // Side view centred in left area
-    const sx = Math.max(28, (sideW - se - 40) / 2);
-    const sy = (height - sb) / 2 - 4;
-
-    // Right 42%: cross-section (a × b)
-    const crossAreaX = sideW + 8;
-    const crossAreaW = width - crossAreaX - 10;
-    const csc = Math.min(crossAreaW * 0.72, (height - 50) * 0.72) / Math.max(a, b, 1);
-    const ca = Math.max(a * csc, 12);
-    const cb = Math.max(b * csc, 12);
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - ca) / 2;
-    const crossY = (height - cb) / 2 + 4;
-
-    return (
-      <g>
-        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z boku')}</text>
-
-        {/* Flange line on left (open/mating end) */}
-        <line x1={sx} y1={sy - fp} x2={sx} y2={sy + sb + fp}
-          stroke={lineColor} strokeWidth={2.2} />
-
-        {/* Cap body rectangle (side face: e × b) */}
-        <rect x={sx} y={sy} width={se} height={sb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Closed end — thick plate line on right */}
-        <line x1={sx + se} y1={sy - 2} x2={sx + se} y2={sy + sb + 2}
-          stroke={lineColor} strokeWidth={4} />
-
-        {/* e dimension (depth) */}
-        <line x1={sx} y1={sy + sb + fp + 14} x2={sx + se} y2={sy + sb + fp + 14}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={sx + se / 2} y={sy + sb + fp + 26}
-          textAnchor="middle" fontSize={10} fill="#555555">e</text>
-
-        {/* b dimension (height) */}
-        {sb > 10 && (
-          <>
-            <line x1={sx + se + 14} y1={sy} x2={sx + se + 14} y2={sy + sb}
-              stroke="#9b9b9b" strokeWidth={0.8}
-              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={sx + se + 24} y={sy + sb / 2 + 4}
-              textAnchor="start" fontSize={10} fill="#555555">b</text>
-          </>
-        )}
-
-        {/* Cross-section */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-        <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-
-        {/* a dimension */}
-        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 14}
-          textAnchor="middle" fontSize={10} fill="#555555">a</text>
-
-        {/* b dimension (cross-section side) */}
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
-          textAnchor="start" fontSize={10} fill="#555555">b</text>
-      </g>
-    );
-  };
-
-  const renderTR1a = () => {
-    // TR1a: rectangular branch tee
-    // values: a, b, d, w, L, e, f, l3
-    // Defaults mirror the .NET app's built-in TR1a sample (Form1.cs ~L13310).
-    // "a" is the duct height, "b" the depth — matching the .NET UI labels.
-    const a   = values[0] || 200;  // main duct height (vertical in front view)
-    const b   = values[1] || 250;  // main duct depth (horizontal in cross-section)
-    const d   = values[2] || 140;  // branch z-depth (cross-section)
-    const w   = values[3] || 180;  // branch x-width (along duct length)
-    const L   = values[4] || 500;  // main duct length
-    const e   = values[5] || 250;  // branch x-offset from left
-    const f   = values[6] || 110;  // branch center offset across the depth
-    const l3  = values[7] || 80;   // branch y-length (downward)
-
-    // Left panel (~60%): front view showing main duct + branch
-    const sideW = width * 0.60;
-    const totalH = a + l3;
-    const sc = Math.min((height - 44) / totalH, (sideW - 44) / L);
-    const sL = Math.max(L * sc, 20);
-    const sb = Math.max(a * sc, 8);  // scaled main duct height in the front view (label "a")
-    const sw = Math.max(w * sc, 8);
-    const sl3 = Math.max(l3 * sc, 8);
-    const se = e * sc;
-    const fp = Math.min(7, Math.max(3, sb * 0.1)); // flange protrusion
-
-    const ox = Math.max(18, (sideW - sL) / 2);  // left margin
-    const oy = Math.max(12, (height - sb - sl3 - 8) / 2); // top margin
-
-    // Cross-section (right panel)
-    const crossAreaX = sideW + 6;
-    const crossAreaW = width - crossAreaX - 8;
-    const csc = Math.min(crossAreaW * 0.7, (height - 44) * 0.7) / Math.max(a, b, 1);
-    const ca = Math.max(b * csc, 12);  // cross-section width  = duct depth  (label "b")
-    const cb = Math.max(a * csc, 12);  // cross-section height = duct height (label "a")
-    const cd = Math.max(d * csc, 8);
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - ca) / 2;
-    const crossY = (height - cb) / 2 + 4;
-    const cf = f * csc;
-    const branchCenterX = Math.min(crossX + ca, Math.max(crossX, crossX + cf));
-    const branchLeftX = Math.max(crossX, branchCenterX - cd / 2);
-    const branchRightX = Math.min(crossX + ca, branchCenterX + cd / 2);
-    const branchY = crossY + cb * 0.22;
-    const branchH = Math.max(8, cb * 0.56);
-
-    return (
-      <g>
-        <text x={sideW / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('widok z przodu')}</text>
-
-        {/* Main duct rectangle */}
-        <rect x={ox} y={oy} width={sL} height={sb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Left flange (main duct in) */}
-        <line x1={ox} y1={oy - fp} x2={ox} y2={oy + sb + fp}
-          stroke={lineColor} strokeWidth={2.2} />
-        {/* Right flange (main duct out) */}
-        <line x1={ox + sL} y1={oy - fp} x2={ox + sL} y2={oy + sb + fp}
-          stroke={lineColor} strokeWidth={2.2} />
-
-        {/* Branch rectangle below main duct */}
-        <rect x={ox + se} y={oy + sb} width={sw} height={sl3}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        {/* Branch bottom flange */}
-        <line x1={ox + se - fp} y1={oy + sb + sl3} x2={ox + se + sw + fp} y2={oy + sb + sl3}
-          stroke={lineColor} strokeWidth={2.2} />
-
-        {/* L dimension (main duct length) */}
-        <line x1={ox} y1={oy - fp - 12} x2={ox + sL} y2={oy - fp - 12}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL / 2} y={oy - fp - 17}
-          textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* a dimension (main duct height) */}
-        <line x1={ox + sL + 12} y1={oy} x2={ox + sL + 12} y2={oy + sb}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL + 22} y={oy + sb / 2 + 4}
-          textAnchor="start" fontSize={10} fill="#555555">a</text>
-
-        {/* w dimension (branch width) */}
-        {sw > 8 && (
-          <>
-            <line x1={ox + se} y1={oy + sb + sl3 + 14} x2={ox + se + sw} y2={oy + sb + sl3 + 14}
-              stroke="#9b9b9b" strokeWidth={0.8}
-              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={ox + se + sw / 2} y={oy + sb + sl3 + 26}
-              textAnchor="middle" fontSize={10} fill="#555555">w</text>
-          </>
-        )}
-
-        {/* l3 dimension (branch height) */}
-        {sl3 > 8 && (
-          <>
-            <line x1={ox + se + sw + 12} y1={oy + sb} x2={ox + se + sw + 12} y2={oy + sb + sl3}
-              stroke="#9b9b9b" strokeWidth={0.8}
-              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={ox + se + sw + 22} y={oy + sb + sl3 / 2 + 4}
-              textAnchor="start" fontSize={10} fill="#555555">l3</text>
-          </>
-        )}
-
-        {/* e dimension (branch offset from left) */}
-        {se > 6 && (
-          <>
-            <line x1={ox} y1={oy + sb + sl3 / 2} x2={ox + se} y2={oy + sb + sl3 / 2}
-              stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2"
-              markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-            <text x={ox + se / 2} y={oy + sb + sl3 / 2 - 3}
-              textAnchor="middle" fontSize={9} fill="#555555">e</text>
-          </>
-        )}
-
-        {/* Cross-section */}
-        <text x={crossX + ca / 2} y={10} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-        <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} strokeDasharray="4 2" />
-
-        {/* Branch opening location in cross-section (d and f) */}
-        <rect x={branchLeftX} y={branchY} width={Math.max(2, branchRightX - branchLeftX)} height={branchH}
-          fill="none" stroke={lineColor} strokeWidth={1.4} strokeDasharray="3 2" />
-        <line x1={branchCenterX} y1={crossY - cp - 18} x2={branchCenterX} y2={crossY + cb + cp + 12}
-          stroke="#b3b3b3" strokeWidth={0.7} strokeDasharray="3 3" />
-
-        <line x1={crossX} y1={crossY - cp - 10} x2={crossX + ca} y2={crossY - cp - 10}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY - cp - 14}
-          textAnchor="middle" fontSize={10} fill="#555555">b</text>
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4}
-          textAnchor="start" fontSize={10} fill="#555555">a</text>
-
-        {/* d dimension (branch depth in cross-section) */}
-        <line x1={branchLeftX} y1={crossY + cb + cp + 10} x2={branchRightX} y2={crossY + cb + cp + 10}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(branchLeftX + branchRightX) / 2} y={crossY + cb + cp + 22}
-          textAnchor="middle" fontSize={10} fill="#555555">d</text>
-
-        {/* f dimension (offset to branch center in cross-section) */}
-        <line x1={crossX} y1={crossY + cb + cp + 30} x2={branchCenterX} y2={crossY + cb + cp + 30}
-          stroke="#9b9b9b" strokeWidth={0.8}
-          markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + (branchCenterX - crossX) / 2} y={crossY + cb + cp + 42}
-          textAnchor="middle" fontSize={10} fill="#555555">f</text>
-      </g>
-    );
-  };
-
-  const renderTeeJunction = () => {
-    // TR2a: tee junction with round branch (matching C# Form1.cs)
-    // Left: front view — horizontal main duct L×a, branch d×l3 going UP from top
-    // Right: cross-section — b(depth)×a(height) rectangle with the round branch
-    // Defaults mirror the .NET app's built-in TR2a sample (Form1.cs ~L13415).
-    // "a" is the duct height, "b" the depth — matching the .NET UI labels.
-    const a  = values[0] || 200;  // duct height
-    const b  = values[1] || 250;  // duct depth
-    const d  = values[2] || 140;  // branch diameter
-    const L  = values[3] || 500;  // main duct length
-    const l3 = values[4] || 80;   // branch length
-    const e  = values[5] || 250;  // branch centre offset from left
-    const f  = values[6] || 100;  // branch offset across the depth
-
-    const sideW = width * 0.6;
-    const sc = Math.min((sideW - 60) / L, (height - 60) / (a + l3));
-    const sl = L * sc, sa = a * sc, sdRaw = d * sc, sl3 = l3 * sc;
-    const sd = Math.min(sdRaw, Math.max(8, sa * 0.98));
-    const seRaw = e * sc;
-    const se = Math.min(sl - sd / 2, Math.max(sd / 2, seRaw));
-    const sp = Math.min(6, Math.max(3, Math.min(sa, sl) * 0.08));
-
-    // Main duct origin — push down to leave room for branch above
-    const ox = 30;
-    const oy = 18 + sl3;
-
-    // Main duct rectangle (l × a — front view shows length × height)
-    const mRight = ox + sl;
-    const mBot = oy + sa;
-
-    // Branch rectangle: centered at e from left, extends UPWARD from main duct top
-    const bCenterX = ox + se;
-    const bLeft = bCenterX - sd / 2;
-    const bRight = bCenterX + sd / 2;
-    const bTop = oy - sl3; // branch top (above main duct)
-
-    // Cross-section panel (right side): a×b rectangle
-    const crossAreaX = sideW + 10;
-    const crossAreaW = width - crossAreaX - 10;
-    const crossScale = Math.min(crossAreaW * 0.7, (height - 50) * 0.7) / Math.max(a, b, d);
-    const ca = Math.max(b * crossScale, 14);  // cross-section width  = duct depth  (label "b")
-    const cb = Math.max(a * crossScale, 14);  // cross-section height = duct height (label "a")
-    const cp = Math.min(6, Math.max(3, ca * 0.08));
-    const crossX = crossAreaX + (crossAreaW - ca) / 2;
-    const crossY = (height - cb) / 2 + 4;
-
-    // Branch indicator on cross-section (round branch placement by f)
-    const cdCross = Math.min(Math.max(d * crossScale, 8), Math.max(8, ca * 0.95));
-    const branchR = cdCross / 2;
-    const cfCross = f * crossScale;
-    const brCrossXRaw = crossX + ca - cfCross;
-    const brCrossX = Math.min(crossX + ca - branchR, Math.max(crossX + branchR, brCrossXRaw));
-    const brCrossY = crossY - cp - branchR;
-
-    return (
-      <g>
-        {/* === FRONT VIEW === */}
-        {/* Main duct rectangle */}
-        <rect x={ox} y={oy} width={sl} height={sa} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Left flange */}
-        <line x1={ox} y1={oy - sp} x2={ox} y2={mBot + sp} stroke={lineColor} strokeWidth={2} />
-        <line x1={ox - sp} y1={oy} x2={ox - sp} y2={mBot} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Right flange */}
-        <line x1={mRight} y1={oy - sp} x2={mRight} y2={mBot + sp} stroke={lineColor} strokeWidth={2} />
-        <line x1={mRight + sp} y1={oy} x2={mRight + sp} y2={mBot} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Branch rectangle — above main duct */}
-        <rect x={bLeft} y={bTop} width={sd} height={sl3} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* a dimension — right side of main duct */}
-        <line x1={mRight + sp + 10} y1={oy} x2={mRight + sp + 10} y2={mBot}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={mRight + sp + 18} y={(oy + mBot) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">a</text>
-
-        {/* L dimension — below main duct */}
-        <line x1={ox} y1={mBot + 12} x2={mRight} y2={mBot + 12}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(ox + mRight) / 2} y={mBot + 24} textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* d dimension — branch width, above branch */}
-        <line x1={bLeft} y1={bTop - 8} x2={bRight} y2={bTop - 8}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={bCenterX} y={bTop - 12} textAnchor="middle" fontSize={10} fill="#555555">d</text>
-
-        {/* l3 dimension — branch length, left of branch */}
-        <line x1={bLeft - 10} y1={bTop} x2={bLeft - 10} y2={oy}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={bLeft - 20} y={(bTop + oy) / 2 + 4} textAnchor="middle" fontSize={9} fill="#555555">l3</text>
-
-        {/* e dimension — from left duct edge, inside duct */}
-        <line x1={ox} y1={oy + sa * 0.3} x2={bCenterX} y2={oy + sa * 0.3}
-          stroke="#9b9b9b" strokeWidth={0.7} strokeDasharray="3 2" />
-        <text x={(ox + bCenterX) / 2} y={oy + sa * 0.3 + 12} textAnchor="middle" fontSize={9} fill="#555555">e</text>
-
-        {/* === CROSS-SECTION === */}
-        <text x={crossX + ca / 2} y={brCrossY - branchR - 30} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* Main duct cross-section a×b */}
-        <rect x={crossX} y={crossY} width={ca} height={cb}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        {/* Flanges */}
-        <rect x={crossX - cp} y={crossY - cp} width={ca + 2 * cp} height={cb + 2 * cp}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Branch indicator on cross-section (round opening) */}
-        <circle cx={brCrossX} cy={brCrossY} r={branchR}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-        <line x1={brCrossX} y1={brCrossY + branchR} x2={brCrossX} y2={crossY}
-          stroke="#b3b3b3" strokeWidth={0.7} strokeDasharray="3 2" />
-
-        {/* d dimension — branch diameter */}
-        <line x1={brCrossX - branchR} y1={brCrossY - branchR - 8} x2={brCrossX + branchR} y2={brCrossY - branchR - 8}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={brCrossX} y={brCrossY - branchR - 12} textAnchor="middle" fontSize={9} fill="#555555">d</text>
-
-        {/* b dimension — below cross-section */}
-        <line x1={crossX} y1={crossY + cb + cp + 10} x2={crossX + ca} y2={crossY + cb + cp + 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca / 2} y={crossY + cb + cp + 22} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        {/* a dimension on cross-section — right side */}
-        <line x1={crossX + ca + cp + 8} y1={crossY} x2={crossX + ca + cp + 8} y2={crossY + cb}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={crossX + ca + cp + 18} y={crossY + cb / 2 + 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-
-        {/* f dimension — from right duct edge to branch center in cross-section */}
-        <line x1={brCrossX} y1={crossY + cb + cp + 30} x2={crossX + ca} y2={crossY + cb + cp + 30}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={brCrossX + (crossX + ca - brCrossX) / 2} y={crossY + cb + cp + 42}
-          textAnchor="middle" fontSize={10} fill="#555555">f</text>
-      </g>
-    );
-  };
-
-  const renderSymmetricTee = () => {
-    // TRa: symmetric tee with curved transitions
-    // Front view: L-shaped profile with branch going UP, arcs at junctions
-    // Cross-section: a × (b+p+r) with d-section and flanges
-    const a_val = values[0] || 200;
-    const b_val = values[1] || 200;
-    const d_val = values[2] || 150;
-    const h_val = values[3] || 100;
-    const L_val = values[4] || 500;
-    const q_val = values[5] || 50;
-    const r_val = values[6] || 50;
-    const i_val = values[7] || 50;
-    const p_val = values[8] || 25;
-
-    // Front view sizing (left panel ~55% width)
-    const sideW = width * 0.55;
-    const totalW = L_val;
-    const totalH = p_val + r_val + b_val;
-    const sc = Math.min((sideW - 60) / totalW, (height - 50) / totalH);
-
-    const sL = L_val * sc;
-    const sb = b_val * sc;
-    const sd = d_val * sc;
-    const sh = h_val * sc;
-    const sq = Math.max(q_val * sc, 1);
-    const sr = Math.max(r_val * sc, 1);
-    const si = i_val * sc;
-    const sp_val = p_val * sc;
-    const fl = Math.min(6, Math.max(3, sd * 0.1));
-
-    // Origin — top-left of drawing area
-    const ox = 28;
-    const oy = 14;
-
-    // Y positions (SVG: Y increases downward)
-    const yBrTop = oy;                           // branch top
-    const yPBot = oy + sp_val;                   // bottom of p / top of r arc
-    const yILine = oy + sp_val + sr;             // i-line / right wall top
-    const yDuctTop = oy + sp_val + sr + sb - sd; // top of left wall
-    const yBot = oy + sp_val + sr + sb;          // bottom of duct
-
-    // X positions
-    const xL = ox;
-    const xR = ox + sL;
-    const xIEnd = ox + sL - si;
-    const xBrR = ox + sL - si - sr;              // branch right / p section
-    const xBrL = ox + sL - si - sr - sh;         // branch left
-    const xQEnd = ox + sL - sh - si - sr - sq;   // end of horiz from duct top-left
-
-    // Main profile path
-    const profilePath = [
-      `M ${xL} ${yBot}`,
-      `H ${xR}`,
-      `V ${yILine}`,
-      `H ${xIEnd}`,
-      `A ${sr} ${sr} 0 0 1 ${xBrR} ${yPBot}`,
-      `V ${yBrTop}`,
-      `H ${xBrL}`,
-      `V ${yDuctTop - sq}`,
-      `A ${sq} ${sq} 0 0 1 ${xQEnd} ${yDuctTop}`,
-      `H ${xL}`,
-      `Z`
-    ].join(' ');
-
-    // Cross-section panel (right ~45% of width)
-    const csAreaX = sideW + 12;
-    const csAreaW = width - csAreaX - 8;
-    const csFullH_real = b_val + p_val + r_val;
-    const csSc = Math.min(csAreaW * 0.55 / a_val, (height - 40) * 0.55 / csFullH_real);
-    const ca = Math.max(a_val * csSc, 14);
-    const cb = Math.max(b_val * csSc, 10);
-    const cd = Math.max(d_val * csSc, 8);
-    const cp = Math.max(p_val * csSc, 3);
-    const cr = Math.max(r_val * csSc, 3);
-    const cf = Math.min(5, Math.max(2, ca * 0.08));
-
-    const csX = csAreaX + (csAreaW - ca) / 2;
-    const csTotalH = cb + cp + cr;
-    const csY = (height - csTotalH) / 2;
-    const csDivY = csY + csTotalH - cd;  // where d section starts
-    const csBotY = csY + csTotalH;
-
-    return (
-      <g>
-        {/* === FRONT VIEW === */}
-        <path d={profilePath} fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Left flange */}
-        <line x1={xL} y1={yDuctTop - fl} x2={xL} y2={yBot + fl} stroke={lineColor} strokeWidth={2} />
-        <line x1={xL + fl} y1={yDuctTop} x2={xL + fl} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Right flange */}
-        <line x1={xR} y1={yILine - fl} x2={xR} y2={yBot + fl} stroke={lineColor} strokeWidth={2} />
-        <line x1={xR - fl} y1={yILine} x2={xR - fl} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Branch flange (top) */}
-        <line x1={xBrL - fl} y1={yBrTop} x2={xBrR + fl} y2={yBrTop} stroke={lineColor} strokeWidth={2} />
-        <line x1={xBrL} y1={yBrTop + fl} x2={xBrR} y2={yBrTop + fl} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* === DIMENSIONS === */}
-        {/* L — below duct */}
-        <line x1={xL} y1={yBot + 14} x2={xR} y2={yBot + 14}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(xL + xR) / 2} y={yBot + 25} textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* d — left side */}
-        <line x1={xL - 14} y1={yDuctTop} x2={xL - 14} y2={yBot}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={xL - 20} y={(yDuctTop + yBot) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">d</text>
-
-        {/* b — right side */}
-        <line x1={xR + 14} y1={yILine} x2={xR + 14} y2={yBot}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={xR + 20} y={(yILine + yBot) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">b</text>
-
-        {/* h — above branch */}
-        <line x1={xBrL} y1={yBrTop - 10} x2={xBrR} y2={yBrTop - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(xBrL + xBrR) / 2} y={yBrTop - 14} textAnchor="middle" fontSize={9} fill="#555555">h</text>
-
-        {/* i — along i-line */}
-        <line x1={xIEnd} y1={yILine + 10} x2={xR} y2={yILine + 10}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={(xIEnd + xR) / 2} y={yILine + 21} textAnchor="middle" fontSize={9} fill="#555555">i</text>
-
-        {/* p — right of p section */}
-        <line x1={xR + 14} y1={yBrTop} x2={xR + 14} y2={yPBot}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={xR + 20} y={(yBrTop + yPBot) / 2 + 4} textAnchor="start" fontSize={9} fill="#555555">p</text>
-
-        {/* r label with radius line */}
-        <line x1={xIEnd} y1={yPBot}
-              x2={xIEnd - sr * 0.707} y2={yPBot + sr * 0.707}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={xIEnd - sr * 0.35} y={yPBot - 3} fontSize={9} fill="#555555">r</text>
-
-        {/* q label with radius line */}
-        <line x1={xQEnd} y1={yDuctTop - sq}
-              x2={xQEnd + sq * 0.707} y2={yDuctTop - sq + sq * 0.707}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={xQEnd - 4} y={yDuctTop - sq - 3} textAnchor="end" fontSize={9} fill="#555555">q</text>
-
-        {/* === CROSS-SECTION === */}
-        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* Upper section (branch neck: b+p+r-d tall) */}
-        <rect x={csX} y={csY} width={ca} height={csTotalH - cd}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-        {/* Top flange */}
-        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke={lineColor} strokeWidth={1.5} />
-        <line x1={csX} y1={csY + cf} x2={csX + ca} y2={csY + cf} stroke={lineColor} strokeWidth={0.8} />
-
-        {/* Connector lines from neck to d-flange */}
-        <line x1={csX - cf} y1={csY + cp + cr - cf} x2={csX} y2={csY + cp + cr - cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX - cf} y1={csY + cp + cr - cf} x2={csX - cf} y2={csDivY - cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY + cp + cr - cf} x2={csX + ca} y2={csY + cp + cr - cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY + cp + cr - cf} x2={csX + ca + cf} y2={csDivY - cf} stroke={lineColor} strokeWidth={0.8} />
-
-        {/* Lower d section */}
-        <rect x={csX} y={csDivY} width={ca} height={cd}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-        {/* d-section flange */}
-        <rect x={csX - cf} y={csDivY - cf} width={ca + 2 * cf} height={cd + 2 * cf}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-
-        {/* a dimension — below */}
-        <line x1={csX} y1={csBotY + cf + 10} x2={csX + ca} y2={csBotY + cf + 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csX + ca / 2} y={csBotY + cf + 22} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-      </g>
-    );
-  };
-
-  const renderSymmetricOffset = () => {
-    // QPR3a: symmetric offset — side view + cross-section
-    // Params: a, b, e, L, m, h
-    const a_val = values[0] || 200;
-    const b_val = values[1] || 200;
-    const e_val = values[2] || 100;
-    const L_val = values[3] || 500;
-    const m_val = values[4] || 80;
-    const h_val = values[5] || 80;
-
-    const alfa = Math.atan(e_val / L_val);
-    const beta = alfa / 2;
-    const m1 = Math.tan(beta) * b_val;
-
-    // Side view (left ~55% of width)
-    const sideW = width * 0.55;
-    const totalW = L_val;
-    const totalH = b_val + e_val;
-    const sc = Math.min((sideW - 55) / totalW, (height - 50) / totalH);
-
-    const sL = L_val * sc;
-    const sb = b_val * sc;
-    const se = e_val * sc;
-    const sm = m_val * sc;
-    const sh = h_val * sc;
-    const sm1 = m1 * sc;
-    const fl = Math.min(6, Math.max(3, sb * 0.08));
-
-    const ox = 28;
-    const oy = 12;
-
-    // Upper inlet section (top-left, shifted down by e from top)
-    const u0 = { x: ox, y: oy + se };              // top-left
-    const u7 = { x: ox, y: oy + se + sb };           // bottom-left
-
-    // Lower outlet section (bottom-right)
-    const l1 = { x: ox + sL, y: oy };                // top-right
-    const l2 = { x: ox + sL, y: oy + sb };           // bottom-right
-
-    // Diagonal connections: u1→l0 (top), u6→l3 (bottom)
-    // But C# shows: punkty2[1,2] is upper section, punkty3[0,3] is lower section
-    // Actually from C#: upper section top-right = (m, e), connects to lower section top-left = (l-h-m1, 0)
-    // And upper section bottom-right = (m+m1, e+b), connects to lower section bottom-left = (l-h, b)
-
-    const diagTopStart = { x: ox + sm, y: oy + se };
-    const diagTopEnd = { x: ox + sL - sh - sm1, y: oy };
-    const diagBotStart = { x: ox + sm + sm1, y: oy + se + sb };
-    const diagBotEnd = { x: ox + sL - sh, y: oy + sb };
-
-    // Cross-section panel (right side)
-    const csAreaX = sideW + 12;
-    const csAreaW = width - csAreaX - 8;
-    const csFullH = b_val + e_val;
-    const csSc = Math.min(csAreaW * 0.55 / a_val, (height - 40) * 0.55 / csFullH);
-    const ca = Math.max(a_val * csSc, 14);
-    const cb = Math.max(b_val * csSc, 10);
-    const ce = Math.max(e_val * csSc, 5);
-    const cf = Math.min(5, Math.max(2, ca * 0.08));
-
-    const csX = csAreaX + (csAreaW - ca) / 2;
-    const csY = (height - cb - ce) / 2;
-    const csBotY = csY + cb + ce;
-
-    return (
-      <g>
-        {/* === SIDE VIEW === */}
-        {/* Upper inlet section */}
-        <polygon
-          points={`${u0.x},${u0.y} ${diagTopStart.x},${diagTopStart.y} ${diagBotStart.x},${diagBotStart.y} ${u7.x},${u7.y}`}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Lower outlet section */}
-        <polygon
-          points={`${diagTopEnd.x},${diagTopEnd.y} ${l1.x},${l1.y} ${l2.x},${l2.y} ${diagBotEnd.x},${diagBotEnd.y}`}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Diagonal connections */}
-        <line x1={diagTopStart.x} y1={diagTopStart.y} x2={diagTopEnd.x} y2={diagTopEnd.y}
-          stroke={lineColor} strokeWidth={1.8} />
-        <line x1={diagBotStart.x} y1={diagBotStart.y} x2={diagBotEnd.x} y2={diagBotEnd.y}
-          stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Left flange (upper inlet) */}
-        <line x1={u0.x} y1={u0.y - fl} x2={u0.x} y2={u7.y + fl} stroke={lineColor} strokeWidth={2} />
-        <line x1={u0.x + fl} y1={u0.y} x2={u0.x + fl} y2={u7.y} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Right flange (lower outlet) */}
-        <line x1={l1.x} y1={l1.y - fl} x2={l1.x} y2={l2.y + fl} stroke={lineColor} strokeWidth={2} />
-        <line x1={l1.x - fl} y1={l1.y} x2={l1.x - fl} y2={l2.y} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* === DIMENSIONS === */}
-        {/* L — above everything */}
-        <line x1={ox} y1={oy - 12} x2={ox + sL} y2={oy - 12}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL / 2} y={oy - 16} textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* b — left side of upper section */}
-        <line x1={ox - 12} y1={u0.y} x2={ox - 12} y2={u7.y}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 18} y={(u0.y + u7.y) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">b</text>
-
-        {/* e — left side, offset distance */}
-        <line x1={ox - 12} y1={oy} x2={ox - 12} y2={oy + se}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 18} y={oy + se / 2 + 4} textAnchor="end" fontSize={9} fill="#555555">e</text>
-
-        {/* m — below upper section */}
-        <line x1={ox} y1={u7.y + 12} x2={ox + sm} y2={u7.y + 12}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sm / 2} y={u7.y + 23} textAnchor="middle" fontSize={9} fill="#555555">m</text>
-
-        {/* h — below lower section */}
-        <line x1={ox + sL - sh} y1={l2.y + 12} x2={ox + sL} y2={l2.y + 12}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL - sh / 2} y={l2.y + 23} textAnchor="middle" fontSize={9} fill="#555555">h</text>
-
-        {/* === CROSS-SECTION === */}
-        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* Full rectangle a × (b+e) */}
-        <rect x={csX} y={csY} width={ca} height={cb + ce}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Top flange */}
-        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke={lineColor} strokeWidth={1.5} />
-        <line x1={csX - cf} y1={csY} x2={csX - cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY} x2={csX + ca + cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX} y1={csY + cb + cf} x2={csX - cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX + ca} y1={csY + cb + cf} x2={csX + ca + cf} y2={csY + cb + cf} stroke={lineColor} strokeWidth={0.8} />
-
-        {/* b section line */}
-        <line x1={csX} y1={csY + ce} x2={csX + ca} y2={csY + ce}
-          stroke={lineColor} strokeWidth={0.8} strokeDasharray="3 2" />
-
-        {/* a dimension — below */}
-        <line x1={csX} y1={csBotY + cf + 10} x2={csX + ca} y2={csBotY + cf + 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csX + ca / 2} y={csBotY + cf + 22} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-      </g>
-    );
-  };
-
-  const renderAsymmetricOffset = () => {
-    // QPR4a: asymmetric offset — inlet d, outlet b, offset e
-    const a_val = values[0] || 200;
-    const b_val = values[1] || 200;
-    const d_val = values[2] || 150;
-    const e_val = values[3] || 100;
-    const L_val = values[4] || 500;
-    const m_val = values[5] || 80;
-    const h_val = values[6] || 80;
-
-    const alfa = Math.atan(e_val / L_val);
-    const beta = alfa / 2;
-    const m1 = Math.tan(beta) * b_val;
-
-    // Side view (left ~55% of width)
-    const sideW = width * 0.55;
-    const maxH = Math.max(d_val + e_val, b_val + e_val);
-    const sc = Math.min((sideW - 55) / L_val, (height - 50) / maxH);
-
-    const sL = L_val * sc;
-    const sb = b_val * sc;
-    const sd = d_val * sc;
-    const se = e_val * sc;
-    const sm = m_val * sc;
-    const sh = h_val * sc;
-    const sm1 = m1 * sc;
-    const fl = Math.min(6, Math.max(3, Math.max(sb, sd) * 0.08));
-
-    const ox = 28;
-    const oy = 12;
-
-    // Inlet section (left, height d, shifted down by e)
-    const inTop = oy + se;
-    const inBot = oy + se + sd;
-
-    // Outlet section (right, height b)
-    const outTop = oy;
-    const outBot = oy + sb;
-
-    // Inlet quad: trapezoid with top going to diagonal
-    const i0 = { x: ox, y: inTop };                     // inlet top-left
-    const i1 = { x: ox + sm, y: inTop };                 // inlet top at m
-    const i1d = { x: ox + sm + sm1, y: inBot };           // diagonal bottom start
-    const i7 = { x: ox, y: inBot };                       // inlet bottom-left
-
-    // Outlet quad
-    const o0 = { x: ox + sL - sh - sm1, y: outTop };     // outlet top, diagonal end
-    const o1 = { x: ox + sL, y: outTop };                 // outlet top-right
-    const o2 = { x: ox + sL, y: outBot };                 // outlet bottom-right
-    const o3 = { x: ox + sL - sh, y: outBot };            // outlet bottom-left
-
-    // Cross-section panel
-    const csAreaX = sideW + 12;
-    const csAreaW = width - csAreaX - 8;
-    const csFullH = Math.max(d_val, b_val) + e_val;
-    const csSc = Math.min(csAreaW * 0.55 / a_val, (height - 40) * 0.55 / csFullH);
-    const ca = Math.max(a_val * csSc, 14);
-    const cbd = Math.max(d_val * csSc, 8);
-    const cbb = Math.max(b_val * csSc, 8);
-    const ce = Math.max(e_val * csSc, 5);
-    const cf = Math.min(5, Math.max(2, ca * 0.08));
-
-    const csX = csAreaX + (csAreaW - ca) / 2;
-    const csY = (height - Math.max(cbd, cbb) - ce) / 2;
-    const csBotY = csY + cbd + ce;
-
-    return (
-      <g>
-        {/* === SIDE VIEW === */}
-        {/* Inlet section (trapezoid) */}
-        <polygon
-          points={`${i0.x},${i0.y} ${i1.x},${i1.y} ${i1d.x},${i1d.y} ${i7.x},${i7.y}`}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Outlet section */}
-        <polygon
-          points={`${o0.x},${o0.y} ${o1.x},${o1.y} ${o2.x},${o2.y} ${o3.x},${o3.y}`}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Diagonal connections */}
-        <line x1={i1.x} y1={i1.y} x2={o0.x} y2={o0.y}
-          stroke={lineColor} strokeWidth={1.8} />
-        <line x1={i1d.x} y1={i1d.y} x2={o3.x} y2={o3.y}
-          stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Left flange (inlet) */}
-        <line x1={i0.x} y1={i0.y - fl} x2={i0.x} y2={i7.y + fl} stroke={lineColor} strokeWidth={2} />
-        <line x1={i0.x + fl} y1={i0.y} x2={i0.x + fl} y2={i7.y} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* Right flange (outlet) */}
-        <line x1={o1.x} y1={o1.y - fl} x2={o1.x} y2={o2.y + fl} stroke={lineColor} strokeWidth={2} />
-        <line x1={o1.x - fl} y1={o1.y} x2={o1.x - fl} y2={o2.y} stroke={lineColor} strokeWidth={1.2} />
-
-        {/* === DIMENSIONS === */}
-        {/* L — above */}
-        <line x1={ox} y1={oy - 12} x2={ox + sL} y2={oy - 12}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL / 2} y={oy - 16} textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* d — left side (inlet height) */}
-        <line x1={ox - 12} y1={inTop} x2={ox - 12} y2={inBot}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 18} y={(inTop + inBot) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">d</text>
-
-        {/* b — right side (outlet height) */}
-        <line x1={o1.x + 12} y1={outTop} x2={o1.x + 12} y2={outBot}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={o1.x + 18} y={(outTop + outBot) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">b</text>
-
-        {/* e — left side, offset distance */}
-        <line x1={ox - 12} y1={oy} x2={ox - 12} y2={oy + se}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 18} y={oy + se / 2 + 4} textAnchor="end" fontSize={9} fill="#555555">e</text>
-
-        {/* m — below inlet */}
-        <line x1={ox} y1={inBot + 12} x2={ox + sm} y2={inBot + 12}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sm / 2} y={inBot + 23} textAnchor="middle" fontSize={9} fill="#555555">m</text>
-
-        {/* h — below outlet */}
-        <line x1={ox + sL - sh} y1={outBot + 12} x2={ox + sL} y2={outBot + 12}
-          stroke="#9b9b9b" strokeWidth={0.7} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL - sh / 2} y={outBot + 23} textAnchor="middle" fontSize={9} fill="#555555">h</text>
-
-        {/* === CROSS-SECTION === */}
-        <text x={csX + ca / 2} y={csY - cf - 12} textAnchor="middle" fontSize={9} fill="#9b9b9b">{t('przekrój')}</text>
-
-        {/* Inlet cross-section a × d (top) */}
-        <rect x={csX} y={csY} width={ca} height={cbd}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-        {/* Inlet flange */}
-        <line x1={csX - cf} y1={csY} x2={csX + ca + cf} y2={csY} stroke={lineColor} strokeWidth={1.5} />
-        <line x1={csX - cf} y1={csY} x2={csX - cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX + ca + cf} y1={csY} x2={csX + ca + cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX} y1={csY + cbd + cf} x2={csX - cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
-        <line x1={csX + ca} y1={csY + cbd + cf} x2={csX + ca + cf} y2={csY + cbd + cf} stroke={lineColor} strokeWidth={0.8} />
-
-        {/* Outlet cross-section a × b (bottom) */}
-        <rect x={csX} y={csY + ce} width={ca} height={cbb}
-          fill="none" stroke={lineColor} strokeWidth={1.2} />
-        {/* Outlet flange */}
-        <rect x={csX - cf} y={csY + ce - cf} width={ca + 2 * cf} height={cbb + 2 * cf}
-          fill="none" stroke={lineColor} strokeWidth={0.8} />
-
-        {/* a dimension — below */}
-        <line x1={csX} y1={csBotY + cf + 10} x2={csX + ca} y2={csBotY + cf + 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csX + ca / 2} y={csBotY + cf + 22} textAnchor="middle" fontSize={10} fill="#555555">a</text>
-      </g>
-    );
-  };
-
-  const renderPipeSaddle = () => {
-    // TR6a: pipe saddle — side view (left) + cross-section (right)
-    // Params: a (pipe diameter), e (saddle width along pipe), f (saddle rect width), L (pipe length), g (saddle rect height)
-    const a_val = values[0] || 300;
-    const e_val = values[1] || 150;
-    const f_val = values[2] || 100;
-    const L_val = values[3] || 500;
-    const g_val = values[4] || 80;
-
-    // Pipe wrap depth: how far saddle extends into pipe at f/2
-    const r = a_val / 2;
-    const wrapDepth = r - Math.sqrt(Math.max(0, r * r - (f_val / 2) * (f_val / 2)));
-    // Scale for side view (left ~60%)
-    const sideW = width * 0.55;
-    const sideSc = Math.min((sideW - 60) / L_val, (height - 55) / (g_val + a_val));
-    const sL = L_val * sideSc;
-    const sA = a_val * sideSc;
-    const sE = e_val * sideSc;
-    const sG = g_val * sideSc;
-    const sWrap = wrapDepth * sideSc;
-    const sSaddleH = sG + sWrap;
-    const sP = Math.min(8, Math.max(3, sE * 0.06));
-
-    const pushY = 18;
-    const sideOx = 28;
-
-    // Saddle rect in side view: e wide, centered on L
-    const sadX = sideOx + (sL - sE) / 2;
-    const sadY = pushY;
-    const pipeTop = pushY + sG;
-    const pipeBot = pushY + sG + sA;
-
-    // Scale for cross-section (right panel)
-    const csOx = sideOx + sL + 50;
-    const csAvailW = width - csOx - 25;
-    const totalCsH = g_val + a_val;
-    const csSc = Math.min((csAvailW - 10) / f_val, (height - 55) / totalCsH);
-    const sF = f_val * csSc;
-    const csG = g_val * csSc;
-    const csR = a_val * csSc / 2;
-    const csP = Math.min(8, Math.max(3, sF * 0.08));
-
-    // Cross-section rect top-left
-    const csRX = csOx;
-    const csRY = pushY;
-    // Pipe center in cross-section
-    const csCy = csRY + csG + csR;
-    // Connection points on pipe circle
-    const yAtEdge = Math.sqrt(Math.max(0, csR * csR - (sF / 2) * (sF / 2)));
-    const connY = csCy - yAtEdge;
-
-    return (
-      <g>
-        {/* === SIDE VIEW (left) === */}
-
-        {/* Saddle rect in side view: e wide, extends g + wrapDepth deep */}
-        <rect x={sadX} y={sadY} width={sE} height={sSaddleH}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Flanges at saddle top */}
-        <line x1={sadX - sP} y1={sadY} x2={sadX + sE + sP} y2={sadY}
-          stroke={lineColor} strokeWidth={2} />
-        <line x1={sadX} y1={sadY + sP} x2={sadX + sE} y2={sadY + sP}
-          stroke={lineColor} strokeWidth={1} />
-
-        {/* Dashed line at g height (boundary between flat and wrapped portions) */}
-        <line x1={sadX} y1={sadY + sG} x2={sadX + sE} y2={sadY + sG}
-          stroke={lineColor} strokeWidth={0.8} strokeDasharray="3 2" />
-
-        {/* e dimension — above saddle */}
-        <line x1={sadX} y1={sadY - 10} x2={sadX + sE} y2={sadY - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={sadX + sE / 2} y={sadY - 14} textAnchor="middle" fontSize={9} fill="#555555">e</text>
-
-        {/* g dimension — right of saddle (from top to dashed g line) */}
-        <line x1={sadX + sE + 12} y1={sadY} x2={sadX + sE + 12} y2={sadY + sG}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={sadX + sE + 18} y={sadY + sG / 2 + 4} textAnchor="start" fontSize={9} fill="#555555">g</text>
-
-        {/* L dimension — below pipe area */}
-        <line x1={sideOx} y1={pipeBot + 12} x2={sideOx + sL} y2={pipeBot + 12}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={sideOx + sL / 2} y={pipeBot + 24} textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* a dimension — left of pipe area */}
-        <line x1={sideOx - 12} y1={pipeTop} x2={sideOx - 12} y2={pipeBot}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={sideOx - 18} y={pipeTop + sA / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">a</text>
-
-        {/* === CROSS-SECTION (right) === */}
-
-        {/* Saddle f×g rectangle */}
-        <rect x={csRX} y={csRY} width={sF} height={csG}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Flange accent at bottom of saddle rect */}
-        <line x1={csRX + 1} y1={csRY + csG} x2={csRX + sF - 1} y2={csRY + csG}
-          stroke={lineColor} strokeWidth={2} />
-
-        {/* Connection lines from saddle bottom corners down to pipe circle */}
-        <line x1={csRX} y1={csRY + csG} x2={csRX} y2={connY}
-          stroke={lineColor} strokeWidth={1.5} />
-        <line x1={csRX + sF} y1={csRY + csG} x2={csRX + sF} y2={connY}
-          stroke={lineColor} strokeWidth={1.5} />
-
-        {/* Pipe arc between connection points (top of pipe) */}
-        <path d={`M ${csRX} ${connY} A ${csR} ${csR} 0 0 1 ${csRX + sF} ${connY}`}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-
-        {/* Flanges at top of saddle rect */}
-        <line x1={csRX - csP} y1={csRY} x2={csRX + sF + csP} y2={csRY}
-          stroke={lineColor} strokeWidth={2} />
-        <line x1={csRX} y1={csRY + csP} x2={csRX + sF} y2={csRY + csP}
-          stroke={lineColor} strokeWidth={1} />
-
-        {/* f dimension — above cross-section */}
-        <line x1={csRX} y1={csRY - 10} x2={csRX + sF} y2={csRY - 10}
-          stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csRX + sF / 2} y={csRY - 14} textAnchor="middle" fontSize={9} fill="#555555">f</text>
-      </g>
-    );
-  };
-
-  const renderRectCrossJunction = () => {
-    // CZ1a: cross-junction with rectangular branches
-    // Side view (left) + cross-section (right)
-    // labels: a, b, d, w, L, d1, w1, e1, f1, e, f, l3, l4
-    // Defaults mirror the .NET app's built-in CZ1a sample (Form1.cs) so the empty-form
-    // preview matches the 3D view: a symmetric czwórnik with small branches on each face.
-    const a_val  = values[0] || 200;
-    const b_val  = values[1] || 200;
-    const d_val  = values[2] || 70;
-    const w_val  = values[3] || 90;
-    const L_val  = values[4] || 500;
-    const d1_val = values[5] || 70;
-    const w1_val = values[6] || 90;
-    const e1_val = values[7] || 250;
-    const f1_val = values[8] || 110;
-    const e_val  = values[9] || 250;
-    const f_val  = values[10] || 110;
-    const l3_val = values[11] || 80;
-    const l4_val = values[12] || 80;
-
-    const totalH = l3_val + b_val + l4_val;
-
-    // Side view scaling (left ~55%)
-    const svW = width * 0.52;
-    const svSc = Math.min((svW - 50) / L_val, (height - 50) / totalH);
-    const sL = L_val * svSc;
-    const sB = b_val * svSc;
-    const sW = w_val * svSc;
-    const sW1 = w1_val * svSc;
-    const sL3 = l3_val * svSc;
-    const sL4 = l4_val * svSc;
-    const sE = e_val * svSc;
-    const sE1 = e1_val * svSc;
-    const sP = Math.min(6, Math.max(2, sB * 0.06));
-
-    const ox = 25;
-    const oy = 16 + sL3;
-
-    // Cross-section scaling (right panel)
-    const csOx = ox + sL + 45;
-    const csAvail = width - csOx - 20;
-    const csSc = Math.min((csAvail - 10) / a_val, (height - 50) / totalH);
-    const csA = a_val * csSc;
-    const csB = b_val * csSc;
-    const csD = d_val * csSc;
-    const csD1 = d1_val * csSc;
-    const csF = f_val * csSc;
-    const csF1 = f1_val * csSc;
-    const csL3 = l3_val * csSc;
-    const csL4 = l4_val * csSc;
-    const csP = Math.min(6, Math.max(2, csA * 0.06));
-
-    const csx = csOx;
-    const csy = 16 + csL3;
-
-    return (
-      <g>
-        {/* === SIDE VIEW (left) === */}
-        {/* Main duct */}
-        <rect x={ox} y={oy} width={sL} height={sB}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-
-        {/* Left flange */}
-        <line x1={ox} y1={oy - sP} x2={ox} y2={oy + sB + sP}
-          stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sP} y1={oy} x2={ox + sP} y2={oy + sB}
-          stroke={lineColor} strokeWidth={1} />
-        {/* Right flange */}
-        <line x1={ox + sL} y1={oy - sP} x2={ox + sL} y2={oy + sB + sP}
-          stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sL - sP} y1={oy} x2={ox + sL - sP} y2={oy + sB}
-          stroke={lineColor} strokeWidth={1} />
-
-        {/* Top branch (w wide, l3 tall, offset e from left) */}
-        <rect x={ox + sE - sW / 2} y={oy - sL3} width={sW} height={sL3}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-        {/* Top branch flanges */}
-        <line x1={ox + sE - sW / 2 - sP} y1={oy - sL3}
-              x2={ox + sE + sW / 2 + sP} y2={oy - sL3}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sE - sW / 2} y1={oy - sL3 + sP}
-              x2={ox + sE + sW / 2} y2={oy - sL3 + sP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* Bottom branch (w1 wide, l4 tall, offset e1 from left) */}
-        <rect x={ox + sE1 - sW1 / 2} y={oy + sB} width={sW1} height={sL4}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-        {/* Bottom branch flanges */}
-        <line x1={ox + sE1 - sW1 / 2 - sP} y1={oy + sB + sL4}
-              x2={ox + sE1 + sW1 / 2 + sP} y2={oy + sB + sL4}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sE1 - sW1 / 2} y1={oy + sB + sL4 - sP}
-              x2={ox + sE1 + sW1 / 2} y2={oy + sB + sL4 - sP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* w dimension — top branch width */}
-        <line x1={ox + sE - sW / 2} y1={oy - sL3 - 8}
-              x2={ox + sE + sW / 2} y2={oy - sL3 - 8}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sE} y={oy - sL3 - 12} textAnchor="middle" fontSize={8} fill="#555555">w</text>
-
-        {/* w1 dimension — bottom branch width */}
-        <line x1={ox + sE1 - sW1 / 2} y1={oy + sB + sL4 + 8}
-              x2={ox + sE1 + sW1 / 2} y2={oy + sB + sL4 + 8}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sE1 + sW1 / 2 + sP + 5} y={oy + sB + sL4 + 4} textAnchor="start" fontSize={8} fill="#555555">w1</text>
-
-        {/* l3 dimension — left of top branch */}
-        <line x1={ox - 10} y1={oy} x2={ox - 10} y2={oy - sL3}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 16} y={oy - sL3 / 2 + 4} textAnchor="end" fontSize={8} fill="#555555">l3</text>
-
-        {/* l4 dimension — left of bottom branch */}
-        <line x1={ox - 10} y1={oy + sB} x2={ox - 10} y2={oy + sB + sL4}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 16} y={oy + sB + sL4 / 2 + 4} textAnchor="end" fontSize={8} fill="#555555">l4</text>
-
-        {/* L dimension — below everything */}
-        <line x1={ox} y1={oy + sB + sL4 + 10}
-              x2={ox + sL} y2={oy + sB + sL4 + 10}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL / 2} y={oy + sB + sL4 + 22} textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* a dimension — right of side view */}
-        <line x1={ox + sL + 10} y1={oy} x2={ox + sL + 10} y2={oy + sB}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL + 16} y={oy + sB / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">a</text>
-
-        {/* e dimension snippet — offset from left on top */}
-        <line x1={ox} y1={oy + sP + 2} x2={ox + sE} y2={oy + sP + 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={ox + sE / 2} y={oy + sP + 12} textAnchor="middle" fontSize={7} fill="#999">e</text>
-
-        {/* e1 dimension snippet — offset from left on bottom */}
-        <line x1={ox} y1={oy + sB - sP - 2} x2={ox + sE1} y2={oy + sB - sP - 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={ox + sE1 / 2} y={oy + sB - sP - 5} textAnchor="middle" fontSize={7} fill="#999">e1</text>
-
-        {/* === CROSS-SECTION (right) === */}
-        {/* Main duct cross-section */}
-        <rect x={csx} y={csy} width={csA} height={csB}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        {/* Flange frame */}
-        <rect x={csx - csP} y={csy - csP} width={csA + 2 * csP} height={csB + 2 * csP}
-          fill="none" stroke={lineColor} strokeWidth={1.3} />
-
-        {/* Top branch stub (d wide, extends upward by l3) */}
-        {/* Offset from right: f; centerX = csx + csA - csF - csD/2 */}
-        <rect x={csx + csA - csF - csD / 2} y={csy - csL3 + csP}
-              width={csD} height={csL3 - csP}
-              fill="none" stroke={lineColor} strokeWidth={1.5} />
-        {/* Top branch flange */}
-        <line x1={csx + csA - csF - csD / 2 - csP} y1={csy - csL3 + csP}
-              x2={csx + csA - csF + csD / 2 + csP} y2={csy - csL3 + csP}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={csx + csA - csF - csD / 2} y1={csy - csL3 + 2 * csP}
-              x2={csx + csA - csF + csD / 2} y2={csy - csL3 + 2 * csP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* Bottom branch stub (d1 wide, extends downward by l4) */}
-        <rect x={csx + csA - csF1 - csD1 / 2} y={csy + csB}
-              width={csD1} height={csL4 - csP}
-              fill="none" stroke={lineColor} strokeWidth={1.5} />
-        {/* Bottom branch flange */}
-        <line x1={csx + csA - csF1 - csD1 / 2 - csP} y1={csy + csB + csL4 - csP}
-              x2={csx + csA - csF1 + csD1 / 2 + csP} y2={csy + csB + csL4 - csP}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 - 2 * csP}
-              x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 - 2 * csP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* b dimension — below cross-section */}
-        <line x1={csx} y1={csy + csB + csL4 + 10}
-              x2={csx + csA} y2={csy + csB + csL4 + 10}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA / 2} y={csy + csB + csL4 + 22} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        {/* d dimension — top branch width in cross-section */}
-        <line x1={csx + csA - csF - csD / 2} y1={csy - csL3}
-              x2={csx + csA - csF + csD / 2} y2={csy - csL3}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA - csF} y={csy - csL3 - 4} textAnchor="middle" fontSize={8} fill="#555555">d</text>
-
-        {/* d1 dimension — bottom branch width */}
-        <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 + 2}
-              x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 + 2}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA - csF1 - csD1 / 2 - csP - 4} y={csy + csB + csL4 + 1} textAnchor="end" fontSize={8} fill="#555555">d1</text>
-
-        {/* f dimension snippet — from right edge (top) */}
-        <line x1={csx + csA} y1={csy + csP + 2}
-              x2={csx + csA - csF} y2={csy + csP + 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={csx + csA - csF / 2} y={csy + csP + 12} textAnchor="middle" fontSize={7} fill="#999">f</text>
-
-        {/* f1 dimension snippet — from right edge (bottom) */}
-        <line x1={csx + csA} y1={csy + csB - csP - 2}
-              x2={csx + csA - csF1} y2={csy + csB - csP - 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={csx + csA - csF1 / 2} y={csy + csB - csP - 5} textAnchor="middle" fontSize={7} fill="#999">f1</text>
-      </g>
-    );
-  };
-
-  const renderRoundCrossJunction = () => {
-    // CZ2a: cross-junction with round branches
-    // Side view (left) + cross-section (right)
-    // labels: a, b, d, L, d1, e1, f1, e, f, l3, l4
-    // Defaults mirror the .NET app's built-in CZ2a sample (Form1.cs) so the empty-form
-    // preview matches the 3D view: a symmetric czwórnik with small round branches.
-    const a_val  = values[0] || 200;
-    const b_val  = values[1] || 200;
-    const d_val  = values[2] || 70;
-    const L_val  = values[3] || 500;
-    const d1_val = values[4] || 70;
-    const e1_val = values[5] || 250;
-    const f1_val = values[6] || 110;
-    const e_val  = values[7] || 250;
-    const f_val  = values[8] || 110;
-    const l3_val = values[9] || 80;
-    const l4_val = values[10] || 80;
-
-    // Round branches: w = d, w1 = d1
-    const w_val = d_val;
-    const w1_val = d1_val;
-
-    const totalH = l3_val + b_val + l4_val;
-
-    // Side view scaling (left ~55%)
-    const svW = width * 0.52;
-    const svSc = Math.min((svW - 50) / L_val, (height - 50) / totalH);
-    const sL = L_val * svSc;
-    const sB = b_val * svSc;
-    const sW = w_val * svSc;
-    const sW1 = w1_val * svSc;
-    const sL3 = l3_val * svSc;
-    const sL4 = l4_val * svSc;
-    const sE = e_val * svSc;
-    const sE1 = e1_val * svSc;
-    const sP = Math.min(6, Math.max(2, sB * 0.06));
-
-    const ox = 25;
-    const oy = 16 + sL3;
-
-    // Cross-section scaling (right panel)
-    const csOx = ox + sL + 45;
-    const csAvail = width - csOx - 20;
-    const csSc = Math.min((csAvail - 10) / a_val, (height - 50) / totalH);
-    const csA = a_val * csSc;
-    const csB = b_val * csSc;
-    const csD = d_val * csSc;
-    const csD1 = d1_val * csSc;
-    const csF = f_val * csSc;
-    const csF1 = f1_val * csSc;
-    const csL3 = l3_val * csSc;
-    const csL4 = l4_val * csSc;
-    const csP = Math.min(6, Math.max(2, csA * 0.06));
-
-    const csx = csOx;
-    const csy = 16 + csL3;
-
-    return (
-      <g>
-        {/* === SIDE VIEW (left) === */}
-        {/* Main duct */}
-        <rect x={ox} y={oy} width={sL} height={sB}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        {/* Left flange */}
-        <line x1={ox} y1={oy - sP} x2={ox} y2={oy + sB + sP}
-          stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sP} y1={oy} x2={ox + sP} y2={oy + sB}
-          stroke={lineColor} strokeWidth={1} />
-        {/* Right flange */}
-        <line x1={ox + sL} y1={oy - sP} x2={ox + sL} y2={oy + sB + sP}
-          stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sL - sP} y1={oy} x2={ox + sL - sP} y2={oy + sB}
-          stroke={lineColor} strokeWidth={1} />
-
-        {/* Top branch (w=d wide, l3 tall, offset e from left) */}
-        <rect x={ox + sE - sW / 2} y={oy - sL3} width={sW} height={sL3}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-        <line x1={ox + sE - sW / 2 - sP} y1={oy - sL3}
-              x2={ox + sE + sW / 2 + sP} y2={oy - sL3}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sE - sW / 2} y1={oy - sL3 + sP}
-              x2={ox + sE + sW / 2} y2={oy - sL3 + sP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* Bottom branch (w1=d1 wide, l4 tall, offset e1 from left) */}
-        <rect x={ox + sE1 - sW1 / 2} y={oy + sB} width={sW1} height={sL4}
-          fill="none" stroke={lineColor} strokeWidth={1.5} />
-        <line x1={ox + sE1 - sW1 / 2 - sP} y1={oy + sB + sL4}
-              x2={ox + sE1 + sW1 / 2 + sP} y2={oy + sB + sL4}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={ox + sE1 - sW1 / 2} y1={oy + sB + sL4 - sP}
-              x2={ox + sE1 + sW1 / 2} y2={oy + sB + sL4 - sP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* l3 dimension */}
-        <line x1={ox - 10} y1={oy} x2={ox - 10} y2={oy - sL3}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 16} y={oy - sL3 / 2 + 4} textAnchor="end" fontSize={8} fill="#555555">l3</text>
-
-        {/* l4 dimension */}
-        <line x1={ox - 10} y1={oy + sB} x2={ox - 10} y2={oy + sB + sL4}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox - 16} y={oy + sB + sL4 / 2 + 4} textAnchor="end" fontSize={8} fill="#555555">l4</text>
-
-        {/* L dimension */}
-        <line x1={ox} y1={oy + sB + sL4 + 10}
-              x2={ox + sL} y2={oy + sB + sL4 + 10}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL / 2} y={oy + sB + sL4 + 22} textAnchor="middle" fontSize={10} fill="#555555">L</text>
-
-        {/* a dimension — right */}
-        <line x1={ox + sL + 10} y1={oy} x2={ox + sL + 10} y2={oy + sB}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={ox + sL + 16} y={oy + sB / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">a</text>
-
-        {/* e dimension snippet */}
-        <line x1={ox} y1={oy + sP + 2} x2={ox + sE} y2={oy + sP + 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={ox + sE / 2} y={oy + sP + 12} textAnchor="middle" fontSize={7} fill="#999">e</text>
-
-        {/* e1 dimension snippet */}
-        <line x1={ox} y1={oy + sB - sP - 2} x2={ox + sE1} y2={oy + sB - sP - 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={ox + sE1 / 2} y={oy + sB - sP - 5} textAnchor="middle" fontSize={7} fill="#999">e1</text>
-
-        {/* === CROSS-SECTION (right) === */}
-        {/* Main duct cross-section */}
-        <rect x={csx} y={csy} width={csA} height={csB}
-          fill="none" stroke={lineColor} strokeWidth={1.8} />
-        <rect x={csx - csP} y={csy - csP} width={csA + 2 * csP} height={csB + 2 * csP}
-          fill="none" stroke={lineColor} strokeWidth={1.3} />
-
-        {/* Top branch stub (d wide, l3 tall, offset from right by f) */}
-        <rect x={csx + csA - csF - csD / 2} y={csy - csL3 + csP}
-              width={csD} height={csL3 - csP}
-              fill="none" stroke={lineColor} strokeWidth={1.5} />
-        <line x1={csx + csA - csF - csD / 2 - csP} y1={csy - csL3 + csP}
-              x2={csx + csA - csF + csD / 2 + csP} y2={csy - csL3 + csP}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={csx + csA - csF - csD / 2} y1={csy - csL3 + 2 * csP}
-              x2={csx + csA - csF + csD / 2} y2={csy - csL3 + 2 * csP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* Bottom branch stub (d1 wide, l4 tall, offset from right by f1) */}
-        <rect x={csx + csA - csF1 - csD1 / 2} y={csy + csB}
-              width={csD1} height={csL4 - csP}
-              fill="none" stroke={lineColor} strokeWidth={1.5} />
-        <line x1={csx + csA - csF1 - csD1 / 2 - csP} y1={csy + csB + csL4 - csP}
-              x2={csx + csA - csF1 + csD1 / 2 + csP} y2={csy + csB + csL4 - csP}
-              stroke={lineColor} strokeWidth={2} />
-        <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 - 2 * csP}
-              x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 - 2 * csP}
-              stroke={lineColor} strokeWidth={1} />
-
-        {/* b dimension — below cross-section */}
-        <line x1={csx} y1={csy + csB + csL4 + 10}
-              x2={csx + csA} y2={csy + csB + csL4 + 10}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA / 2} y={csy + csB + csL4 + 22} textAnchor="middle" fontSize={10} fill="#555555">b</text>
-
-        {/* d dimension — top branch */}
-        <line x1={csx + csA - csF - csD / 2} y1={csy - csL3}
-              x2={csx + csA - csF + csD / 2} y2={csy - csL3}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA - csF} y={csy - csL3 - 4} textAnchor="middle" fontSize={8} fill="#555555">d</text>
-
-        {/* d1 dimension — bottom branch */}
-        <line x1={csx + csA - csF1 - csD1 / 2} y1={csy + csB + csL4 + 2}
-              x2={csx + csA - csF1 + csD1 / 2} y2={csy + csB + csL4 + 2}
-              stroke="#9b9b9b" strokeWidth={0.8} markerEnd="url(#arrowhead)" markerStart="url(#arrowhead-start)" />
-        <text x={csx + csA - csF1 + csD1 / 2 + 4} y={csy + csB + csL4 + 5} textAnchor="start" fontSize={8} fill="#555555">d1</text>
-
-        {/* f dimension snippet */}
-        <line x1={csx + csA} y1={csy + csP + 2}
-              x2={csx + csA - csF} y2={csy + csP + 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={csx + csA - csF / 2} y={csy + csP + 12} textAnchor="middle" fontSize={7} fill="#999">f</text>
-
-        {/* f1 dimension snippet */}
-        <line x1={csx + csA} y1={csy + csB - csP - 2}
-              x2={csx + csA - csF1} y2={csy + csB - csP - 2}
-              stroke="#9b9b9b" strokeWidth={0.6} />
-        <text x={csx + csA - csF1 / 2} y={csy + csB - csP - 5} textAnchor="middle" fontSize={7} fill="#999">f1</text>
-      </g>
-    );
-  };
-
-  const renderEagleTee = () => {
-    // Defaults mirror the .NET app's built-in TR3a sample (Form1.cs) so the empty-form
-    // preview matches the 3D view.
-    const a_raw = values[0] || 500;
-    const b_raw = values[1] || 300;
-    const c_raw = values[2] || 300;
-    const d_raw = values[3] || 200;
-    const m_raw = values[4] || 100;
-    const k_raw = values[5] || 100;
-    const i_raw = values[6] || 100;
-    const j_raw = values[7] || 100;
-    const g_raw = values[8] || 150;
-    const f_raw = values[9] || 150;
-
-    // Heron's formula (direct from C#)
-    const r0 = g_raw + d_raw, r1 = f_raw + c_raw;
-    const bb = Math.sqrt((b_raw + g_raw + f_raw) ** 2 + (k_raw - j_raw) ** 2);
-    const ppp = (r0 + r1 + bb) / 2;
-    const pole = Math.sqrt(Math.max(0, ppp * (ppp - r0) * (ppp - r1) * (ppp - bb)));
-    const pom_h = 2 * pole / (bb || 1);
-    const pom_a = Math.sqrt(Math.max(0, r0 * r0 - pom_h * pom_h));
-
-    // C# scaling
-    let max = Math.max(a_raw, b_raw);
-    const l = c_raw + f_raw + j_raw;
     let p = 25;
     if (l > 1000) p = 30;
     if (l > 2501) p = 40;
-    if (l > max) max = l;
-    if (p > max) max = p;
-    if (c_raw + f_raw + j_raw > max) max = c_raw + f_raw + j_raw;
-    if (d_raw + g_raw + k_raw > max) max = d_raw + g_raw + k_raw;
 
-    // Form1.cs uses 55 here, which drew this fitting noticeably smaller than every other
-    // shape in the list. 80 matches the density the rest of the drawings are built at, so
-    // the auto-fitted frame lands on the same label scale as its neighbours.
+    let maxNorm = Math.max(a, b);
+    if (l + m + h > maxNorm) maxNorm = l + m + h;
+    if (p > maxNorm) maxNorm = p;
+
     const mnoznik = 80;
-    let a = Math.trunc(a_raw / max * mnoznik);
-    let b = Math.trunc(b_raw / max * mnoznik);
-    let c = Math.trunc(c_raw / max * mnoznik);
-    let d = Math.trunc(d_raw / max * mnoznik);
-    let m = Math.trunc(m_raw / max * mnoznik);
-    let k = Math.trunc(k_raw / max * mnoznik);
-    let ii = Math.trunc(i_raw / max * mnoznik);
-    let j = Math.trunc(j_raw / max * mnoznik);
-    let g = Math.trunc(g_raw / max * mnoznik);
-    let f = Math.trunc(f_raw / max * mnoznik);
-    p = Math.trunc(p / max * mnoznik);
-    let poma = Math.trunc(pom_a / max * mnoznik);
-    let pomb = Math.trunc((b_raw + g_raw + f_raw - pom_a) / max * mnoznik);
-    let pomh = Math.trunc(pom_h / max * mnoznik);
-
-    while ((d + k + g) < 60 && (c + f + j) < 60 && (a + 20) < 80 && b < 60) {
-      a = Math.trunc(a * 1.1); b = Math.trunc(b * 1.1);
-      c = Math.trunc(c * 1.1); d = Math.trunc(d * 1.1);
-      m = Math.trunc(m * 1.1); k = Math.trunc(k * 1.1);
-      ii = Math.trunc(ii * 1.1); j = Math.trunc(j * 1.1);
-      g = Math.trunc(g * 1.1); f = Math.trunc(f * 1.1);
-      p = Math.trunc(p * 1.1);
-      poma = Math.trunc(poma * 1.1); pomb = Math.trunc(pomb * 1.1);
-      pomh = Math.trunc(pomh * 1.1);
-    }
-    if (g < 1) g = 1;
-    if (f < 1) f = 1;
-
-    // C# bitmap ~300×200, our viewBox 360×160 → scale ~0.53
-    const S = 0.53;
-    const sx = (v: number) => v * S;
-    const sy = (v: number) => v * S;
-
-    let push_x = 140 - b - m - g - f - j;
-    if (push_x < 0) push_x = 10;
-    let push_y = 10;
-    if (c + f + j > d + g + k) push_y = 90 - c - f - j;
-    else push_y = 90 - d - g - k;
-
-    const els: React.ReactElement[] = [];
-    let _k = 0;
-    const K = () => _k++;
-
-    // ── Cross-section c×a ("maly z tylu") ──
-    const csX = 190 + push_x, csY = 20 + push_y;
-    els.push(<rect key={K()} x={sx(csX-p)} y={sy(csY-p)} width={sx(a+2*p)} height={sy(c+2*p)} fill="none" stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<rect key={K()} x={sx(csX)} y={sy(csY)} width={sx(a)} height={sy(c)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── Cross-section d×a ("maly z przodu") ──
-    const cs0Y = 20 + push_y + c + f + j - d - g - k;
-    els.push(<rect key={K()} x={sx(csX-p)} y={sy(cs0Y-p)} width={sx(a+2*p)} height={sy(d+2*p)} fill="none" stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<rect key={K()} x={sx(csX)} y={sy(cs0Y)} width={sx(a)} height={sy(d)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── Body rect (g+k tall, "pod tymi powyzej") ──
-    const p02Y = 20 + push_y + c + f + j - g - k;
-    els.push(<rect key={K()} x={sx(csX)} y={sy(p02Y)} width={sx(a)} height={sy(g+k)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(p02Y+g+k)} x2={sx(csX+a+p)} y2={sy(p02Y+g+k)} stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(p02Y+g+k-p)} x2={sx(csX+a+p)} y2={sy(p02Y+g+k-p)} stroke={lineColor} strokeWidth={0.5}/>);
-
-    // ── "b" dim on body rect ──
-    {const dy=p02Y+g+k+15;
-    els.push(<line key={K()} x1={sx(csX)} y1={sy(dy)} x2={sx(csX+a)} y2={sy(dy)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(csX)} y1={sy(dy-3)} x2={sx(csX)} y2={sy(dy+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(csX+a)} y1={sy(dy-3)} x2={sx(csX+a)} y2={sy(dy+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(csX+a/2)} y={sy(dy)+6} fontSize={7} fill="#333" textAnchor="middle">b</text>);}
-
-    // ── Left branch d×m ("poziomy") ──
-    const lbX = 20+push_x, lbY = 20+push_y+c+f+j-d-g-k;
-    els.push(<rect key={K()} x={sx(lbX)} y={sy(lbY)} width={sx(m)} height={sy(d)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(lbX+m)} y1={sy(lbY+1)} x2={sx(lbX+m)} y2={sy(lbY+d-1)} stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    // flange
-    els.push(<line key={K()} x1={sx(lbX)} y1={sy(lbY-p)} x2={sx(lbX)} y2={sy(lbY+d+p)} stroke={lineColor} strokeWidth={0.8}/>);
-    els.push(<line key={K()} x1={sx(lbX+p)} y1={sy(lbY-p)} x2={sx(lbX+p)} y2={sy(lbY+d+p)} stroke={lineColor} strokeWidth={0.4}/>);
-
-    // ── d dim ──
-    {const dx=lbX-15;
-    els.push(<line key={K()} x1={sx(dx)} y1={sy(lbY)} x2={sx(dx)} y2={sy(lbY+d)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(dx-3)} y1={sy(lbY)} x2={sx(dx+3)} y2={sy(lbY)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(dx-3)} y1={sy(lbY+d)} x2={sx(dx+3)} y2={sy(lbY+d)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(lbX-25)} y={sy(lbY+d/2+2)} fontSize={7} fill="#333">d</text>);}
-
-    // ── m dim ──
-    {const my=lbY-15;
-    els.push(<line key={K()} x1={sx(lbX)} y1={sy(my)} x2={sx(lbX+m)} y2={sy(my)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lbX)} y1={sy(my-3)} x2={sx(lbX)} y2={sy(my+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lbX+m)} y1={sy(my-3)} x2={sx(lbX+m)} y2={sy(my+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(lbX+m/2)} y={sy(lbY-30)} fontSize={7} fill="#333" textAnchor="middle">m</text>);}
-
-    // ── g-arc: C# DrawArc(lbX+m-g, lbY+d, 2g, 2g, 270, 90) ──
-    // center=(lbX+m, lbY+d+g), start 270°=(0,-g)→top, sweep 90° CW →(g,0)=right
-    const gCx = lbX+m, gCy = lbY+d+g;
-    els.push(<path key={K()} d={`M ${sx(gCx)},${sy(gCy-g)} A ${sx(g)},${sy(g)} 0 0,1 ${sx(gCx+g)},${sy(gCy)}`} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── k-line (vertical after arc) ──
-    const klX = gCx+g, klY1 = gCy, klY2 = gCy+k;
-    els.push(<line key={K()} x1={sx(klX)} y1={sy(klY1)} x2={sx(klX)} y2={sy(klY2)} stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── g label ──
-    els.push(<line key={K()} x1={sx(klX)} y1={sy(klY1-g)} x2={sx(klX-g/2)} y2={sy(klY1-g/2)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(klX)} y={sy(klY1-g-8)} fontSize={7} fill="#333" textAnchor="middle">g</text>);
-
-    // ── k dim ──
-    {const kdx=klX-15;
-    els.push(<line key={K()} x1={sx(kdx)} y1={sy(klY1)} x2={sx(kdx)} y2={sy(klY2)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(kdx-3)} y1={sy(klY1)} x2={sx(kdx+3)} y2={sy(klY1)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(kdx-3)} y1={sy(klY2)} x2={sx(kdx+3)} y2={sy(klY2)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(klX-35)} y={sy(klY1+k/2+2)} fontSize={7} fill="#333">k</text>);}
-
-    // ── qwe = bottom of k-line = junction ──
-    const qX = klX, qY = klY2;
-
-    // ── b-line + flanges ──
-    els.push(<line key={K()} x1={sx(qX)} y1={sy(qY)} x2={sx(qX+b)} y2={sy(qY)} stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(qX-p)} y1={sy(qY)} x2={sx(qX+b+p)} y2={sy(qY)} stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(qX-p)} y1={sy(qY-p)} x2={sx(qX+b+p)} y2={sy(qY-p)} stroke={lineColor} strokeWidth={0.5}/>);
-
-    // ── "a" dim (C# labels b-section as "a") ──
-    {const ady=qY+15;
-    els.push(<line key={K()} x1={sx(qX)} y1={sy(ady)} x2={sx(qX+b)} y2={sy(ady)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(qX)} y1={sy(ady-3)} x2={sx(qX)} y2={sy(ady+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(qX+b)} y1={sy(ady-3)} x2={sx(qX+b)} y2={sy(ady+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(qX+b/2)} y={sy(ady)+6} fontSize={7} fill="#333" textAnchor="middle">a</text>);}
-
-    // ── j-line (vertical from qwe+b upward by j) ──
-    const jX = qX+b;
-    els.push(<line key={K()} x1={sx(jX)} y1={sy(qY-j)} x2={sx(jX)} y2={sy(qY)} stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── j dim ──
-    {const jdx=jX+15;
-    els.push(<line key={K()} x1={sx(jdx)} y1={sy(qY-j)} x2={sx(jdx)} y2={sy(qY)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(jdx-3)} y1={sy(qY-j)} x2={sx(jdx+3)} y2={sy(qY-j)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(jdx-3)} y1={sy(qY)} x2={sx(jdx+3)} y2={sy(qY)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(jX+25)} y={sy(qY-j/2+2)} fontSize={7} fill="#333">j</text>);}
-
-    // ── f-arc: C# DrawArc(jX, qY-j-f, 2f, 2f, 180, 90) ──
-    // center=(jX+f, qY-j-f+f)=(jX+f, qY-j), start 180°=(-f,0)=left, sweep 90° CW to 270°=(0,-f)=up
-    // Actually GDI: 180°=left, 270°=up. Start at left, end at top.
-    // start: (jX, qY-j), end: (jX+f, qY-j-f)
-    els.push(<path key={K()} d={`M ${sx(jX)},${sy(qY-j)} A ${sx(f)},${sy(f)} 0 0,1 ${sx(jX+f)},${sy(qY-j-f)}`} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── f label ──
-    els.push(<line key={K()} x1={sx(jX)} y1={sy(qY-j-f)} x2={sx(jX+f/2)} y2={sy(qY-j-f/2)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(jX-8)} y={sy(qY-j-f-4)} fontSize={7} fill="#333">f</text>);
-
-    // ── Right branch c×i ──
-    const rbX = jX+f, rbY = qY-j-f-c;
-    els.push(<rect key={K()} x={sx(rbX)} y={sy(rbY)} width={sx(ii)} height={sy(c)} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY+1)} x2={sx(rbX)} y2={sy(rbY+c-1)} stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    // flange
-    els.push(<line key={K()} x1={sx(rbX+ii)} y1={sy(rbY-p)} x2={sx(rbX+ii)} y2={sy(rbY+c+p)} stroke={lineColor} strokeWidth={0.8}/>);
-    els.push(<line key={K()} x1={sx(rbX+ii-p)} y1={sy(rbY-p)} x2={sx(rbX+ii-p)} y2={sy(rbY+c+p)} stroke={lineColor} strokeWidth={0.4}/>);
-
-    // ── c dim ──
-    {const cdx=rbX+ii+15;
-    els.push(<line key={K()} x1={sx(cdx)} y1={sy(rbY)} x2={sx(cdx)} y2={sy(rbY+c)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(cdx-3)} y1={sy(rbY)} x2={sx(cdx+3)} y2={sy(rbY)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(cdx-3)} y1={sy(rbY+c)} x2={sx(cdx+3)} y2={sy(rbY+c)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(rbX+ii+20)} y={sy(rbY+c/2+2)} fontSize={7} fill="#333">c</text>);}
-
-    // ── i dim ──
-    {const idy=rbY-15;
-    els.push(<line key={K()} x1={sx(rbX)} y1={sy(idy)} x2={sx(rbX+ii)} y2={sy(idy)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(rbX)} y1={sy(idy-3)} x2={sx(rbX)} y2={sy(idy+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(rbX+ii)} y1={sy(idy-3)} x2={sx(rbX+ii)} y2={sy(idy+3)} stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(rbX+ii/2)} y={sy(rbY-26)} fontSize={7} fill="#333" textAnchor="middle">i</text>);}
-
-    // ── Outer arcs ──
-    // C#: qwe = {qX-g, qY-k}, qwe1 = {qX+b+f, qY-j}
-    const oLx = qX-g, oLy = qY-k;
-    const oRx = qX+b+f, oRy = qY-j;
-    const gamma = Math.trunc(Math.atan(Math.abs(k-j)/(b||1))*180/Math.PI);
-    const alfa = Math.trunc(Math.atan((pomh||1)/(poma||1))*180/Math.PI);
-    const beta = Math.trunc(Math.atan((pomh||1)/(pomb||1))*180/Math.PI);
-
-    let lStart=270, lSweep: number, rStart: number, rSweep: number;
-    if (Math.abs(k-j) < 1) {
-      lSweep = 90-alfa;
-      rStart = 270-(90-beta); rSweep = 90-beta;
-    } else if (j > k) {
-      lSweep = 90-alfa-gamma;
-      rStart = 270-(90-beta)-gamma; rSweep = 90-beta+gamma;
-    } else {
-      lSweep = 90-alfa+gamma;
-      rStart = 270-(90-beta)+gamma; rSweep = 90-beta-gamma;
+    a = toInt((a / maxNorm) * mnoznik);
+    b = toInt((b / maxNorm) * mnoznik);
+    l = toInt((l / maxNorm) * mnoznik);
+    p = toInt((p / maxNorm) * mnoznik);
+    c = toInt((c / maxNorm) * mnoznik);
+    d = toInt((d / maxNorm) * mnoznik);
+    m = toInt((m / maxNorm) * mnoznik);
+    h = toInt((h / maxNorm) * mnoznik);
+    while ((l + m + h + 20) < 160 && (a + 20) < 100 && (b + 20) < 100) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); c = toInt(c * 1.1); d = toInt(d * 1.1);
+      m = toInt(m * 1.1); h = toInt(h * 1.1); l = toInt(l * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
     }
 
-    const gdiArc = (cx: number, cy: number, r: number, startDeg: number, sweepDeg: number) => {
-      if (Math.abs(sweepDeg) < 0.5) return '';
-      const s1 = startDeg*Math.PI/180, s2 = (startDeg+sweepDeg)*Math.PI/180;
-      return `M ${sx(cx+r*Math.cos(s1))},${sy(cy+r*Math.sin(s1))} A ${sx(r)},${sy(r)} 0 ${Math.abs(sweepDeg)>180?1:0},${sweepDeg>0?1:0} ${sx(cx+r*Math.cos(s2))},${sy(cy+r*Math.sin(s2))}`;
+    let pushX = toInt(((110 - a - l - m - h) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - b) / 2) + 5;
+
+    return renderReducerLike({
+      a, b, l, h, m, p, pushX, pushY,
+      small: { w: c, h: d, offX: toInt((a - c) / 2), offY: toInt((b - d) / 2) },
+      round: false, lFromFace: true, asym: false,
+    });
+  };
+
+  const renderAsymReducer = () => {
+    // QPR2a — Form1.cs `if (symbol == "QPR2a")` (redukcja asymetryczna): c×d end whose
+    // top-left sits f left of and e above the a×b end's top-left, both flanged.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let c = Math.max(toInt(values[2] || 150), 1);
+    let d = Math.max(toInt(values[3] || 150), 1);
+    let l = Math.max(toInt(values[4] || 500), 1);
+    let h = Math.max(toInt(values[5] ?? 0), 0);
+    let m = Math.max(toInt(values[6] ?? 0), 0);
+    let ee = toInt(values[7] ?? 0);
+    let f = toInt(values[8] ?? 0);
+
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+
+    let maxNorm = Math.max(a, b);
+    // Form1 slip kept as-is: the sum is tested but only l is taken.
+    if (l + m + h > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+
+    const mnoznik = 70;
+    a = toInt((a / maxNorm) * mnoznik);
+    b = toInt((b / maxNorm) * mnoznik);
+    l = toInt((l / maxNorm) * mnoznik);
+    p = toInt((p / maxNorm) * mnoznik);
+    d = toInt((d / maxNorm) * mnoznik);
+    c = toInt((c / maxNorm) * mnoznik);
+    m = toInt((m / maxNorm) * mnoznik);
+    h = toInt((h / maxNorm) * mnoznik);
+    ee = toInt((ee / maxNorm) * mnoznik);
+    f = toInt((f / maxNorm) * mnoznik);
+    while ((l + m + h + 20 + ee + f) < 100 && (a + 20) < 80 && (b + 20) < 80) {
+      a = toInt(a * 1.25); b = toInt(b * 1.25); d = toInt(d * 1.25); c = toInt(c * 1.25);
+      m = toInt(m * 1.25); h = toInt(h * 1.25); l = toInt(l * 1.25); p = toInt(p * 1.25);
+      ee = toInt(ee * 1.25); f = toInt(f * 1.25);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+
+    let pushX = toInt(((110 - a - l) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - b) / 2) + 5;
+
+    return renderReducerLike({
+      a, b, l, h, m, p, pushX, pushY,
+      small: { w: c, h: d, offX: -f, offY: -ee },
+      round: false, lFromFace: true, asym: true,
+    });
+  };
+
+  const renderSquareToRoundReducer = () => {
+    // PR1a — Form1.cs `if (symbol == "PR1a")` (redukcja kwadrat-koło symetryczna): round
+    // end of diameter d concentric in the a×b end.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let d = Math.max(toInt(values[2] || 150), 1);
+    let l = Math.max(toInt(values[3] || 500), 1);
+    let h = Math.max(toInt(values[4] ?? 0), 0);
+    let m = Math.max(toInt(values[5] ?? 0), 0);
+
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+
+    let maxNorm = Math.max(a, b);
+    if (l + m + h > maxNorm) maxNorm = l + m + h;
+    if (p > maxNorm) maxNorm = p;
+
+    const mnoznik = 80;
+    a = toInt((a / maxNorm) * mnoznik);
+    b = toInt((b / maxNorm) * mnoznik);
+    l = toInt((l / maxNorm) * mnoznik);
+    p = toInt((p / maxNorm) * mnoznik);
+    d = toInt((d / maxNorm) * mnoznik);
+    m = toInt((m / maxNorm) * mnoznik);
+    h = toInt((h / maxNorm) * mnoznik);
+    while ((l + m + h + 20) < 160 && (a + 20) < 100 && (b + 20) < 100) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); d = toInt(d * 1.1);
+      m = toInt(m * 1.1); h = toInt(h * 1.1); l = toInt(l * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+
+    let pushX = toInt(((110 - a - l - m - h) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - b) / 2) + 5;
+
+    return renderReducerLike({
+      a, b, l, h, m, p, pushX, pushY,
+      small: { w: d, h: d, offX: toInt((a - d) / 2), offY: toInt((b - d) / 2) },
+      round: true, lFromFace: false, asym: false,
+    });
+  };
+
+  const renderAsymSquareToRoundReducer = () => {
+    // PR7a — Form1.cs `if (symbol == "PR7a")` (redukcja kwadrat-koło asymetryczna): round
+    // end of diameter d whose bounding square sits f left of and e above the a×b end.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let d = Math.max(toInt(values[2] || 150), 1);
+    let l = Math.max(toInt(values[3] || 500), 1);
+    let ee = toInt(values[4] ?? 0);
+    let f = toInt(values[5] ?? 0);
+    let h = Math.max(toInt(values[6] ?? 0), 0);
+    let m = Math.max(toInt(values[7] ?? 0), 0);
+
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+
+    let maxNorm = Math.max(a, b);
+    if (l + m + a + h + f + ee > maxNorm) maxNorm = l + m + a + h + ee + f;
+    if (p > maxNorm) maxNorm = p;
+
+    const mnoznik = 90;
+    a = toInt((a / maxNorm) * mnoznik);
+    b = toInt((b / maxNorm) * mnoznik);
+    l = toInt((l / maxNorm) * mnoznik);
+    p = toInt((p / maxNorm) * mnoznik);
+    d = toInt((d / maxNorm) * mnoznik);
+    m = toInt((m / maxNorm) * mnoznik);
+    h = toInt((h / maxNorm) * mnoznik);
+    ee = toInt((ee / maxNorm) * mnoznik);
+    f = toInt((f / maxNorm) * mnoznik);
+    while ((l + m + h + a + ee + f) < 130 && (a + 20) < 100 && (b + 20) < 100) {
+      a = toInt(a * 1.25); b = toInt(b * 1.25); d = toInt(d * 1.25);
+      m = toInt(m * 1.25); h = toInt(h * 1.25); l = toInt(l * 1.25); p = toInt(p * 1.25);
+      ee = toInt(ee * 1.25); f = toInt(f * 1.25);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+
+    let pushX = 150 - a - l - m - h;
+    if (pushX < 30) pushX = 30;
+    const pushY = toInt((90 - b) / 2) + 5;
+
+    return renderReducerLike({
+      a, b, l, h, m, p, pushX, pushY,
+      small: { w: d, h: d, offX: -f, offY: -ee },
+      round: true, lFromFace: false, asym: true,
+    });
+  };
+
+  const renderReductionBendLike = (diffuser: boolean) => {
+    // Port of Form1.cs `if (symbol == "QBRa")` (łuk redukcyjny) and `"QBR1a"` (łuk
+    // dyfuzorowany), which share one GDI sequence. NOTE: Form1's local `b` holds the
+    // dimension labelled "d" on screen and its `d` the one labelled "b" (the textbox↔label
+    // tables and the drawing code disagree); the names below follow the on-screen labels:
+    // `narrow` = b (inlet width), `wide` = d (outlet width). Plan view on the left: inlet
+    // entering from the left (horizontally at 90°, otherwise at alfa), outlet of width d
+    // leaving downward with inner radius r. End view on the right: the inlet opening in its
+    // flange with the f+r extent below (QBR1a: a c-wide inlet whose walls splay to the
+    // a-wide outlet, offset g).
+    const toInt = (v: number) => Math.trunc(v);
+    const round = (v: number) => Math.round(v);
+
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let wide = Math.max(toInt(values[1] || 200), 1);
+    let c = diffuser ? Math.max(toInt(values[2] || 200), 1) : a;
+    let narrow = Math.max(toInt(values[diffuser ? 3 : 2] || 150), 1);
+    let ee = Math.max(toInt(values[diffuser ? 4 : 3] || 150), 1);
+    let f = Math.max(toInt(values[diffuser ? 5 : 4] || 150), 1);
+    let r = Math.max(toInt(values[diffuser ? 6 : 5] || 200), 0);
+    let g = diffuser ? toInt(values[7] ?? 0) : 0;
+    let alfa = toInt(values[diffuser ? 8 : 6] || 90);
+    if (alfa > 90) alfa = 90;
+    if (alfa < 15) alfa = 15;
+    const A = (alfa * Math.PI) / 180;
+    const sin = Math.sin(A);
+    const cos = Math.cos(A);
+
+    let dd = round(narrow * sin);
+
+    let p = 25;
+    let maxNorm = a > wide + ee ? a : wide + ee;
+    if (narrow + f > maxNorm) maxNorm = narrow + f;
+    // Outer-wall radius of the angled variant, from the unscaled sizes (Form1's r1;
+    // note its `alfa / 2` is integer division).
+    const ctg1 = 1 / Math.tan(A);
+    const x1 = ctg1 * (narrow / cos - wide + r * (1 / cos - 1));
+    const r1 = round(x1 / Math.tan((toInt(alfa / 2) * Math.PI) / 180));
+    if (maxNorm > 1000) p = 30;
+    if (maxNorm > 2501) p = 40;
+    maxNorm += r + ee;
+    if (p > maxNorm) maxNorm = p;
+    if (f > maxNorm) maxNorm = f;
+    if (ee > maxNorm) maxNorm = ee;
+
+    const mnoznik = diffuser ? 70 : 80;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); wide = sc(wide); c = sc(c); p = sc(p); ee = sc(ee); f = sc(f); r = sc(r);
+    narrow = sc(narrow); dd = sc(dd); g = sc(g);
+    const r1s = sc(r1);
+
+    const l = 3;
+    let pushX = toInt(((110 - a - l) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - wide) / 2) + (diffuser ? -10 : 5);
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+    const dim = (x1_: number, y1_: number, x2_: number, y2_: number, label: string, lx: number, ly: number, anchor: 'start' | 'middle' | 'end') => {
+      const len = Math.hypot(x2_ - x1_, y2_ - y1_) || 1;
+      const tx = (y2_ - y1_) / len; // tick direction: perpendicular to the dimension line
+      const ty = -(x2_ - x1_) / len;
+      return (
+        <>
+          {dimLine(x1_, y1_, x2_, y2_)}
+          {tick(x1_, y1_, tx, ty)}
+          {tick(x2_, y2_, tx, ty)}
+          <text x={lx} y={ly} textAnchor={anchor} fontSize={10} fill="#555555">{label}</text>
+        </>
+      );
     };
 
-    const oLR = g+d, oRR = c+f;
-    const lArc = gdiArc(oLx, oLy, oLR, lStart, lSweep);
-    const rArc = gdiArc(oRx, oRy, oRR, rStart, rSweep);
-    if (lArc) els.push(<path key={K()} d={lArc} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    if (rArc) els.push(<path key={K()} d={rArc} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const es = toInt(ee * sin);
 
-    return <g>{els}</g>;
+    // ---- plan view -------------------------------------------------------------
+    let plan: React.ReactNode;
+    let planRight: number;
+    if (alfa === 90) {
+      const x1_ = x0 + ee + wide + r;
+      const y1_ = y0 + narrow + f + r;
+      const R = narrow + r; // outer arc radius, centred (x1 - R, y0 + R)
+      const outer = `M ${x0} ${y0} L ${x1_ - R} ${y0} A ${R} ${R} 0 0 1 ${x1_} ${y0 + R} L ${x1_} ${y1_}`;
+      const inner = r > 0
+        ? `M ${x0} ${y0 + narrow} L ${x1_ - wide - r} ${y0 + narrow} A ${r} ${r} 0 0 1 ${x1_ - wide} ${y0 + narrow + r} L ${x1_ - wide} ${y1_}`
+        : `M ${x0} ${y0 + narrow} L ${x1_ - wide} ${y0 + narrow} L ${x1_ - wide} ${y1_}`;
+      const icx = x1_ - wide - r;
+      const icy = y0 + narrow + r;
+      const rl = r * Math.SQRT2 + 10;
+      planRight = x1_ + p;
+      plan = (
+        <>
+          <path d={outer} fill="none" stroke={lineColor} strokeWidth={1.6} />
+          <path d={inner} fill="none" stroke={lineColor} strokeWidth={1.6} />
+          {/* inlet face + flange */}
+          <line x1={x0} y1={y0 - p} x2={x0} y2={y0 + narrow + p} stroke={lineColor} strokeWidth={1.4} />
+          <line x1={x0 + p} y1={y0} x2={x0 + p} y2={y0 + narrow} stroke={lineColor} strokeWidth={1.2} />
+          {/* outlet face + flange */}
+          <line x1={x1_ - wide - p} y1={y1_} x2={x1_ + p} y2={y1_} stroke={lineColor} strokeWidth={1.4} />
+          <line x1={x1_ - wide} y1={y1_ - p} x2={x1_} y2={y1_ - p} stroke={lineColor} strokeWidth={1.2} />
+          {/* r leader */}
+          <line x1={icx} y1={icy} x2={icx + r} y2={icy - r} stroke="#9b9b9b" strokeWidth={0.9} />
+          <text x={icx + rl * Math.SQRT1_2} y={icy - rl * Math.SQRT1_2 + 4} textAnchor="middle" fontSize={10} fill="#555555">r</text>
+          {dim(x0 - 15, y0, x0 - 15, y0 + narrow, 'b', x0 - 21, y0 + narrow / 2 + 4, 'end')}
+          {dim(x0 - 15, y1_ - f, x0 - 15, y1_, 'f', x0 - 21, y1_ - f / 2 + 4, 'end')}
+          {dim(x0, y1_ + 15, x1_ - wide - r, y1_ + 15, 'e', (x0 + x1_ - wide - r) / 2, y1_ + 29, 'middle')}
+          {dim(x1_ - wide, y1_ + 15, x1_, y1_ + 15, 'd', x1_ - wide / 2, y1_ + 29, 'middle')}
+        </>
+      );
+    } else {
+      if (r === 0) r = 1;
+      const y1_ = y0 + dd + f + r + es;
+      const xo0 = x0 + ee + r;
+      const xo1 = xo0 + wide;
+      const icx = xo0 - r;
+      const icy = y1_ - f;
+      const p1 = { x: icx + r * cos, y: icy - r * sin };
+      const legDir = { x: sin, y: cos };
+      const across = { x: cos, y: -sin };
+      const p2 = { x: p1.x - legDir.x * ee, y: p1.y - legDir.y * ee };
+      const p3 = { x: p2.x + across.x * narrow, y: p2.y + across.y * narrow };
+      const p4 = { x: p3.x + legDir.x * ee, y: p3.y + legDir.y * ee };
+      const p5 = { x: xo1, y: y1_ - f };
+      // Outer wall between the inlet's outer edge and the outlet's corner: Form1 fits an arc
+      // of radius r1 (tangent to the inlet) when (d + r')/cos α > b + r' and otherwise a
+      // straight line (or, below that, nothing but an error box — a straight line here).
+      const rr = toInt(((narrow + r) * alfa) / 90);
+      const useArc = (narrow + rr) / cos > wide + rr && r1s > 0 && Number.isFinite(r1s);
+      const p6 = { x: p5.x - (r1s - r1s * cos), y: p5.y - r1s * sin };
+      const outerJoin = useArc
+        ? `M ${p5.x} ${p5.y} A ${r1s} ${r1s} 0 0 0 ${p6.x} ${p6.y} L ${p4.x} ${p4.y}`
+        : `M ${p5.x} ${p5.y} L ${p4.x} ${p4.y}`;
+      const innerArc = `M ${xo0} ${icy} A ${r} ${r} 0 0 0 ${p1.x} ${p1.y}`;
+      const bis = { x: Math.cos(A / 2), y: -Math.sin(A / 2) };
+      planRight = Math.max(xo1 + p, p3.x + across.x * 15 + 14, p4.x + across.x * 15 + 14);
+      plan = (
+        <>
+          {/* outlet leg */}
+          <path d={`M ${xo0} ${icy} L ${xo0} ${y1_} L ${xo1} ${y1_} L ${xo1} ${icy}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+          <line x1={xo0 - p} y1={y1_} x2={xo1 + p} y2={y1_} stroke={lineColor} strokeWidth={1.4} />
+          <line x1={xo0} y1={y1_ - p} x2={xo1} y2={y1_ - p} stroke={lineColor} strokeWidth={1.2} />
+          {/* bend */}
+          <path d={innerArc} fill="none" stroke={lineColor} strokeWidth={1.6} />
+          <path d={outerJoin} fill="none" stroke={lineColor} strokeWidth={1.6} />
+          {/* inlet leg */}
+          <path d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+          <line x1={p2.x - across.x * p} y1={p2.y - across.y * p} x2={p3.x + across.x * p} y2={p3.y + across.y * p} stroke={lineColor} strokeWidth={1.4} />
+          <line x1={p2.x + legDir.x * p} y1={p2.y + legDir.y * p} x2={p3.x + legDir.x * p} y2={p3.y + legDir.y * p} stroke={lineColor} strokeWidth={1.2} />
+          {/* r leader along the bisector */}
+          <line x1={icx} y1={icy} x2={icx + bis.x * r} y2={icy + bis.y * r} stroke="#9b9b9b" strokeWidth={0.9} />
+          {r > 1 && (
+            <text x={icx + bis.x * (r + 12)} y={icy + bis.y * (r + 12) + 4} textAnchor="middle" fontSize={10} fill="#555555">r</text>
+          )}
+          {dim(xo0, y1_ + 15, xo1, y1_ + 15, 'd', (xo0 + xo1) / 2, y1_ + 29, 'middle')}
+          {dim(xo0 - 15, icy, xo0 - 15, y1_, 'f', xo0 - 21, (icy + y1_) / 2 + 4, 'end')}
+          {dim(p2.x - legDir.x * 15, p2.y - legDir.y * 15, p3.x - legDir.x * 15, p3.y - legDir.y * 15, 'b',
+            (p2.x + p3.x) / 2 - legDir.x * 24, (p2.y + p3.y) / 2 - legDir.y * 24 + 4, 'middle')}
+          {dim(p3.x + across.x * 15, p3.y + across.y * 15, p4.x + across.x * 15, p4.y + across.y * 15, 'e',
+            (p3.x + p4.x) / 2 + across.x * 24, (p3.y + p4.y) / 2 + across.y * 24 + 4, 'middle')}
+        </>
+      );
+    }
+
+    // ---- end view --------------------------------------------------------------
+    const secW = diffuser ? c : a;
+    const secH = alfa === 90 ? narrow : dd;
+    const sectionShift = Math.max(0, planRight + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const sec = { x0: sx, y0: y0, x1: sx + secW, y1: y0 + secH };
+    const fl = { x0: sec.x0 - p, y0: sec.y0 - p, x1: sec.x1 + p, y1: sec.y1 + p };
+    const aDimY = Math.min(sec.y0 - 15, fl.y0 - 8);
+
+    let endView: React.ReactNode;
+    if (!diffuser) {
+      // podmalym: the f+r (angled: f+r+e·sinα) extent below the opening; Form1's flange fill
+      // hides its top, and its bottom carries the outlet flange lines.
+      const bottom = sec.y1 + f + r + (alfa === 90 ? 0 : es);
+      const top = Math.min(fl.y1, bottom);
+      endView = (
+        <>
+          <path d={`M ${sec.x0} ${top} L ${sec.x0} ${bottom} L ${sec.x1} ${bottom} L ${sec.x1} ${top}`} fill="none" stroke={lineColor} strokeWidth={1.2} />
+          {bottom - p > fl.y1 && <line x1={sec.x0} y1={bottom - p} x2={sec.x1} y2={bottom - p} stroke={lineColor} strokeWidth={1.2} />}
+          <line x1={sec.x0 - p} y1={bottom} x2={sec.x1 + p} y2={bottom} stroke={lineColor} strokeWidth={1.4} />
+          {dim(sec.x0, aDimY, sec.x1, aDimY, 'a', (sec.x0 + sec.x1) / 2, aDimY - 4, 'middle')}
+        </>
+      );
+    } else {
+      // QBR1a: the c-wide inlet's walls splay over the r (+e·sinα) depth to the a-wide
+      // outlet, whose right edge sits g right of the inlet's; the outlet leg (length f)
+      // and its flange hang below.
+      const yTr = sec.y1 + r + (alfa === 90 ? 0 : es);
+      const xr = sec.x1 + g;
+      const xl = xr - a;
+      const yBot = yTr + f;
+      const gDimY = aDimY;
+      endView = (
+        <>
+          <line x1={sec.x0} y1={sec.y1} x2={xl} y2={yTr} stroke={lineColor} strokeWidth={1.2} />
+          <line x1={sec.x1} y1={sec.y1} x2={xr} y2={yTr} stroke={lineColor} strokeWidth={1.2} />
+          <line x1={xl} y1={yTr} x2={xr} y2={yTr} stroke={lineColor} strokeWidth={1.2} />
+          <line x1={xl} y1={yTr} x2={xl} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
+          <line x1={xr} y1={yTr} x2={xr} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
+          <line x1={xl} y1={yBot - p} x2={xr} y2={yBot - p} stroke={lineColor} strokeWidth={1.2} />
+          <line x1={xl - p} y1={yBot} x2={xr + p} y2={yBot} stroke={lineColor} strokeWidth={1.4} />
+          {dim(sec.x0, aDimY, sec.x1, aDimY, 'c', (sec.x0 + sec.x1) / 2, aDimY - 4, 'middle')}
+          {Math.abs(g) >= 1 && dim(sec.x1, gDimY, xr, gDimY, 'g', (sec.x1 + xr) / 2, gDimY - 4, 'middle')}
+          {dim(xl, yBot + 15, xr, yBot + 15, 'a', (xl + xr) / 2, yBot + 29, 'middle')}
+        </>
+      );
+    }
+
+    return (
+      <g>
+        {plan}
+        {endView}
+        <rect x={fl.x0} y={fl.y0} width={fl.x1 - fl.x0} height={fl.y1 - fl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <rect x={sec.x0} y={sec.y0} width={sec.x1 - sec.x0} height={sec.y1 - sec.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+      </g>
+    );
   };
 
-  const renderRadiusTee = () => {
-    const a_raw = values[0] || 100;
-    const b_raw = values[1] || 300;
-    const c_raw = values[2] || 200;
-    const d_raw = values[3] || 200;
-    const L_raw = values[4] || 550;
-    const g_raw = values[5] || 100;
-    const i_raw = values[6] || 100;
-    const j_raw = values[7] || 100;
+  const renderReductionBendParametric = () => renderReductionBendLike(false);
 
-    let max = Math.max(a_raw, b_raw);
+  const renderDiffuserBend = () => renderReductionBendLike(true);
+
+  const renderElbowLike = (reduction: boolean) => {
+    // Port of Form1.cs `if (symbol == "QBFRa")` (kolano redukcyjne) and `"QBFa"` (kolano
+    // symetryczne, which is the same block with d = b). Plan view on the left: an L with a
+    // sharp outer corner — inlet of width d entering from the left (length e), outlet of
+    // width b leaving downward (length f), inner radius r. End view on the right: the a×d
+    // inlet opening in its flange with the f extent hanging below.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let d = reduction ? Math.max(toInt(values[2] || 150), 1) : b;
+    let ee = Math.max(toInt(values[reduction ? 3 : 2] || 150), 1);
+    let f = Math.max(toInt(values[reduction ? 4 : 3] || 150), 1);
+    let r = Math.max(toInt(values[reduction ? 5 : 4] || 100), 0);
+
     let p = 25;
-    if (max > 1000) p = 30;
-    if (max > 2501) p = 40;
-    if (L_raw > max) max = L_raw;
-    if (p > max) max = p;
-    if (i_raw > max) max = i_raw;
-    if (j_raw > max) max = j_raw;
-    if (c_raw > max) max = c_raw;
-    if (d_raw > max) max = d_raw;
-    if (b_raw + j_raw + g_raw > max) max = b_raw + j_raw + g_raw;
+    let maxNorm = a > b + ee ? a : b + ee;
+    if (d + f > maxNorm) maxNorm = d + f;
+    if (maxNorm > 1000) p = 30;
+    if (maxNorm > 2501) p = 40;
+    maxNorm += r + ee;
+    if (p > maxNorm) maxNorm = p;
+    if (f > maxNorm) maxNorm = f;
+    if (ee > maxNorm) maxNorm = ee;
 
     const mnoznik = 80;
-    let a = Math.trunc(a_raw / max * mnoznik);
-    let b = Math.trunc(b_raw / max * mnoznik);
-    let c = Math.trunc(c_raw / max * mnoznik);
-    let d = Math.trunc(d_raw / max * mnoznik);
-    p = Math.trunc(p / max * mnoznik);
-    let ii = Math.trunc(i_raw / max * mnoznik);
-    let j = Math.trunc(j_raw / max * mnoznik);
-    let g = Math.trunc(g_raw / max * mnoznik);
-    let l = Math.trunc(L_raw / max * mnoznik);
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); p = sc(p); ee = sc(ee); f = sc(f); r = sc(r); d = sc(d);
 
-    while (l < 70 && a < 100 && (b + j + g) < 100) {
-      a = Math.trunc(a * 1.1); b = Math.trunc(b * 1.1);
-      c = Math.trunc(c * 1.1); d = Math.trunc(d * 1.1);
-      p = Math.trunc(p * 1.1); ii = Math.trunc(ii * 1.1);
-      j = Math.trunc(j * 1.1); g = Math.trunc(g * 1.1);
-      l = Math.trunc(l * 1.1);
-    }
-    if (g < 1) g = 1;
+    const l = 3;
+    let pushX = toInt(((110 - a - l) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - b) / 2) + 5;
 
-    const S = 1.0;
-    const sx = (v: number) => v * S;
-    const sy = (v: number) => v * S;
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
 
-    const push_x = Math.abs(Math.trunc(130 - b - g - j));
-    const push_y = Math.trunc(90 - l);
+    // ---- plan view (punkty2 + wyczysc) ------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const x1 = x0 + ee + b;
+    const y1 = y0 + d + f;
+    const icx = x1 - b - r;
+    const icy = y0 + d + r;
+    const outer = `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1}`;
+    const inner = r > 0
+      ? `M ${x0} ${y0 + d} L ${icx} ${y0 + d} A ${r} ${r} 0 0 1 ${x1 - b} ${icy} L ${x1 - b} ${y1}`
+      : `M ${x0} ${y0 + d} L ${x1 - b} ${y0 + d} L ${x1 - b} ${y1}`;
+    const rl = r * Math.SQRT2 + 10;
+    const inletLabel = reduction ? 'd' : 'b';
 
-    const els: React.ReactElement[] = [];
-    let _k = 0;
-    const K = () => _k++;
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, x1 + p + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const sec = { x0: sx, y0: y0, x1: sx + a, y1: y0 + d };
+    const fl = { x0: sec.x0 - p, y0: sec.y0 - p, x1: sec.x1 + p, y1: sec.y1 + p };
+    const bottom = sec.y1 + f;
+    const top = Math.min(fl.y1, bottom);
+    const aDimY = Math.min(sec.y0 - 15, fl.y0 - 8);
 
-    // punkty12: d×a cross-section rect (maly z prawej)
-    const csX = 190 + push_x;
-    const csY0 = 20 + push_y + l - d - g - ii;
-    // punkty13: flange around cross-section
-    els.push(<rect key={K()} x={sx(csX-p)} y={sy(csY0-p)} width={sx(a+2*p)} height={sy(d+2*p)}
-      fill="none" stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<rect key={K()} x={sx(csX)} y={sy(csY0)} width={sx(a)} height={sy(d)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
+    return (
+      <g>
+        <path d={outer} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <path d={inner} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {/* inlet face + flange */}
+        <line x1={x0} y1={y0 - p} x2={x0} y2={y0 + d + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x0 + p} y1={y0} x2={x0 + p} y2={y0 + d} stroke={lineColor} strokeWidth={1.2} />
+        {/* outlet face + flange */}
+        <line x1={x1 - b - p} y1={y1} x2={x1 + p} y2={y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x1 - b} y1={y1 - p} x2={x1} y2={y1 - p} stroke={lineColor} strokeWidth={1.2} />
+        {/* r leader */}
+        <line x1={icx} y1={icy} x2={icx + r} y2={icy - r} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={icx + rl * Math.SQRT1_2} y={icy - rl * Math.SQRT1_2 + 4} textAnchor="middle" fontSize={10} fill="#555555">r</text>
 
-    // punkty14: body section below flange → bottom of fitting
-    const bodyY = csY0 + d;
-    els.push(<rect key={K()} x={sx(csX)} y={sy(bodyY+p)} width={sx(a)} height={sy(ii+g-p)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Bottom flange lines at Y = bodyY+ii+g = 20+push_y+l
-    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(bodyY+ii+g)} x2={sx(csX+a+p)} y2={sy(bodyY+ii+g)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(csX)} y1={sy(bodyY+ii+g-p)} x2={sx(csX+a)} y2={sy(bodyY+ii+g-p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
+        {/* inlet width (left, top part) and f (left, bottom part) */}
+        {dimLine(x0 - 15, y0, x0 - 15, y0 + d)}
+        {tick(x0 - 15, y0, 1, 0)}
+        {tick(x0 - 15, y0 + d, 1, 0)}
+        <text x={x0 - 21} y={y0 + d / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">{inletLabel}</text>
+        {dimLine(x0 - 15, y1 - f, x0 - 15, y1)}
+        {tick(x0 - 15, y1 - f, 1, 0)}
+        {tick(x0 - 15, y1, 1, 0)}
+        <text x={x0 - 21} y={y1 - f / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">f</text>
 
-    // punkty15: top section from top of fitting to d-section
-    const topY = 20 + push_y;
-    const topH = l - d - ii - g - p;
-    els.push(<rect key={K()} x={sx(csX)} y={sy(topY)} width={sx(a)} height={sy(topH)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Top flange: outer extended, inner not extended
-    els.push(<line key={K()} x1={sx(csX-p)} y1={sy(topY)} x2={sx(csX+a+p)} y2={sy(topY)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(csX)} y1={sy(topY+p)} x2={sx(csX+a)} y2={sy(topY+p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
+        {/* e (bottom, left part) and outlet width b (bottom, right part) */}
+        {dimLine(x0, y1 + 15, x1 - b, y1 + 15)}
+        {tick(x0, y1 + 15, 0, 1)}
+        {tick(x1 - b, y1 + 15, 0, 1)}
+        <text x={(x0 + x1 - b) / 2} y={y1 + 29} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+        {reduction && (
+          <>
+            {dimLine(x1 - b, y1 + 15, x1, y1 + 15)}
+            {tick(x1, y1 + 15, 0, 1)}
+            <text x={x1 - b / 2} y={y1 + 29} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+          </>
+        )}
 
-    // "b" dim label (C# labels the a-parameter as "b")
-    {const dy2 = topY - 15;
-    els.push(<line key={K()} x1={sx(csX)} y1={sy(dy2)} x2={sx(csX+a)} y2={sy(dy2)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(csX)} y1={sy(dy2-3)} x2={sx(csX)} y2={sy(dy2+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(csX+a)} y1={sy(dy2-3)} x2={sx(csX+a)} y2={sy(dy2+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(csX+a/2)} y={sy(dy2-5)} fontSize={7} fill="#333" textAnchor="middle">b</text>);}
-
-    // punkty2: j×d left branch rect (poziomy z lewej)
-    const lbX = 20 + push_x, lbY = csY0;
-    els.push(<rect key={K()} x={sx(lbX)} y={sy(lbY)} width={sx(j)} height={sy(d)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Centerline on right edge of branch
-    els.push(<line key={K()} x1={sx(lbX+j)} y1={sy(lbY+1)} x2={sx(lbX+j)} y2={sy(lbY+d-1)}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    // Left flange: inner line NOT extended
-    els.push(<line key={K()} x1={sx(lbX)} y1={sy(lbY-p)} x2={sx(lbX)} y2={sy(lbY+d+p)}
-      stroke={lineColor} strokeWidth={0.8}/>);
-    els.push(<line key={K()} x1={sx(lbX+p)} y1={sy(lbY)} x2={sx(lbX+p)} y2={sy(lbY+d)}
-      stroke={lineColor} strokeWidth={0.4}/>);
-
-    // j dim
-    {const my = lbY - 15;
-    els.push(<line key={K()} x1={sx(lbX)} y1={sy(my)} x2={sx(lbX+j)} y2={sy(my)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lbX)} y1={sy(my-3)} x2={sx(lbX)} y2={sy(my+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lbX+j)} y1={sy(my-3)} x2={sx(lbX+j)} y2={sy(my+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(lbX+j/2)} y={sy(my-8)} fontSize={7} fill="#333" textAnchor="middle">j</text>);}
-
-    // d dim
-    {const dx2 = lbX - 15;
-    els.push(<line key={K()} x1={sx(dx2)} y1={sy(lbY)} x2={sx(dx2)} y2={sy(lbY+d)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(dx2-3)} y1={sy(lbY)} x2={sx(dx2+3)} y2={sy(lbY)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(dx2-3)} y1={sy(lbY+d)} x2={sx(dx2+3)} y2={sy(lbY+d)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(lbX-30)} y={sy(lbY+d/2+2)} fontSize={7} fill="#333">d</text>);}
-
-    // g-arc: quarter circle, center at (lbX+j, csY0+d+g)
-    // C# DrawArc(lbX+j-g, csY0+d, 2g, 2g, 270, 90) → top to right
-    const p0x = lbX + j, p0y = lbY + d + g;
-    els.push(<path key={K()} d={`M ${sx(p0x)},${sy(p0y-g)} A ${sx(g)},${sy(g)} 0 0,1 ${sx(p0x+g)},${sy(p0y)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // g label: diagonal line from (p0x+g, p0y-g) to center (p0x, p0y)
-    els.push(<line key={K()} x1={sx(p0x+g)} y1={sy(p0y-g)} x2={sx(p0x)} y2={sy(p0y)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(p0x+g)} y={sy(p0y-g-10)} fontSize={7} fill="#333" textAnchor="middle">g</text>);
-
-    // punkty22: b×i horizontal section at bottom of arc
-    const bx1 = p0x + g, by1 = p0y;
-    els.push(<rect key={K()} x={sx(bx1)} y={sy(by1)} width={sx(b)} height={sy(ii)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Centerline on top edge
-    els.push(<line key={K()} x1={sx(bx1+1)} y1={sy(by1)} x2={sx(bx1+b-1)} y2={sy(by1)}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    // Bottom flanges: inner NOT extended, outer extended
-    els.push(<line key={K()} x1={sx(bx1)} y1={sy(by1+ii-p)} x2={sx(bx1+b)} y2={sy(by1+ii-p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(bx1-p)} y1={sy(by1+ii)} x2={sx(bx1+b+p)} y2={sy(by1+ii)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // "a" dim (C# labels the b-section width as "a")
-    {const ady = by1 + ii + 15;
-    els.push(<line key={K()} x1={sx(bx1)} y1={sy(ady)} x2={sx(bx1+b)} y2={sy(ady)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(bx1)} y1={sy(ady-3)} x2={sx(bx1)} y2={sy(ady+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(bx1+b)} y1={sy(ady-3)} x2={sx(bx1+b)} y2={sy(ady+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(bx1+b/2)} y={sy(ady+10)} fontSize={7} fill="#333" textAnchor="middle">a</text>);}
-
-    // L dim (vertical, between top of fitting and bottom of b-section)
-    {const lx = (csX + bx1 + b) / 2;
-    els.push(<line key={K()} x1={sx(lx)} y1={sy(topY)} x2={sx(lx)} y2={sy(topY+l)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lx-3)} y1={sy(topY)} x2={sx(lx+3)} y2={sy(topY)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lx-3)} y1={sy(topY+l)} x2={sx(lx+3)} y2={sy(topY+l)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(lx-5)} y={sy(topY+l/2+2)} fontSize={7} fill="#333" textAnchor="end">L</text>);}
-
-    // i dim
-    {const idx = bx1 - 15;
-    els.push(<line key={K()} x1={sx(idx)} y1={sy(by1)} x2={sx(idx)} y2={sy(by1+ii)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(idx-3)} y1={sy(by1)} x2={sx(idx+3)} y2={sy(by1)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(idx-3)} y1={sy(by1+ii)} x2={sx(idx+3)} y2={sy(by1+ii)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(idx-12)} y={sy(by1+ii/2+2)} fontSize={7} fill="#333">i</text>);}
-
-    // Right vertical line from top of fitting to b-section
-    const rbX = bx1 + b, rbY = by1 - (l - ii);
-    els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY)} x2={sx(rbX)} y2={sy(by1)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    // c-branch horizontal at top
-    els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY)} x2={sx(rbX-c)} y2={sy(rbY)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    // Top flanges: outer extended, inner NOT extended
-    els.push(<line key={K()} x1={sx(rbX+p)} y1={sy(rbY)} x2={sx(rbX-c-p)} y2={sy(rbY)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(rbX)} y1={sy(rbY+p)} x2={sx(rbX-c)} y2={sy(rbY+p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // c dim
-    {const cdy = rbY - 15;
-    els.push(<line key={K()} x1={sx(rbX-c)} y1={sy(cdy)} x2={sx(rbX)} y2={sy(cdy)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(rbX-c)} y1={sy(cdy-3)} x2={sx(rbX-c)} y2={sy(cdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(rbX)} y1={sy(cdy-3)} x2={sx(rbX)} y2={sy(cdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(rbX-c/2)} y={sy(cdy-5)} fontSize={7} fill="#333" textAnchor="middle">c</text>);}
-
-    // Outer arc: from c-branch end to outer arc, center at p0
-    const oArcCx = p0x, oArcCy = p0y;
-    const qwe11X = rbX - c;
-    const discrim = (g+d)*(g+d) - (qwe11X - oArcCx)*(qwe11X - oArcCx);
-    if (discrim >= 0) {
-      const qwe21Y = oArcCy - Math.trunc(Math.sqrt(discrim));
-      // Vertical connection line from c-branch to arc intersection
-      els.push(<line key={K()} x1={sx(qwe11X)} y1={sy(rbY)} x2={sx(qwe11X)} y2={sy(qwe21Y)}
-        stroke={lineColor} strokeWidth={1.2}/>);
-      const x2 = qwe11X - oArcCx;
-      const y2 = oArcCy - qwe21Y;
-      const alfa2 = Math.trunc(Math.atan(y2 / (x2 || 1)) * 180 / Math.PI);
-      const r2 = g + d;
-      const startA = 270 * Math.PI / 180;
-      const endA = (270 + 90 - alfa2) * Math.PI / 180;
-      const arcSx = oArcCx + r2 * Math.cos(startA), arcSy = oArcCy + r2 * Math.sin(startA);
-      const arcEx = oArcCx + r2 * Math.cos(endA), arcEy = oArcCy + r2 * Math.sin(endA);
-      els.push(<path key={K()} d={`M ${sx(arcSx)},${sy(arcSy)} A ${sx(r2)},${sy(r2)} 0 0,1 ${sx(arcEx)},${sy(arcEy)}`}
-        fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    }
-
-    return <g>{els}</g>;
+        {/* ---- end view ---- */}
+        <path d={`M ${sec.x0} ${top} L ${sec.x0} ${bottom} L ${sec.x1} ${bottom} L ${sec.x1} ${top}`} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        {bottom - p > fl.y1 && <line x1={sec.x0} y1={bottom - p} x2={sec.x1} y2={bottom - p} stroke={lineColor} strokeWidth={1.2} />}
+        <line x1={sec.x0 - p} y1={bottom} x2={sec.x1 + p} y2={bottom} stroke={lineColor} strokeWidth={1.4} />
+        <rect x={fl.x0} y={fl.y0} width={fl.x1 - fl.x0} height={fl.y1 - fl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <rect x={sec.x0} y={sec.y0} width={sec.x1 - sec.x0} height={sec.y1 - sec.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {dimLine(sec.x0, aDimY, sec.x1, aDimY)}
+        {tick(sec.x0, aDimY, 0, 1)}
+        {tick(sec.x1, aDimY, 0, 1)}
+        <text x={(sec.x0 + sec.x1) / 2} y={aDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+      </g>
+    );
   };
 
-  const renderPortTee = () => {
-    const a_raw = values[0] || 200;
-    const b_raw = values[1] || 200;
-    const c_raw = values[2] || 200;
-    const d_raw = values[3] || 200;
-    const e_raw = values[4] || 200;
-    const L_raw = values[5] || 500;
-    const h_raw = values[6] || 50;
-    const g_raw = values[7] || 50;
-    const i_raw = values[8] || 50;
-    const j_raw = values[9] || 100;
-    const k_raw = values[10] || 100;
+  const renderReductionElbow = () => renderElbowLike(true);
 
-    let max = Math.max(a_raw, b_raw);
+  const renderAngleBend = () => renderElbowLike(false);
+
+  const renderEndCap = () => {
+    // QESa port of Form1.cs `if (symbol == "QESa")` (zaślepka prostokątna). Side view on
+    // the left: the cap body e deep (Form1 widens it by the flange p and puts the flange
+    // face on its left edge), end view on the right: the a×b opening in its flange.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let ee = Math.max(toInt(values[2] || 30), 1);
+
     let p = 25;
-    if (L_raw > 1000) p = 30;
-    if (L_raw > 2501) p = 40;
-    if (L_raw > max) max = L_raw;
-    if (p > max) max = p;
-    if ((Math.abs(h_raw) + c_raw + g_raw + d_raw) > max) max = Math.abs(h_raw) + c_raw + g_raw + d_raw;
+    let maxNorm = Math.max(a, b);
+    if (maxNorm > 1000) p = 30;
+    if (maxNorm > 2501) p = 40;
+    if (ee > maxNorm) maxNorm = ee;
+    if (p > maxNorm) maxNorm = p;
 
-    const mnoznik = 70;
-    let a = Math.trunc(a_raw / max * mnoznik);
-    let b = Math.trunc(b_raw / max * mnoznik);
-    let c = Math.trunc(c_raw / max * mnoznik);
-    let d = Math.trunc(d_raw / max * mnoznik);
-    let ee = Math.trunc(e_raw / max * mnoznik);
-    let j = Math.trunc(j_raw / max * mnoznik);
-    let k = Math.trunc(k_raw / max * mnoznik);
-    let l = Math.trunc(L_raw / max * mnoznik);
-    let h = Math.trunc(h_raw / max * mnoznik);
-    let ii = Math.trunc(i_raw / max * mnoznik);
-    let g = Math.trunc(g_raw / max * mnoznik);
-    p = Math.trunc(p / max * mnoznik);
-
-    while (l < 70 && (a + 20) < 90 && (b + 20) < 90) {
-      a = Math.trunc(a * 1.1); b = Math.trunc(b * 1.1);
-      c = Math.trunc(c * 1.1); d = Math.trunc(d * 1.1);
-      ee = Math.trunc(ee * 1.1); j = Math.trunc(j * 1.1);
-      k = Math.trunc(k * 1.1); l = Math.trunc(l * 1.1);
-      h = Math.trunc(h * 1.1); ii = Math.trunc(ii * 1.1);
-      g = Math.trunc(g * 1.1); p = Math.trunc(p * 1.1);
+    const mnoznik = 80;
+    a = toInt((a / maxNorm) * mnoznik);
+    b = toInt((b / maxNorm) * mnoznik);
+    ee = toInt((ee / maxNorm) * mnoznik);
+    p = toInt((p / maxNorm) * mnoznik);
+    while ((a + 20) < 100 && (b + 20) < 100) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); ee = toInt(ee * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || b === 0) break;
     }
 
-    const S = 1.0;
-    const sx = (v: number) => v * S;
-    const sy = (v: number) => v * S;
+    let pushX = toInt(((110 - a) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - b) / 2) + 5;
 
-    let push_x = 120 - a;
-    if (push_x < 0) push_x = 10;
-    let push_y = 80 - l;
-    if (push_y < 0) push_y = 10;
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
 
-    const els: React.ReactElement[] = [];
-    let _k = 0;
-    const K = () => _k++;
+    // punkty2 after Form1's `punkty2[0].X -= p; punkty2[3].X -= p`.
+    const side = { x0: 20 + pushX - p, y0: 20 + pushY, x1: 20 + pushX + ee, y1: 20 + pushY + b };
+    const eDimY = side.y1 + Math.max(15, p + 8);
+    const bDimX = side.x1 + 15;
 
-    // ── Front view (right side): e×k stub at top ──
-    // punkty: e×k rect
-    const sX = 190 + push_x, sY = 20 + push_y;
-    els.push(<rect key={K()} x={sx(sX)} y={sy(sY)} width={sx(ee)} height={sy(k)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Centerline at bottom of stub
-    els.push(<line key={K()} x1={sx(sX+1)} y1={sy(sY+k)} x2={sx(sX+ee-1)} y2={sy(sY+k)}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    // Top flange: outer extended, inner at +p
-    els.push(<line key={K()} x1={sx(sX-p)} y1={sy(sY)} x2={sx(sX+ee+p)} y2={sy(sY)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(sX)} y1={sy(sY+p)} x2={sx(sX+ee)} y2={sy(sY+p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
+    const sectionShift = Math.max(0, bDimX + 14 + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const sec = { x0: sx, y0: 20 + pushY, x1: sx + a, y1: 20 + pushY + b };
+    const fl = { x0: sec.x0 - p, y0: sec.y0 - p, x1: sec.x1 + p, y1: sec.y1 + p };
+    const aDimY = Math.min(sec.y0 - 15, fl.y0 - 8);
 
-    // e dim
-    {const edy = sY - 15;
-    els.push(<line key={K()} x1={sx(sX)} y1={sy(edy)} x2={sx(sX+ee)} y2={sy(edy)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(sX)} y1={sy(edy-3)} x2={sx(sX)} y2={sy(edy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(sX+ee)} y1={sy(edy-3)} x2={sx(sX+ee)} y2={sy(edy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(sX+ee/2)} y={sy(edy-5)} fontSize={7} fill="#333" textAnchor="middle">e</text>);}
+    return (
+      <g>
+        <rect x={side.x0} y={side.y0} width={side.x1 - side.x0} height={side.y1 - side.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={side.x0} y1={side.y0 - p} x2={side.x0} y2={side.y1 + p} stroke={lineColor} strokeWidth={1.4} />
 
-    // k dim
-    {const kdx = sX - 15;
-    els.push(<line key={K()} x1={sx(kdx)} y1={sy(sY)} x2={sx(kdx)} y2={sy(sY+k)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(kdx-3)} y1={sy(sY)} x2={sx(kdx+3)} y2={sy(sY)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(kdx-3)} y1={sy(sY+k)} x2={sx(kdx+3)} y2={sy(sY+k)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(sX-30)} y={sy(sY+k/2+2)} fontSize={7} fill="#333">k</text>);}
+        {dimLine(side.x0, eDimY, side.x1, eDimY)}
+        {tick(side.x0, eDimY, 0, 1)}
+        {tick(side.x1, eDimY, 0, 1)}
+        <text x={(side.x0 + side.x1) / 2} y={eDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">e</text>
 
-    // ── Main body trapezoid (punkty1) ──
-    const p1_0x = sX, p1_0y = sY + k;
-    const p1_1x = sX + ee, p1_1y = sY + k;
-    const p1_3x = sX - ii, p1_3y = sY + k + (l - k - j);
-    const p1_2x = p1_3x + b, p1_2y = p1_3y;
+        {dimLine(bDimX, side.y0, bDimX, side.y1)}
+        {tick(bDimX, side.y0, 1, 0)}
+        {tick(bDimX, side.y1, 1, 0)}
+        <text x={bDimX + 6} y={(side.y0 + side.y1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">b</text>
 
-    els.push(<polygon key={K()} points={`${sx(p1_0x)},${sy(p1_0y)} ${sx(p1_1x)},${sy(p1_1y)} ${sx(p1_2x)},${sy(p1_2y)} ${sx(p1_3x)},${sy(p1_3y)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Center lines
-    els.push(<line key={K()} x1={sx(p1_0x+1)} y1={sy(p1_0y)} x2={sx(p1_1x-1)} y2={sy(p1_1y)}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    els.push(<line key={K()} x1={sx(p1_3x+1)} y1={sy(p1_3y)} x2={sx(p1_2x-1)} y2={sy(p1_2y)}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-
-    // ── Bottom rect: b×j (punkty12) ──
-    els.push(<rect key={K()} x={sx(p1_3x)} y={sy(p1_3y)} width={sx(b)} height={sy(j)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Center line at top of bottom rect
-    els.push(<line key={K()} x1={sx(p1_3x+1)} y1={sy(p1_3y)} x2={sx(p1_2x-1)} y2={sy(p1_2y)}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    // Bottom flanges
-    els.push(<line key={K()} x1={sx(p1_3x-p)} y1={sy(p1_3y+j)} x2={sx(p1_3x+b+p)} y2={sy(p1_3y+j)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(p1_3x)} y1={sy(p1_3y+j-p)} x2={sx(p1_3x+b)} y2={sy(p1_3y+j-p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // j dim
-    {const jdx = p1_3x - 15;
-    els.push(<line key={K()} x1={sx(jdx)} y1={sy(p1_3y)} x2={sx(jdx)} y2={sy(p1_3y+j)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(jdx-3)} y1={sy(p1_3y)} x2={sx(jdx+3)} y2={sy(p1_3y)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(jdx-3)} y1={sy(p1_3y+j)} x2={sx(jdx+3)} y2={sy(p1_3y+j)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(jdx-10)} y={sy(p1_3y+j/2+2)} fontSize={7} fill="#333">j</text>);}
-
-    // -i and b dims at bottom
-    {const bdy = sY + l + 15;
-    // line from sX across to sX-ii+b
-    els.push(<line key={K()} x1={sx(sX)} y1={sy(bdy)} x2={sx(sX-ii+b)} y2={sy(bdy)}
-      stroke="#333" strokeWidth={0.4}/>);
-    // tick at sX
-    els.push(<line key={K()} x1={sx(sX)} y1={sy(bdy-3)} x2={sx(sX)} y2={sy(bdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    // tick at sX-ii
-    els.push(<line key={K()} x1={sx(sX-ii)} y1={sy(bdy-3)} x2={sx(sX-ii)} y2={sy(bdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    // tick at sX-ii+b
-    els.push(<line key={K()} x1={sx(sX-ii+b)} y1={sy(bdy-3)} x2={sx(sX-ii+b)} y2={sy(bdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(sX-ii/2)} y={sy(bdy+10)} fontSize={7} fill="#333" textAnchor="middle">-i</text>);
-    els.push(<text key={K()} x={sx(p1_3x+b/2)} y={sy(bdy+10)} fontSize={7} fill="#333" textAnchor="middle">b</text>);}
-
-    // L dim (right side)
-    {const lx = Math.max(p1_1x, p1_2x) + 15;
-    els.push(<line key={K()} x1={sx(lx)} y1={sy(sY)} x2={sx(lx)} y2={sy(sY+l)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lx-3)} y1={sy(sY)} x2={sx(lx+3)} y2={sy(sY)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(lx-3)} y1={sy(sY+l)} x2={sx(lx+3)} y2={sy(sY+l)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(lx+5)} y={sy(sY+l/2+2)} fontSize={7} fill="#333">L</text>);}
-
-    // ── Side view (left side): heptagonal polygon ──
-    const lvX = 20 + push_x - h, lvY = sY + k;
-
-    const p2: [number, number][] = [];
-    p2[0] = [lvX, lvY];
-    p2[1] = [lvX + c, lvY];
-    p2[2] = [p2[1][0] + g/2, p2[1][1] + (l - k - j)/2];
-    p2[3] = [p2[1][0] + g, p2[1][1]];
-    p2[4] = [p2[3][0] + d, p2[3][1]];
-    p2[5] = [lvX + h + a, p2[4][1] + l - j - k];
-    p2[6] = [p2[5][0] - a, p2[5][1]];
-
-    const polyPts = p2.map(([x,y]) => `${sx(x)},${sy(y)}`).join(' ');
-    els.push(<polygon key={K()} points={polyPts} fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // Center lines (dashed)
-    els.push(<line key={K()} x1={sx(p2[0][0]+1)} y1={sy(p2[0][1])} x2={sx(p2[1][0]-1)} y2={sy(p2[1][1])}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    els.push(<line key={K()} x1={sx(p2[3][0]+1)} y1={sy(p2[3][1])} x2={sx(p2[4][0]-1)} y2={sy(p2[4][1])}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-    els.push(<line key={K()} x1={sx(p2[6][0]+1)} y1={sy(p2[6][1])} x2={sx(p2[5][0]-1)} y2={sy(p2[5][1])}
-      stroke="#c00" strokeWidth={0.4} strokeDasharray="2,2"/>);
-
-    // 0-1 nasadka (c section flanges, goes UP by k)
-    els.push(<line key={K()} x1={sx(p2[0][0])} y1={sy(p2[0][1]-k)} x2={sx(p2[0][0])} y2={sy(p2[0][1])}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[1][0])} y1={sy(p2[1][1]-k)} x2={sx(p2[1][0])} y2={sy(p2[1][1])}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[0][0])} y1={sy(p2[0][1]-k)} x2={sx(p2[1][0])} y2={sy(p2[1][1]-k)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[0][0]-p)} y1={sy(p2[0][1]-k)} x2={sx(p2[1][0]+p)} y2={sy(p2[1][1]-k)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(p2[0][0])} y1={sy(p2[0][1]-k+p)} x2={sx(p2[1][0])} y2={sy(p2[1][1]-k+p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // 3-4 nasadka (d section flanges, goes UP by k)
-    els.push(<line key={K()} x1={sx(p2[3][0])} y1={sy(p2[3][1]-k)} x2={sx(p2[3][0])} y2={sy(p2[3][1])}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[4][0])} y1={sy(p2[4][1]-k)} x2={sx(p2[4][0])} y2={sy(p2[4][1])}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[3][0])} y1={sy(p2[3][1]-k)} x2={sx(p2[4][0])} y2={sy(p2[4][1]-k)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[3][0]-p)} y1={sy(p2[3][1]-k)} x2={sx(p2[4][0]+p)} y2={sy(p2[4][1]-k)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(p2[3][0])} y1={sy(p2[3][1]-k+p)} x2={sx(p2[4][0])} y2={sy(p2[4][1]-k+p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // 6-5 nasadka (a section flanges, goes DOWN by j)
-    els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(p2[6][1])} x2={sx(p2[6][0])} y2={sy(p2[6][1]+j)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[5][0])} y1={sy(p2[5][1])} x2={sx(p2[5][0])} y2={sy(p2[5][1]+j)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(p2[6][1]+j)} x2={sx(p2[5][0])} y2={sy(p2[5][1]+j)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-    els.push(<line key={K()} x1={sx(p2[6][0]-p)} y1={sy(p2[6][1]+j)} x2={sx(p2[5][0]+p)} y2={sy(p2[5][1]+j)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(p2[6][1]+j-p)} x2={sx(p2[5][0])} y2={sy(p2[5][1]+j-p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // a dim
-    {const ady2 = p2[6][1] + j + 15;
-    els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(ady2)} x2={sx(p2[5][0])} y2={sy(ady2)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(p2[6][0])} y1={sy(ady2-3)} x2={sx(p2[6][0])} y2={sy(ady2+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<line key={K()} x1={sx(p2[5][0])} y1={sy(ady2-3)} x2={sx(p2[5][0])} y2={sy(ady2+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(p2[6][0]+a/2)} y={sy(ady2+10)} fontSize={7} fill="#333" textAnchor="middle">a</text>);}
-
-    // -h, c, g, d dims at top
-    {const tdy = p2[0][1] - k - 15;
-    const baseX2 = p2[0][0] + h;
-    // horizontal dim line from baseX2 to p2[4]
-    els.push(<line key={K()} x1={sx(baseX2)} y1={sy(tdy)} x2={sx(p2[4][0])} y2={sy(tdy)}
-      stroke="#333" strokeWidth={0.4}/>);
-    // tick at baseX2
-    els.push(<line key={K()} x1={sx(baseX2)} y1={sy(tdy-3)} x2={sx(baseX2)} y2={sy(tdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    // tick at p2[0] for -h
-    els.push(<line key={K()} x1={sx(p2[0][0])} y1={sy(tdy-3)} x2={sx(p2[0][0])} y2={sy(tdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(p2[0][0]+h/2)} y={sy(tdy-8)} fontSize={7} fill="#333" textAnchor="middle">-h</text>);
-    // tick at baseX2+c
-    els.push(<line key={K()} x1={sx(baseX2+c)} y1={sy(tdy-3)} x2={sx(baseX2+c)} y2={sy(tdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(baseX2+c/2)} y={sy(tdy-8)} fontSize={7} fill="#333" textAnchor="middle">c</text>);
-    // tick at baseX2+c+g
-    els.push(<line key={K()} x1={sx(baseX2+c+g)} y1={sy(tdy-3)} x2={sx(baseX2+c+g)} y2={sy(tdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(baseX2+c+g/2)} y={sy(tdy-8)} fontSize={7} fill="#333" textAnchor="middle">g</text>);
-    // tick at p2[4]
-    els.push(<line key={K()} x1={sx(p2[4][0])} y1={sy(tdy-3)} x2={sx(p2[4][0])} y2={sy(tdy+3)}
-      stroke="#333" strokeWidth={0.4}/>);
-    els.push(<text key={K()} x={sx(baseX2+c+g+d/2)} y={sy(tdy-8)} fontSize={7} fill="#333" textAnchor="middle">d</text>);}
-
-    return <g>{els}</g>;
+        <rect x={sec.x0} y={sec.y0} width={sec.x1 - sec.x0} height={sec.y1 - sec.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <rect x={fl.x0} y={fl.y0} width={fl.x1 - fl.x0} height={fl.y1 - fl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        {dimLine(sec.x0, aDimY, sec.x1, aDimY)}
+        {tick(sec.x0, aDimY, 0, 1)}
+        {tick(sec.x1, aDimY, 0, 1)}
+        <text x={(sec.x0 + sec.x1) / 2} y={aDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+      </g>
+    );
   };
 
-  const renderAngledDuct = () => {
-    const a_raw = values[0] || 200;
-    const b_raw = values[1] || 200;
-    const L_raw = values[2] || 500;
-    const alfa_raw = values[3] || 30;
-    const e_raw = values[4] || (3 * b_raw);
-    const f_raw = values[5] || (2 * a_raw);
+  const renderTeeLike = (round: boolean, cross = false) => {
+    // Port of Form1.cs `if (symbol == "TR1a")` (trójnik z odejściem prostokątnym) and
+    // `"TR2a"` (z odejściem okrągłym — the same block with a d-wide round branch and no
+    // branch flanges). NOTE: Form1 reads the on-screen "a" from textBox5 and "b" from
+    // textBox4, so its local `a`/`b` are swapped until it swaps them back halfway through;
+    // the names here follow the on-screen labels. Side view on the left: the main duct
+    // (length L, height a) with the branch (w or d wide, l3 tall) standing on it, its axis
+    // e from the left flange face. End view on the right: the b-wide, a-tall opening in its
+    // flange with the d-wide branch on top, its axis f from the right edge.
+    // CZ1a / CZ2a (czwórniki) are the same drawing with a second branch (w1×l4 / d1×l4)
+    // hanging under the duct, its axis e1 from the left face (f1 from the right edge in
+    // the end view).
+    const toInt = (v: number) => Math.trunc(v);
+    const idx = cross
+      ? (round ? { d: 2, w: -1, l: 3, l3: 9, e: 7, f: 8, d1: 4, w1: -1, l4: 10, e1: 5, f1: 6 }
+               : { d: 2, w: 3, l: 4, l3: 11, e: 9, f: 10, d1: 5, w1: 6, l4: 12, e1: 7, f1: 8 })
+      : (round ? { d: 2, w: -1, l: 3, l3: 4, e: 5, f: 6, d1: -1, w1: -1, l4: -1, e1: -1, f1: -1 }
+               : { d: 2, w: 3, l: 4, l3: 7, e: 5, f: 6, d1: -1, w1: -1, l4: -1, e1: -1, f1: -1 });
+    const val = (i: number, dflt: number) => (i < 0 ? dflt : values[i] || dflt);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let d = Math.max(toInt(val(idx.d, 100)), 1);
+    let w = round ? d : Math.max(toInt(val(idx.w, 100)), 1);
+    let l = Math.max(toInt(val(idx.l, 500)), 1);
+    let l3 = Math.max(toInt(val(idx.l3, 100)), 1);
+    let ee = Math.max(toInt(val(idx.e, 150)), 0);
+    let f = Math.max(toInt(val(idx.f, 100)), 0);
+    let d1 = cross ? Math.max(toInt(val(idx.d1, 100)), 1) : 0;
+    let w1 = cross ? (round ? d1 : Math.max(toInt(val(idx.w1, 100)), 1)) : 0;
+    let l4 = cross ? Math.max(toInt(val(idx.l4, 100)), 1) : 0;
+    let ee1 = cross ? Math.max(toInt(val(idx.e1, 150)), 0) : 0;
+    let f1 = cross ? Math.max(toInt(val(idx.f1, 100)), 0) : 0;
 
-    // ── max & p matching C# ──
-    let max = Math.max(a_raw, b_raw);
     let p = 25;
-    if (e_raw > max) max = e_raw;
-    if (f_raw > max) max = f_raw;
-    const hTotal = L_raw * Math.sin(alfa_raw * Math.PI / 180) + b_raw * Math.sin((90 - alfa_raw) * Math.PI / 180);
-    if (hTotal > max) max = hTotal;
-    if (max > 1000) p = 30;
-    if (max > 2501) p = 40;
-    if (p > max) max = p;
-    if (f_raw > max) max = f_raw;
-    if (e_raw > max) max = e_raw;
-    const b1Check = Math.trunc(b_raw / Math.sin(alfa_raw * Math.PI / 180));
-    if (b1Check > max) max = b1Check;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+    let maxNorm = cross
+      ? (b + l3 + l4 > a ? b + l3 + l4 : a)
+      : round
+        ? (a + l3 > b ? a + l3 : b)
+        : (b + l3 > a ? b + l3 : a);
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
 
-    const mnoznik = 50;
-    let a = Math.trunc(a_raw / max * mnoznik);
-    let b = Math.trunc(b_raw / max * mnoznik);
-    p = Math.trunc(p / max * mnoznik);
-    let ee = Math.trunc(e_raw / max * mnoznik);
-    let f = Math.trunc(f_raw / max * mnoznik);
-    let l = Math.trunc(L_raw / max * mnoznik);
-
-    const alfaRad = alfa_raw * Math.PI / 180;
-    const sinA = Math.sin(alfaRad);
-    const cosA = Math.cos(alfaRad);
-
-    while (ee < 100 && a < 100 && f < 100 && Math.trunc(b / sinA) < 100) {
-      a = Math.trunc(a * 1.1);
-      b = Math.trunc(b * 1.1);
-      p = Math.trunc(p * 1.1);
-      f = Math.trunc(f * 1.1);
-      ee = Math.trunc(ee * 1.1);
-      l = Math.trunc(l * 1.1);
+    const mnoznik = 80;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); d = sc(d); w = sc(w); l3 = sc(l3); ee = sc(ee); f = sc(f); l = sc(l); p = sc(p);
+    d1 = sc(d1); w1 = sc(w1); l4 = sc(l4); ee1 = sc(ee1); f1 = sc(f1);
+    const grow = () => {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); d = toInt(d * 1.1); w = toInt(w * 1.1); l3 = toInt(l3 * 1.1);
+      ee = toInt(ee * 1.1); f = toInt(f * 1.1); l = toInt(l * 1.1); p = toInt(p * 1.1);
+      d1 = toInt(d1 * 1.1); w1 = toInt(w1 * 1.1); l4 = toInt(l4 * 1.1); ee1 = toInt(ee1 * 1.1); f1 = toInt(f1 * 1.1);
+      return a > 0 && b > 0 && l > 0;
+    };
+    if (cross) {
+      while ((l + 20) < 150 && (a + 20 + l4 + l3) < 90 && (b + 20) < 90) { if (!grow()) break; }
+    } else if (round) {
+      while ((l + 20) < 150 && b < 90 && (a + l3) < 70) { if (!grow()) break; }
+    } else {
+      while ((l + 20) < 130 && (b + l3) < 80 && (a + 20) < 90) { if (!grow()) break; }
     }
 
-    const push_x = 30;
-    const push_y = 15;
-
-    // ── Derived values ──
-    const bProj = Math.trunc(b * cosA);
-    const b1 = Math.trunc(b / sinA);
-    const bodyH = Math.trunc(l * sinA);
-
-    // ── Left side: parallelogram ──
-    const p2x0 = 20 + push_x;
-    const p2y0 = 20 + push_y + bProj;
-    const p2x1 = 20 + push_x + Math.trunc(sinA * b);
-    const p2y1 = 20 + push_y;
-    const p2x2 = 20 + push_x + Math.trunc(cosA * l) + b1;
-    const p2y2 = 20 + push_y + bProj + bodyH;
-    const p2x3 = 20 + push_x + Math.trunc(cosA * l);
-    const p2y3 = p2y2;
-
-    // ── Right side: cross-section + body — positioned to the right of the parallelogram ──
-    const paraRightX = Math.max(p2x1, p2x2) + 20; // gap between parallelogram and cross-section
-    const csX = Math.max(190 + push_x, paraRightX);
-    const csY = 20 + push_y;
-
-    // f-line coords
-    const fBotY = csY + bProj + bodyH;
-    const fX1 = csX - Math.trunc((f - a) / 2);
-    const fX2 = csX + a + Math.trunc((f - a) / 2);
-
-    // e-line coords
-    const eDiff = Math.trunc((ee - b1) / 2);
-    const eX1 = p2x3 - eDiff;
-    const eX2 = p2x2 + eDiff;
-
-    // Flange offsets on parallelogram
-    const fi = Math.trunc(sinA * p);
-    const fj = Math.trunc(cosA * p);
-
-    // L dim perpendicular offset (C# wekt = pt0 - pt1, reduced)
-    let lwx = p2x0 - p2x1;
-    let lwy = p2y0 - p2y1;
-    while (Math.abs(lwx) > 6) { lwx = Math.trunc(lwx / 2); lwy = Math.trunc(lwy / 2); }
-    lwx = Math.abs(lwx); lwy = Math.abs(lwy);
-
-    // a dim perpendicular offset (C# wekt = pt0 - pt3, reduced)
-    let awx = p2x0 - p2x3;
-    let awy = p2y0 - p2y3;
-    while (Math.abs(awx) > 6) { awx = Math.trunc(awx / 2); awy = Math.trunc(awy / 2); }
-    awx = Math.abs(awx); awy = Math.abs(awy);
-
-    // ── Bounding box of all content ──
-    const bbPad = 12;
-    const contentMinX = Math.min(
-      csX - p, fX1, p2x0 - fi, eX1,
-      p2x0 - lwx - Math.trunc(lwx / 3),
-      p2x0 - awx - 15, p2x2 - 40
-    ) - bbPad;
-    const contentMaxX = Math.max(
-      csX + a + p, fX2, p2x1 + fi, eX2, p2x2 + 20
-    ) + bbPad;
-    const contentMinY = Math.min(
-      csY - p - 20, p2y1 - fj, p2y1 - awy - 10
-    ) - bbPad;
-    const contentMaxY = Math.max(
-      fBotY + 30, p2y2 + 35
-    ) + bbPad;
-
-    const contentW = contentMaxX - contentMinX;
-    const contentH = contentMaxY - contentMinY;
-    const S = Math.min((width - 4) / contentW, (height - 4) / contentH);
-    const baseOffX = 2 + ((width - 4) - contentW * S) / 2;
-    const baseOffY = 2 + ((height - 4) - contentH * S) / 2;
-    const sx = (v: number) => baseOffX + (v - contentMinX) * S;
-    const sy = (v: number) => baseOffY + (v - contentMinY) * S;
-    const sd = (v: number) => v * S;
-
-    const els: React.ReactElement[] = [];
-    let _k = 0;
-    const K = () => _k++;
-
-    // ── Draw in C# order ──
-
-    // 1. Body rect below cross-section (podmalym)
-    els.push(<rect key={K()} x={sx(csX)} y={sy(csY + bProj)} width={sd(a)} height={sd(bodyH)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // 2. Filled flange rect (covers body overlap, C# FillPolygon)
-    els.push(<rect key={K()} x={sx(csX - p)} y={sy(csY - p)}
-      width={sd(a + 2 * p)} height={sd(bProj + 2 * p)}
-      fill="white" stroke="none"/>);
-
-    // 3. Inner cross-section rect
-    els.push(<rect key={K()} x={sx(csX)} y={sy(csY)} width={sd(a)} height={sd(bProj)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // 4. Outer flange rect
-    els.push(<rect key={K()} x={sx(csX - p)} y={sy(csY - p)}
-      width={sd(a + 2 * p)} height={sd(bProj + 2 * p)}
-      fill="none" stroke={lineColor} strokeWidth={0.5}/>);
-
-    // 5. "b" dim above cross-section
-    {
-      const dimY = csY - 15;
-      els.push(<line key={K()} x1={sx(csX)} y1={sy(dimY)} x2={sx(csX + a)} y2={sy(dimY)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(csX)} y1={sy(dimY - 3)} x2={sx(csX)} y2={sy(dimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(csX + a)} y1={sy(dimY - 3)} x2={sx(csX + a)} y2={sy(dimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(csX + a / 2)} y={sy(dimY) - 4}
-        fontSize={7} fill="#333" textAnchor="middle">b</text>);
+    let pushX: number;
+    let pushY: number;
+    if (cross) {
+      pushX = toInt(((110 - b - l) % 110) / 2); if (pushX < 0) pushX = -pushX;
+      pushY = toInt((90 - a - 5) / 2) + 5;
+    } else if (round) {
+      pushX = 110 - b; if (pushX < 0) pushX = 20;
+      pushY = 80 - a; if (pushY < 0) pushY = 20;
+    } else {
+      pushX = toInt(((110 - b - l) % 110) / 2); if (pushX < 0) pushX = -pushX;
+      pushY = toInt((90 - a) / 2) + 5;
     }
 
-    // 6. "f" line and dim below body
-    {
-      els.push(<line key={K()} x1={sx(fX1)} y1={sy(fBotY)} x2={sx(fX2)} y2={sy(fBotY)}
-        stroke={lineColor} strokeWidth={1.2}/>);
-      const fDimY = fBotY + 15;
-      els.push(<line key={K()} x1={sx(fX1)} y1={sy(fDimY)} x2={sx(fX2)} y2={sy(fDimY)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(fX1)} y1={sy(fDimY - 3)} x2={sx(fX1)} y2={sy(fDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(fX2)} y1={sy(fDimY - 3)} x2={sx(fX2)} y2={sy(fDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((fX1 + fX2) / 2)} y={sy(fDimY) + 10}
-        fontSize={7} fill="#333" textAnchor="middle">f</text>);
-    }
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
 
-    // 7. Parallelogram (side view)
-    els.push(<polygon key={K()}
-      points={`${sx(p2x0)},${sy(p2y0)} ${sx(p2x1)},${sy(p2y1)} ${sx(p2x2)},${sy(p2y2)} ${sx(p2x3)},${sy(p2y3)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
+    // ---- side view: main duct (punkty2 with its left edge pulled out by p) + branch (punkty3)
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const x1 = x0 + l;
+    const y1 = y0 + a;
+    const faceL = x0 - p;
+    const axis = faceL + ee;
+    const br = { x0: axis - w / 2, y0: y0 - l3, x1: axis + w / 2, y1: y0 };
+    const axis1 = faceL + ee1;
+    const lbr = { x0: axis1 - w1 / 2, y0: y1, x1: axis1 + w1 / 2, y1: y1 + l4 };
+    const lDimY = (cross ? lbr.y1 : y1) + Math.max(15, p + 8);
+    const aDimX = x1 + 15;
+    const wDimY = br.y0 - Math.max(9, round ? 6 : p + 6);
+    const l3DimX = Math.min(br.x0, faceL) - 12;
 
-    // 8. Flanges on edge 0→1
-    {
-      // Inner flange (both pts shifted +fi, +fj)
-      els.push(<line key={K()}
-        x1={sx(p2x0 + fi)} y1={sy(p2y0 + fj)} x2={sx(p2x1 + fi)} y2={sy(p2y1 + fj)}
-        stroke={lineColor} strokeWidth={0.5}/>);
-      // Outer flange (pt0: -fi,+fj; pt1: +fi,-fj)
-      els.push(<line key={K()}
-        x1={sx(p2x0 - fi)} y1={sy(p2y0 + fj)} x2={sx(p2x1 + fi)} y2={sy(p2y1 - fj)}
-        stroke={lineColor} strokeWidth={0.5}/>);
-    }
+    // ---- end view: b-wide × a-tall opening (punkty) + branch (punkty4)
+    const sectionShift = Math.max(0, aDimX + 14 + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const sec = { x0: sx, y0: y0, x1: sx + b, y1: y0 + a };
+    const fl = { x0: sec.x0 - p, y0: sec.y0 - p, x1: sec.x1 + p, y1: sec.y1 + p };
+    const bAxis = sec.x1 - f;
+    const br2 = { x0: bAxis - d / 2, y0: sec.y0 - l3, x1: bAxis + d / 2, y1: sec.y0 - p };
+    const bAxis1 = sec.x1 - f1;
+    const lbr2 = { x0: bAxis1 - d1 / 2, y0: sec.y1 + p, x1: bAxis1 + d1 / 2, y1: sec.y1 + l4 };
+    const bDimY = cross ? lbr2.y1 + Math.max(15, p + 8) : Math.max(sec.y1 + 15, fl.y1 + 8);
+    const w1DimY = lbr.y1 + Math.max(9, round ? 6 : p + 6);
+    const d1DimY = lbr2.y1 + Math.max(9, round ? 6 : p + 6);
+    const l4DimX = Math.min(lbr.x0, faceL) - 12;
+    const dDimY = br2.y0 - Math.max(9, p + 6);
+    const fDimY = sec.y0 + 15;
 
-    // 9. "e" line and dim below parallelogram
-    {
-      els.push(<line key={K()} x1={sx(eX1)} y1={sy(p2y3)} x2={sx(eX2)} y2={sy(p2y2)}
-        stroke={lineColor} strokeWidth={1.2}/>);
-      const eDimY = p2y3 + 15;
-      els.push(<line key={K()} x1={sx(eX1)} y1={sy(eDimY)} x2={sx(eX2)} y2={sy(eDimY)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(eX1)} y1={sy(eDimY - 3)} x2={sx(eX1)} y2={sy(eDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(eX2)} y1={sy(eDimY - 3)} x2={sx(eX2)} y2={sy(eDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((eX1 + eX2) / 2)} y={sy(eDimY) - 3}
-        fontSize={7} fill="#333" textAnchor="middle">e</text>);
-    }
+    return (
+      <g>
+        {/* main duct + flanges */}
+        <rect x={faceL} y={y0} width={x1 - faceL} height={y1 - y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x1} y1={y0 - p} x2={x1} y2={y1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x1 - p} y1={y0} x2={x1 - p} y2={y1} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={x0} y1={y0} x2={x0} y2={y1} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={faceL} y1={y0 - p} x2={faceL} y2={y1 + p} stroke={lineColor} strokeWidth={1.4} />
+        {/* branch (+ flange for the rectangular one) */}
+        <path d={`M ${br.x0} ${br.y1} L ${br.x0} ${br.y0} L ${br.x1} ${br.y0} L ${br.x1} ${br.y1}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {!round && (
+          <>
+            <line x1={br.x0 - p} y1={br.y0} x2={br.x1 + p} y2={br.y0} stroke={lineColor} strokeWidth={1.4} />
+            <line x1={br.x0} y1={br.y0 + p} x2={br.x1} y2={br.y0 + p} stroke={lineColor} strokeWidth={1.2} />
+          </>
+        )}
+        {cross && (
+          <>
+            <path d={`M ${lbr.x0} ${lbr.y0} L ${lbr.x0} ${lbr.y1} L ${lbr.x1} ${lbr.y1} L ${lbr.x1} ${lbr.y0}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+            {!round && (
+              <>
+                <line x1={lbr.x0 - p} y1={lbr.y1} x2={lbr.x1 + p} y2={lbr.y1} stroke={lineColor} strokeWidth={1.4} />
+                <line x1={lbr.x0} y1={lbr.y1 - p} x2={lbr.x1} y2={lbr.y1 - p} stroke={lineColor} strokeWidth={1.2} />
+              </>
+            )}
+            {dimLine(lbr.x0, w1DimY, lbr.x1, w1DimY)}
+            {tick(lbr.x0, w1DimY, 0, 1)}
+            {tick(lbr.x1, w1DimY, 0, 1)}
+            <text x={(lbr.x0 + lbr.x1) / 2} y={w1DimY + 14} textAnchor="middle" fontSize={10} fill="#555555">{round ? 'd1' : 'w1'}</text>
+            {dimLine(l4DimX, y1, l4DimX, lbr.y1)}
+            {tick(l4DimX, y1, 1, 0)}
+            {tick(l4DimX, lbr.y1, 1, 0)}
+            <text x={l4DimX - 6} y={(y1 + lbr.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">l4</text>
+            {ee1 > 0 && (
+              <>
+                {dimLine(faceL, y1 - 15, axis1, y1 - 15)}
+                {tick(faceL, y1 - 15, 0, 1)}
+                {tick(axis1, y1 - 15, 0, 1)}
+                <text x={(faceL + axis1) / 2} y={y1 - 19} textAnchor="middle" fontSize={10} fill="#555555">e1</text>
+              </>
+            )}
+          </>
+        )}
 
-    // 10. alfa arc at vertex 2 (bottom-right of parallelogram)
-    {
-      const r = 20;
-      const arcSx = p2x2 - r;
-      const arcSy = p2y2;
-      const endAngle = Math.PI + alfaRad;
-      const arcEx = p2x2 + r * Math.cos(endAngle);
-      const arcEy = p2y2 + r * Math.sin(endAngle);
-      els.push(<path key={K()}
-        d={`M ${sx(arcSx)},${sy(arcSy)} A ${sd(r)},${sd(r)} 0 0,1 ${sx(arcEx)},${sy(arcEy)}`}
-        fill="none" stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(p2x2 - 38)} y={sy(p2y2) - 5}
-        fontSize={6} fill="#333">alfa</text>);
-    }
+        {/* L, a, e, w/d, l3 */}
+        {dimLine(faceL, lDimY, x1, lDimY)}
+        {tick(faceL, lDimY, 0, 1)}
+        {tick(x1, lDimY, 0, 1)}
+        <text x={(faceL + x1) / 2} y={lDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">L</text>
+        {dimLine(aDimX, y0, aDimX, y1)}
+        {tick(aDimX, y0, 1, 0)}
+        {tick(aDimX, y1, 1, 0)}
+        <text x={aDimX + 6} y={(y0 + y1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">a</text>
+        {ee > 0 && (
+          <>
+            {dimLine(faceL, y0 + 15, axis, y0 + 15)}
+            {tick(faceL, y0 + 15, 0, 1)}
+            {tick(axis, y0 + 15, 0, 1)}
+            <text x={(faceL + axis) / 2} y={y0 + 27} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+          </>
+        )}
+        {dimLine(br.x0, wDimY, br.x1, wDimY)}
+        {tick(br.x0, wDimY, 0, 1)}
+        {tick(br.x1, wDimY, 0, 1)}
+        <text x={(br.x0 + br.x1) / 2} y={wDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">{round ? 'd' : 'w'}</text>
+        {dimLine(l3DimX, br.y0, l3DimX, y0)}
+        {tick(l3DimX, br.y0, 1, 0)}
+        {tick(l3DimX, y0, 1, 0)}
+        <text x={l3DimX - 6} y={(br.y0 + y0) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">l3</text>
 
-    // 11. "L" dim along left edge (0→3)
-    {
-      const lx1 = p2x0 - lwx, ly1 = p2y0 + lwy;
-      const lx2 = p2x3 - lwx, ly2 = p2y3 + lwy;
-      els.push(<line key={K()} x1={sx(lx1)} y1={sy(ly1)} x2={sx(lx2)} y2={sy(ly2)}
-        stroke="#333" strokeWidth={0.4}/>);
-      const lt = Math.trunc(lwx / 3);
-      const lu = Math.trunc(lwy / 3);
-      els.push(<line key={K()}
-        x1={sx(lx1 - lt)} y1={sy(ly1 + lu)} x2={sx(lx1 + lt)} y2={sy(ly1 - lu)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()}
-        x1={sx(lx2 - lt)} y1={sy(ly2 + lu)} x2={sx(lx2 + lt)} y2={sy(ly2 - lu)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()}
-        x={sx(Math.trunc((lx1 + lx2) / 2)) - 9}
-        y={sy(Math.trunc((ly1 + ly2) / 2)) + 8}
-        fontSize={7} fill="#333">L</text>);
-    }
+        {/* end view */}
+        <rect x={sec.x0} y={sec.y0} width={sec.x1 - sec.x0} height={sec.y1 - sec.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <rect x={fl.x0} y={fl.y0} width={fl.x1 - fl.x0} height={fl.y1 - fl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <path d={`M ${br2.x0} ${br2.y1} L ${br2.x0} ${br2.y0} L ${br2.x1} ${br2.y0} L ${br2.x1} ${br2.y1}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {!round && (
+          <>
+            <line x1={br2.x0 - p} y1={br2.y0} x2={br2.x1 + p} y2={br2.y0} stroke={lineColor} strokeWidth={1.4} />
+            <line x1={br2.x0} y1={br2.y0 + p} x2={br2.x1} y2={br2.y0 + p} stroke={lineColor} strokeWidth={1.2} />
+          </>
+        )}
+        {cross && (
+          <>
+            <path d={`M ${lbr2.x0} ${lbr2.y0} L ${lbr2.x0} ${lbr2.y1} L ${lbr2.x1} ${lbr2.y1} L ${lbr2.x1} ${lbr2.y0}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+            {!round && (
+              <>
+                <line x1={lbr2.x0 - p} y1={lbr2.y1} x2={lbr2.x1 + p} y2={lbr2.y1} stroke={lineColor} strokeWidth={1.4} />
+                <line x1={lbr2.x0} y1={lbr2.y1 - p} x2={lbr2.x1} y2={lbr2.y1 - p} stroke={lineColor} strokeWidth={1.2} />
+                {dimLine(lbr2.x0, d1DimY, lbr2.x1, d1DimY)}
+                {tick(lbr2.x0, d1DimY, 0, 1)}
+                {tick(lbr2.x1, d1DimY, 0, 1)}
+                <text x={(lbr2.x0 + lbr2.x1) / 2} y={d1DimY + 14} textAnchor="middle" fontSize={10} fill="#555555">d1</text>
+              </>
+            )}
+            {f1 > 0 && (
+              <>
+                {dimLine(bAxis1, sec.y1 - 15, sec.x1, sec.y1 - 15)}
+                {tick(bAxis1, sec.y1 - 15, 0, 1)}
+                {tick(sec.x1, sec.y1 - 15, 0, 1)}
+                <text x={(bAxis1 + sec.x1) / 2} y={sec.y1 - 19} textAnchor="middle" fontSize={10} fill="#555555">f1</text>
+              </>
+            )}
+          </>
+        )}
 
-    // 12. "a" dim along top-left edge (0→1) of parallelogram
-    {
-      const ax1 = p2x0 - awx, ay1 = p2y0 - awy;
-      const ax2 = p2x1 - awx, ay2 = p2y1 - awy;
-      els.push(<line key={K()} x1={sx(ax1)} y1={sy(ay1)} x2={sx(ax2)} y2={sy(ay2)}
-        stroke="#333" strokeWidth={0.4}/>);
-      const at2 = Math.trunc(awx / 3);
-      const au = Math.trunc(awy / 3);
-      els.push(<line key={K()}
-        x1={sx(ax1 - at2)} y1={sy(ay1 - au)} x2={sx(ax1 + at2)} y2={sy(ay1 + au)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()}
-        x1={sx(ax2 - at2)} y1={sy(ay2 - au)} x2={sx(ax2 + at2)} y2={sy(ay2 + au)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()}
-        x={sx(Math.trunc((ax1 + ax2) / 2)) - 8}
-        y={sy(Math.trunc((ay1 + ay2) / 2)) - 6}
-        fontSize={7} fill="#333">a</text>);
-    }
-
-    return <g>{els}</g>;
+        {dimLine(sec.x0, bDimY, sec.x1, bDimY)}
+        {tick(sec.x0, bDimY, 0, 1)}
+        {tick(sec.x1, bDimY, 0, 1)}
+        <text x={(sec.x0 + sec.x1) / 2} y={bDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        {!round && (
+          <>
+            {dimLine(br2.x0, dDimY, br2.x1, dDimY)}
+            {tick(br2.x0, dDimY, 0, 1)}
+            {tick(br2.x1, dDimY, 0, 1)}
+            <text x={(br2.x0 + br2.x1) / 2} y={dDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">d</text>
+          </>
+        )}
+        {f > 0 && (
+          <>
+            {dimLine(bAxis, fDimY, sec.x1, fDimY)}
+            {tick(bAxis, fDimY, 0, 1)}
+            {tick(sec.x1, fDimY, 0, 1)}
+            <text x={(bAxis + sec.x1) / 2} y={fDimY + 12} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+          </>
+        )}
+      </g>
+    );
   };
 
-  const renderPerpendicularDuct = () => {
-    const a_raw = values[0] || 200;
-    const b_raw = values[1] || 200;
-    const L_raw = values[2] || 150;
-    const e_raw = values[3] || (2 * b_raw);
-    const f_raw = values[4] || (2 * a_raw);
+  const renderTR1a = () => renderTeeLike(false);
 
-    let max = Math.max(a_raw, b_raw);
+  const renderTeeJunction = () => renderTeeLike(true);
+
+  const renderSymmetricTee = () => {
+    // TRa port of Form1.cs `if (symbol == "TRa")` (trójnik symetryczny). Side view on the
+    // left: the run (length L, d tall at its left end, b tall at its right end, flat
+    // bottom) with the h-wide branch rising from it — its left wall blends into the run's
+    // top with radius q, its right wall drops a straight p and blends with radius r into
+    // the i-long top of the right end. End view on the right: the a×d run opening in its
+    // flange with the a-wide branch standing on it (Form1 steps the branch outline out by
+    // the flange width below the p+r neck).
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let d = Math.max(toInt(values[2] || 150), 1);
+    let h = Math.max(toInt(values[3] || 150), 1);
+    let l = Math.max(toInt(values[4] || 600), 1);
+    let q = Math.max(toInt(values[5] || 50), 0);
+    let r = Math.max(toInt(values[6] || 50), 0);
+    let i = Math.max(toInt(values[7] || 100), 0);
+    let ps = Math.max(toInt(values[8] || 50), 0);
+
     let p = 25;
-    if (e_raw > max) max = e_raw;
-    if (f_raw > max) max = f_raw;
-    if (L_raw > 1000) p = 30;
-    if (L_raw > 2501) p = 40;
-    if (L_raw > max) max = L_raw;
-    if (p > max) max = p;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+    let maxNorm = Math.max(a, b);
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+    if (r + ps + b > maxNorm) maxNorm = r + ps + b;
 
-    const mnoznik = 70;
-    let a = Math.trunc(a_raw / max * mnoznik);
-    let b = Math.trunc(b_raw / max * mnoznik);
-    let ee = Math.trunc(e_raw / max * mnoznik);
-    let f = Math.trunc(f_raw / max * mnoznik);
-    let l = Math.trunc(L_raw / max * mnoznik);
-    p = Math.trunc(p / max * mnoznik);
-
-    while (f < 110 && a < 110 && ee < 110 && b < 110 && l < 70) {
-      a = Math.trunc(a * 1.1);
-      b = Math.trunc(b * 1.1);
-      ee = Math.trunc(ee * 1.1);
-      f = Math.trunc(f * 1.1);
-      l = Math.trunc(l * 1.1);
-      p = Math.trunc(p * 1.1);
-    }
-
-    let push_x = Math.trunc((150 - ee) / 2);
-    if (push_x < 0) push_x = -push_x;
-    const push_y = Math.trunc((90 - l) / 2) + 5;
-
-    // Right side: front view (a×l) — "punkty"
-    const r0x = 190 + push_x, r0y = 20 + push_y;
-    const r1x = 190 + a + push_x, r1y = 20 + push_y;
-    const r2x = r1x, r2y = 20 + push_y + l;
-    const r3x = r0x, r3y = r2y;
-
-    // Left side: side view (b×l) — "punkty2"
-    const s0x = 20 + push_x, s0y = 20 + push_y;
-    const s1x = 20 + b + push_x, s1y = 20 + push_y;
-    const s2x = s1x, s2y = 20 + l + push_y;
-    const s3x = s0x, s3y = s2y;
-
-    // f-line at bottom of right side
-    const fX1 = r3x - Math.trunc((f - a) / 2);
-    const fX2 = r2x + Math.trunc((f - a) / 2);
-
-    // e-line at bottom of left side
-    const eX1 = s3x - Math.trunc((ee - b) / 2);
-    const eX2 = s2x + Math.trunc((ee - b) / 2);
-
-    // ── Bounding box for auto-fit ──
-    const bbPad = 10;
-    const contentMinX = Math.min(r0x - p, s0x - p, fX1, eX1) - bbPad;
-    const contentMaxX = Math.max(r1x + p, s1x + p, fX2, eX2) + bbPad;
-    const contentMinY = Math.min(r0y - 20, s0y - 20) - bbPad;
-    const contentMaxY = Math.max(r3y + 30, s3y + 30) + bbPad;
-
-    const contentW = contentMaxX - contentMinX;
-    const contentH = contentMaxY - contentMinY;
-    const S = Math.min((width - 4) / contentW, (height - 4) / contentH);
-    const baseOffX = 2 + ((width - 4) - contentW * S) / 2;
-    const baseOffY = 2 + ((height - 4) - contentH * S) / 2;
-    const sx = (v: number) => baseOffX + (v - contentMinX) * S;
-    const sy = (v: number) => baseOffY + (v - contentMinY) * S;
-    const sd = (v: number) => v * S;
-
-    const els: React.ReactElement[] = [];
-    let _k = 0;
-    const K = () => _k++;
-
-    // ── Right side: top flange lines ──
-    // Horizontal line from (r0x-p) to (r1x+p) at r0y
-    els.push(<line key={K()} x1={sx(r0x - p)} y1={sy(r0y)} x2={sx(r1x + p)} y2={sy(r0y)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    // Horizontal line at r0y+p
-    els.push(<line key={K()} x1={sx(r0x)} y1={sy(r0y + p)} x2={sx(r1x)} y2={sy(r1y + p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // Right side: main rect (a×l)
-    els.push(<rect key={K()} x={sx(r0x)} y={sy(r0y)} width={sd(a)} height={sd(l)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── Left side: top flange lines ──
-    els.push(<line key={K()} x1={sx(s0x - p)} y1={sy(s0y)} x2={sx(s1x + p)} y2={sy(s0y)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    els.push(<line key={K()} x1={sx(s0x)} y1={sy(s0y + p)} x2={sx(s1x)} y2={sy(s1y + p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // Left side: main rect (b×l)
-    els.push(<rect key={K()} x={sx(s0x)} y={sy(s0y)} width={sd(b)} height={sd(l)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── "b" dim above right side (C# labels this "b") ──
-    {
-      const dimY = r0y - 15;
-      els.push(<line key={K()} x1={sx(r0x)} y1={sy(dimY)} x2={sx(r1x)} y2={sy(dimY)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(r0x)} y1={sy(dimY - 3)} x2={sx(r0x)} y2={sy(dimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(r1x)} y1={sy(dimY - 3)} x2={sx(r1x)} y2={sy(dimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((r0x + r1x) / 2)} y={sy(dimY) - 4}
-        fontSize={7} fill="#333" textAnchor="middle">b</text>);
-    }
-
-    // ── "f" line + dim below right side ──
-    {
-      els.push(<line key={K()} x1={sx(fX1)} y1={sy(r3y)} x2={sx(fX2)} y2={sy(r2y)}
-        stroke={lineColor} strokeWidth={1.2}/>);
-      const fDimY = r3y + 15;
-      els.push(<line key={K()} x1={sx(fX1)} y1={sy(fDimY)} x2={sx(fX2)} y2={sy(fDimY)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(fX1)} y1={sy(fDimY - 3)} x2={sx(fX1)} y2={sy(fDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(fX2)} y1={sy(fDimY - 3)} x2={sx(fX2)} y2={sy(fDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((fX1 + fX2) / 2)} y={sy(fDimY) + 10}
-        fontSize={7} fill="#333" textAnchor="middle">f</text>);
-    }
-
-    // ── "a" dim above left side ──
-    {
-      const dimY2 = s0y - 15;
-      els.push(<line key={K()} x1={sx(s0x)} y1={sy(dimY2)} x2={sx(s1x)} y2={sy(dimY2)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(s0x)} y1={sy(dimY2 - 3)} x2={sx(s0x)} y2={sy(dimY2 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(s1x)} y1={sy(dimY2 - 3)} x2={sx(s1x)} y2={sy(dimY2 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((s0x + s1x) / 2)} y={sy(dimY2) - 4}
-        fontSize={7} fill="#333" textAnchor="middle">a</text>);
-    }
-
-    // ── "L" dim between left and right views ──
-    {
-      const lx = Math.trunc((s1x + r0x) / 2);
-      const ly1 = s0y;
-      const ly2 = s2y;
-      els.push(<line key={K()} x1={sx(lx)} y1={sy(ly1)} x2={sx(lx)} y2={sy(ly2)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(lx - 3)} y1={sy(ly1)} x2={sx(lx + 3)} y2={sy(ly1)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(lx - 3)} y1={sy(ly2)} x2={sx(lx + 3)} y2={sy(ly2)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(lx) + 5} y={sy(Math.trunc((ly1 + ly2) / 2)) - 4}
-        fontSize={7} fill="#333">L</text>);
-    }
-
-    // ── "e" line + dim below left side ──
-    {
-      els.push(<line key={K()} x1={sx(eX1)} y1={sy(s3y)} x2={sx(eX2)} y2={sy(s2y)}
-        stroke={lineColor} strokeWidth={1.2}/>);
-      const eDimY = s3y + 15;
-      els.push(<line key={K()} x1={sx(eX1)} y1={sy(eDimY)} x2={sx(eX2)} y2={sy(eDimY)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(eX1)} y1={sy(eDimY - 3)} x2={sx(eX1)} y2={sy(eDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(eX2)} y1={sy(eDimY - 3)} x2={sx(eX2)} y2={sy(eDimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((eX1 + eX2) / 2)} y={sy(eDimY) + 10}
-        fontSize={7} fill="#333" textAnchor="middle">e</text>);
-    }
-
-    return <g>{els}</g>;
-  };
-
-  const renderSkewTee = () => {
-    const a_raw = values[0] || 100;
-    const b_raw = values[1] || 300;
-    const d_raw = values[2] || 400;
-    const h_raw = values[3] || 200;
-    const e_raw = values[4] || 100;
-    const r_raw = values[5] || 100;
-    const q_raw = values[6] || 100;
-    const i_raw = values[7] || 50;
-    const j_raw = values[8] || 50;
-    const pp_raw = values[9] || 50;
-
-    let max = Math.max(a_raw, b_raw);
-    let p = 25;
-    if (max > 1000) p = 30;
-    if (max > 2501) p = 40;
-    if (p > max) max = p;
-    if (i_raw > max) max = i_raw;
-    if (j_raw > max) max = j_raw;
-    if (d_raw > max) max = d_raw;
-    if (h_raw + j_raw + q_raw + r_raw + i_raw > max) max = h_raw + j_raw + q_raw + r_raw + i_raw;
-    if (pp_raw + b_raw + e_raw > max) max = pp_raw + b_raw + e_raw;
-
-    const mnoznik = 70;
-    let a = Math.trunc(a_raw / max * mnoznik);
-    let b = Math.trunc(b_raw / max * mnoznik);
-    let d = Math.trunc(d_raw / max * mnoznik);
-    let h = Math.trunc(h_raw / max * mnoznik);
-    let i = Math.trunc(i_raw / max * mnoznik);
-    let j = Math.trunc(j_raw / max * mnoznik);
-    let pp = Math.trunc(pp_raw / max * mnoznik);
-    p = Math.trunc(p / max * mnoznik);
-    let q = Math.trunc(q_raw / max * mnoznik);
-    let r = Math.trunc(r_raw / max * mnoznik);
-    let ee = Math.trunc(e_raw / max * mnoznik);
-
-    while ((pp + b + ee) < 100 && (h + j + q + r + i) < 60) {
-      a = Math.trunc(a * 1.1);
-      b = Math.trunc(b * 1.1);
-      d = Math.trunc(d * 1.1);
-      h = Math.trunc(h * 1.1);
-      i = Math.trunc(i * 1.1);
-      j = Math.trunc(j * 1.1);
-      pp = Math.trunc(pp * 1.1);
-      p = Math.trunc(p * 1.1);
-      q = Math.trunc(q * 1.1);
-      r = Math.trunc(r * 1.1);
-      ee = Math.trunc(ee * 1.1);
+    const mnoznik = 80;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); d = sc(d); h = sc(h); i = sc(i); ps = sc(ps); l = sc(l); p = sc(p); q = sc(q); r = sc(r);
+    while (l < 100 && a < 100 && (b + r + ps) < 90) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); d = toInt(d * 1.1); h = toInt(h * 1.1); i = toInt(i * 1.1);
+      ps = toInt(ps * 1.1); l = toInt(l * 1.1); p = toInt(p * 1.1); q = toInt(q * 1.1); r = toInt(r * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
     }
     if (q < 1) q = 1;
     if (r < 1) r = 1;
 
-    let push_x = 130 - pp - b - ee;
-    if (push_x < 0) push_x = 10;
-    let push_y = 85 - i - r - h - q - j;
-    if (push_y < 0) push_y = 10;
+    let pushX = 150 - l;
+    if (pushX < 0) pushX = 10;
+    const pushY = toInt((90 - b - r - ps) / 2) + 5;
 
-    // ── C# punkt coordinates (literal port) ──
-    // punkty (right-side outer rect corners, 4 points)
-    const pkt0x = 190 + push_x,                pkt0y = 20 + push_y;
-    const pkt1x = 190 + a + push_x,            pkt1y = 20 + push_y;
-    // punkty12 (right-side inner duct rect)
-    const p12_0x = 190 + push_x,               p12_0y = 20 + push_y + i + r;
-    const p12_1x = 190 + a + push_x,           p12_1y = 20 + push_y + i + r;
-    const p12_2x = 190 + a + push_x,           p12_2y = 20 + push_y + i + r + h;
-    const p12_3x = 190 + push_x,               p12_3y = 20 + push_y + i + r + h;
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
 
-    // punkty13 (right-side outer flange rect) 
-    const p13_0x = p12_0x - p,                  p13_0y = p12_0y - p;
-    const p13_1x = p12_1x + p,                  p13_1y = p12_1y - p;
-    const p13_2x = p12_2x + p,                  p13_2y = p12_2y + p;
-    const p13_3x = p12_3x - p,                  p13_3y = p12_3y + p;
+    // ---- side view -------------------------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const x1 = x0 + l;
+    const yBot = y0 + ps + r + b;
+    const yTop = yBot - d;
+    const ybr = yBot - b - r - ps;      // branch open end
+    const xr = x1 - i - r;              // branch right wall
+    const xl = xr - h;                  // branch left wall
+    const outline = [
+      `M ${x0} ${yTop}`,
+      `L ${xl - q} ${yTop}`,
+      `A ${q} ${q} 0 0 0 ${xl} ${yTop - q}`,
+      `L ${xl} ${ybr}`,
+      `L ${xr} ${ybr}`,
+      `L ${xr} ${ybr + ps}`,
+      `A ${r} ${r} 0 0 0 ${x1 - i} ${yBot - b}`,
+      `L ${x1} ${yBot - b}`,
+    ].join(' ');
+    const qc = { x: xl - q, y: yTop - q };
+    const rc = { x: x1 - i, y: yBot - b - r };
+    const lDimY = yBot + Math.max(15, p + 8);
+    const hDimY = ybr - Math.max(15, p + 8);
+    const rightDimX = x1 + 15;
 
-    // punkty14 (below duct+flange on right)
-    const p14_0x = p12_3x,                      p14_0y = p13_3y;
-    const p14_1x = p12_2x,                      p14_1y = p13_2y;
-    const p14_2x = p12_2x,                      p14_2y = p12_2y + q + j;
-    const p14_3x = p12_3x,                      p14_3y = p12_3y + q + j;
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, rightDimX + 14 + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const secBot = y0 + b + ps + r;
+    const run = { x0: sx, y0: secBot - d, x1: sx + a, y1: secBot };
+    const runFl = { x0: run.x0 - p, y0: run.y0 - p, x1: run.x1 + p, y1: run.y1 + p };
+    const neckBot = Math.min(y0 + Math.max(ps + r - p, 0), runFl.y0);
+    const branchOutline = [
+      `M ${sx - p} ${runFl.y0} L ${sx - p} ${neckBot} L ${sx} ${neckBot} L ${sx} ${y0}`,
+      `L ${sx + a} ${y0} L ${sx + a} ${neckBot} L ${sx + a + p} ${neckBot} L ${sx + a + p} ${runFl.y0}`,
+    ].join(' ');
+    const aDimY = runFl.y1 + 8 > run.y1 + 15 ? runFl.y1 + 8 : run.y1 + 15;
 
-    // punkty15 (above duct on right)
-    const p15_0x = pkt0x,                       p15_0y = pkt0y;
-    const p15_1x = pkt1x,                       p15_1y = pkt1y;
-    const p15_2x = pkt1x,                       p15_2y = pkt1y + i + r - p;
-    const p15_3x = pkt0x,                       p15_3y = pkt0y + i + r - p;
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={outline} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x0} y1={yBot} x2={x1} y2={yBot} stroke={lineColor} strokeWidth={1.6} />
+        {/* left end (d tall) face + flange */}
+        <line x1={x0} y1={yTop} x2={x0} y2={yBot} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x0} y1={yTop - p} x2={x0} y2={yBot + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x0 + p} y1={yTop} x2={x0 + p} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
+        {/* right end (b tall) face + flange */}
+        <line x1={x1} y1={yBot - b} x2={x1} y2={yBot} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x1} y1={yBot - b - p} x2={x1} y2={yBot + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x1 - p} y1={yBot - b} x2={x1 - p} y2={yBot} stroke={lineColor} strokeWidth={1.2} />
+        {/* branch flange */}
+        <line x1={xl - p} y1={ybr} x2={xr + p} y2={ybr} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={xl} y1={ybr + p} x2={xr} y2={ybr + p} stroke={lineColor} strokeWidth={1.2} />
+        {/* q / r leaders (centre → corner) */}
+        <line x1={qc.x} y1={qc.y} x2={xl} y2={yTop} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={qc.x - 5} y={qc.y - 4} textAnchor="end" fontSize={10} fill="#555555">q</text>
+        <line x1={rc.x} y1={rc.y} x2={xr} y2={yBot - b} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={rc.x + 5} y={rc.y - 4} textAnchor="start" fontSize={10} fill="#555555">r</text>
 
-    // punkty2 (horizontal duct on left)
-    const s2_0x = 20 + push_x,                  s2_0y = 20 + push_y + i + r;
-    const s2_1x = 20 + pp + push_x,             s2_1y = 20 + push_y + i + r;
-    const s2_2x = 20 + pp + push_x,             s2_2y = 20 + push_y + i + r + h;
-    const s2_3x = 20 + push_x,                  s2_3y = 20 + push_y + i + r + h;
+        {/* d (left), L (below), b, p (right), i (under the right end's top), h (above branch) */}
+        {dimLine(x0 - 15, yTop, x0 - 15, yBot)}
+        {tick(x0 - 15, yTop, 1, 0)}
+        {tick(x0 - 15, yBot, 1, 0)}
+        <text x={x0 - 21} y={(yTop + yBot) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">d</text>
+        {dimLine(x0, lDimY, x1, lDimY)}
+        {tick(x0, lDimY, 0, 1)}
+        {tick(x1, lDimY, 0, 1)}
+        <text x={(x0 + x1) / 2} y={lDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">L</text>
+        {dimLine(rightDimX, yBot - b, rightDimX, yBot)}
+        {tick(rightDimX, yBot - b, 1, 0)}
+        {tick(rightDimX, yBot, 1, 0)}
+        <text x={rightDimX + 6} y={yBot - b / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">b</text>
+        {ps > 0 && (
+          <>
+            {dimLine(rightDimX, ybr, rightDimX, ybr + ps)}
+            {tick(rightDimX, ybr, 1, 0)}
+            {tick(rightDimX, ybr + ps, 1, 0)}
+            <text x={rightDimX + 6} y={ybr + ps / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">p</text>
+          </>
+        )}
+        {i > 0 && (
+          <>
+            {dimLine(x1 - i, yBot - b + 15, x1, yBot - b + 15)}
+            {tick(x1 - i, yBot - b + 15, 0, 1)}
+            {tick(x1, yBot - b + 15, 0, 1)}
+            <text x={x1 - i / 2} y={yBot - b + 27} textAnchor="middle" fontSize={10} fill="#555555">i</text>
+          </>
+        )}
+        {dimLine(xl, hDimY, xr, hDimY)}
+        {tick(xl, hDimY, 0, 1)}
+        {tick(xr, hDimY, 0, 1)}
+        <text x={(xl + xr) / 2} y={hDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">h</text>
 
-    // punkty22 (bottom branch d × j)
-    const p22_0x = s2_2x + q,                   p22_0y = s2_2y + q;
-    const p22_1x = p22_0x + d,                  p22_1y = p22_0y;
-    const p22_2x = p22_0x + d,                  p22_2y = p22_0y + j;
-    const p22_3x = p22_0x,                      p22_3y = p22_0y + j;
-
-    // Connecting line: from punkty22[1] offset up
-    const lineTopX = p22_1x - ee;
-    const lineTopY = p22_0y - r - h - q;
-
-    // punkty23 (upper-right branch b × i)
-    const p23_2x = lineTopX,                    p23_2y = lineTopY;
-    const p23_0x = lineTopX - b,                p23_0y = lineTopY - i;
-    const p23_1x = p23_0x + b,                  p23_1y = p23_0y;
-    const p23_3x = p23_0x,                      p23_3y = p23_0y + i;
-
-    // ── Bounding box for auto-fit ──
-    const bbPad = 10;
-    const contentMinX = Math.min(s2_0x - p, p13_0x, p23_0x - p, p22_0x - p) - bbPad - 20;
-    const contentMaxX = Math.max(p13_1x, p23_1x + 20 + ee, p22_1x + p) + bbPad;
-    const contentMinY = Math.min(pkt0y - 20, p23_0y - p - 20) - bbPad;
-    const contentMaxY = Math.max(p14_3y + 30, p22_3y + 30) + bbPad;
-
-    const contentW = contentMaxX - contentMinX;
-    const contentH = contentMaxY - contentMinY;
-    const S = Math.min((width - 4) / contentW, (height - 4) / contentH);
-    const baseOffX = 2 + ((width - 4) - contentW * S) / 2;
-    const baseOffY = 2 + ((height - 4) - contentH * S) / 2;
-    const sx = (v: number) => baseOffX + (v - contentMinX) * S;
-    const sy = (v: number) => baseOffY + (v - contentMinY) * S;
-    const sd = (v: number) => v * S;
-
-    const els: React.ReactElement[] = [];
-    let _k = 0;
-    const K = () => _k++;
-
-    // ── Right side ──
-    // punkty12: inner duct rect
-    els.push(<rect key={K()} x={sx(p12_0x)} y={sy(p12_0y)} width={sd(a)} height={sd(h)}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // punkty13: outer flange rect
-    els.push(<polygon key={K()}
-      points={`${sx(p13_0x)},${sy(p13_0y)} ${sx(p13_1x)},${sy(p13_1y)} ${sx(p13_2x)},${sy(p13_2y)} ${sx(p13_3x)},${sy(p13_3y)}`}
-      fill="none" stroke={lineColor} strokeWidth={0.5}/>);
-
-    // punkty14: below duct rect
-    els.push(<polygon key={K()}
-      points={`${sx(p14_0x)},${sy(p14_0y)} ${sx(p14_1x)},${sy(p14_1y)} ${sx(p14_2x)},${sy(p14_2y)} ${sx(p14_3x)},${sy(p14_3y)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // punkty14 bottom flange: horizontal line at p14_3y with ±p
-    els.push(<line key={K()} x1={sx(p14_3x - p)} y1={sy(p14_3y)} x2={sx(p14_2x + p)} y2={sy(p14_2y)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    // punkty14 inner flange: line at p14_3y - p
-    els.push(<line key={K()} x1={sx(p14_3x)} y1={sy(p14_3y - p)} x2={sx(p14_2x)} y2={sy(p14_2y - p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // punkty15: above duct rect
-    els.push(<polygon key={K()}
-      points={`${sx(p15_0x)},${sy(p15_0y)} ${sx(p15_1x)},${sy(p15_1y)} ${sx(p15_2x)},${sy(p15_2y)} ${sx(p15_3x)},${sy(p15_3y)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // punkty15 top flange: horizontal line at p15_0y with ±p
-    els.push(<line key={K()} x1={sx(p15_0x - p)} y1={sy(p15_0y)} x2={sx(p15_1x + p)} y2={sy(p15_1y)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    // punkty15 inner flange: line at p15_0y + p
-    els.push(<line key={K()} x1={sx(p15_0x)} y1={sy(p15_0y + p)} x2={sx(p15_1x)} y2={sy(p15_1y + p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // "a" dim above right side
-    {
-      const dimY = pkt0y - 15;
-      els.push(<line key={K()} x1={sx(pkt0x)} y1={sy(dimY)} x2={sx(pkt1x)} y2={sy(dimY)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(pkt0x)} y1={sy(dimY - 3)} x2={sx(pkt0x)} y2={sy(dimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(pkt1x)} y1={sy(dimY - 3)} x2={sx(pkt1x)} y2={sy(dimY + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((pkt0x + pkt1x) / 2)} y={sy(dimY) - 4}
-        fontSize={7} fill="#333" textAnchor="middle">a</text>);
-    }
-
-    // ── Left side: horizontal duct (punkty2) ──
-    els.push(<polygon key={K()}
-      points={`${sx(s2_0x)},${sy(s2_0y)} ${sx(s2_1x)},${sy(s2_1y)} ${sx(s2_2x)},${sy(s2_2y)} ${sx(s2_3x)},${sy(s2_3y)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Colored line on right edge (punkty2[1]→punkty2[2])
-    els.push(<line key={K()} x1={sx(s2_1x)} y1={sy(s2_1y)} x2={sx(s2_2x)} y2={sy(s2_2y)}
-      stroke="#8a2048" strokeWidth={0.5}/>);
-    // Left flange: vertical inner line at x+p
-    els.push(<line key={K()} x1={sx(s2_0x + p)} y1={sy(s2_0y)} x2={sx(s2_3x + p)} y2={sy(s2_3y)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    // Left flange: outer vertical line extended ±p
-    els.push(<line key={K()} x1={sx(s2_0x)} y1={sy(s2_0y - p)} x2={sx(s2_3x)} y2={sy(s2_3y + p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // "p" dim above horizontal duct
-    {
-      const dimY2 = s2_0y - 15;
-      els.push(<line key={K()} x1={sx(s2_0x)} y1={sy(dimY2)} x2={sx(s2_1x)} y2={sy(dimY2)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(s2_0x)} y1={sy(dimY2 - 3)} x2={sx(s2_0x)} y2={sy(dimY2 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(s2_1x)} y1={sy(dimY2 - 3)} x2={sx(s2_1x)} y2={sy(dimY2 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx((s2_0x + s2_1x) / 2)} y={sy(dimY2) - 4}
-        fontSize={7} fill="#333" textAnchor="middle">p</text>);
-    }
-
-    // "h" dim left of horizontal duct
-    {
-      const dimX = s2_0x - 15;
-      els.push(<line key={K()} x1={sx(dimX)} y1={sy(s2_0y)} x2={sx(dimX)} y2={sy(s2_3y)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(dimX - 3)} y1={sy(s2_0y)} x2={sx(dimX + 3)} y2={sy(s2_0y)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(dimX - 3)} y1={sy(s2_3y)} x2={sx(dimX + 3)} y2={sy(s2_3y)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(dimX) - 8} y={sy((s2_0y + s2_3y) / 2) + 3}
-        fontSize={7} fill="#333">h</text>);
-    }
-
-    // ── q arc (from horizontal duct bottom-right corner to bottom branch top-left) ──
-    {
-      // C#: DrawArc(punkty2[2].X-q, punkty2[2].Y, 2*q, 2*q, 270, 90)
-      // center = (s2_2x, s2_2y+q), start at top (s2_2x, s2_2y), end at right (s2_2x+q, s2_2y+q)
-      els.push(<path key={K()}
-        d={`M ${sx(s2_2x)},${sy(s2_2y)} A ${sd(q)},${sd(q)} 0 0,1 ${sx(s2_2x + q)},${sy(s2_2y + q)}`}
-        fill="none" stroke={lineColor} strokeWidth={1.0}/>);
-      // q radius line: from (center+q, center-q) to center
-      const qcx = s2_2x, qcy = s2_2y + q;
-      els.push(<line key={K()} x1={sx(qcx + q)} y1={sy(qcy - q)} x2={sx(qcx)} y2={sy(qcy)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(qcx + q)} y={sy(qcy - q) - 5}
-        fontSize={6} fill="#333">q</text>);
-    }
-
-    // ── Bottom branch (punkty22: d×j) ──
-    els.push(<polygon key={K()}
-      points={`${sx(p22_0x)},${sy(p22_0y)} ${sx(p22_1x)},${sy(p22_1y)} ${sx(p22_2x)},${sy(p22_2y)} ${sx(p22_3x)},${sy(p22_3y)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Top colored line
-    els.push(<line key={K()} x1={sx(p22_0x + 1)} y1={sy(p22_0y)} x2={sx(p22_1x - 1)} y2={sy(p22_1y)}
-      stroke="#8a2048" strokeWidth={0.5}/>);
-    // Bottom branch flange: inner horizontal at y-p
-    els.push(<line key={K()} x1={sx(p22_3x)} y1={sy(p22_3y - p)} x2={sx(p22_2x)} y2={sy(p22_2y - p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    // Bottom branch flange: outer horizontal with ±p
-    els.push(<line key={K()} x1={sx(p22_3x - p)} y1={sy(p22_3y)} x2={sx(p22_2x + p)} y2={sy(p22_2y)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // "d" dim below bottom branch
-    {
-      const dimY3 = p22_3y + 15;
-      els.push(<line key={K()} x1={sx(p22_3x)} y1={sy(dimY3)} x2={sx(p22_2x)} y2={sy(dimY3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(p22_3x)} y1={sy(dimY3 - 3)} x2={sx(p22_3x)} y2={sy(dimY3 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(p22_3x + d)} y1={sy(dimY3 - 3)} x2={sx(p22_3x + d)} y2={sy(dimY3 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(p22_3x + d / 2)} y={sy(dimY3) + 10}
-        fontSize={7} fill="#333" textAnchor="middle">d</text>);
-    }
-
-    // "j" dim left of bottom branch
-    {
-      const dimX2 = p22_0x - 15;
-      els.push(<line key={K()} x1={sx(dimX2)} y1={sy(p22_0y)} x2={sx(dimX2)} y2={sy(p22_3y)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<line key={K()} x1={sx(dimX2 - 3)} y1={sy(p22_0y)} x2={sx(dimX2 + 3)} y2={sy(p22_0y)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // C# bottom tick uses "i" offset from top: aaa.Y += i
-      els.push(<line key={K()} x1={sx(dimX2 - 3)} y1={sy(p22_0y + i)} x2={sx(dimX2 + 3)} y2={sy(p22_0y + i)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(dimX2) - 6} y={sy(p22_0y + i / 2) + 3}
-        fontSize={7} fill="#333">j</text>);
-    }
-
-    // ── Connecting line from punkty22[1] up to punkty23[2] ──
-    els.push(<line key={K()} x1={sx(lineTopX)} y1={sy(lineTopY)} x2={sx(p22_1x)} y2={sy(p22_1y)}
-      stroke={lineColor} strokeWidth={1.2}/>);
-
-    // ── Upper-right branch (punkty23: b×i) ──
-    els.push(<polygon key={K()}
-      points={`${sx(p23_0x)},${sy(p23_0y)} ${sx(p23_1x)},${sy(p23_1y)} ${sx(p23_2x)},${sy(p23_2y)} ${sx(p23_3x)},${sy(p23_3y)}`}
-      fill="none" stroke={lineColor} strokeWidth={1.2}/>);
-    // Bottom colored line (punkty23[3]→punkty23[2])
-    els.push(<line key={K()} x1={sx(p23_3x + 1)} y1={sy(p23_3y)} x2={sx(p23_2x - 1)} y2={sy(p23_2y)}
-      stroke="#8a2048" strokeWidth={0.5}/>);
-    // Top flange: outer horizontal with ±p
-    els.push(<line key={K()} x1={sx(p23_0x - p)} y1={sy(p23_0y)} x2={sx(p23_1x + p)} y2={sy(p23_1y)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-    // Top flange: inner horizontal at y+p
-    els.push(<line key={K()} x1={sx(p23_0x)} y1={sy(p23_0y + p)} x2={sx(p23_1x)} y2={sy(p23_1y + p)}
-      stroke={lineColor} strokeWidth={0.5}/>);
-
-    // "i" dim right of upper-right branch
-    {
-      const dimX3 = p23_2x + 15;
-      // C#: vertical line from punkty23[1] to punkty23[2], offset right by 15
-      els.push(<line key={K()} x1={sx(dimX3)} y1={sy(p23_1y)} x2={sx(dimX3)} y2={sy(p23_2y)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // bottom tick
-      els.push(<line key={K()} x1={sx(dimX3 - 3)} y1={sy(p23_2y)} x2={sx(dimX3 + 3)} y2={sy(p23_2y)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // top tick
-      els.push(<line key={K()} x1={sx(dimX3 - 3)} y1={sy(p23_2y - i)} x2={sx(dimX3 + 3)} y2={sy(p23_2y - i)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(dimX3) + 4} y={sy(p23_2y - i / 2) + 3}
-        fontSize={7} fill="#333">i</text>);
-    }
-
-    // "b" + "e" dims above upper-right branch
-    {
-      const dimY4 = p23_0y - 15;
-      // b dim line
-      els.push(<line key={K()} x1={sx(p23_0x)} y1={sy(dimY4)} x2={sx(p23_1x)} y2={sy(dimY4)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // left tick
-      els.push(<line key={K()} x1={sx(p23_0x)} y1={sy(dimY4 - 3)} x2={sx(p23_0x)} y2={sy(dimY4 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // middle tick (b end)
-      els.push(<line key={K()} x1={sx(p23_0x + b)} y1={sy(dimY4 - 3)} x2={sx(p23_0x + b)} y2={sy(dimY4 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // right tick (ee end)
-      els.push(<line key={K()} x1={sx(p23_0x + b + ee)} y1={sy(dimY4 - 3)} x2={sx(p23_0x + b + ee)} y2={sy(dimY4 + 3)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // e dim line
-      els.push(<line key={K()} x1={sx(p23_0x + b)} y1={sy(dimY4)} x2={sx(p23_0x + b + ee)} y2={sy(dimY4)}
-        stroke="#333" strokeWidth={0.4}/>);
-      // labels
-      els.push(<text key={K()} x={sx(p23_0x + b / 2)} y={sy(dimY4) - 4}
-        fontSize={7} fill="#333" textAnchor="middle">b</text>);
-      els.push(<text key={K()} x={sx(p23_0x + b + ee / 2)} y={sy(dimY4) - 4}
-        fontSize={7} fill="#333" textAnchor="middle">e</text>);
-    }
-
-    // ── r arc (from punkty23[3] bottom-left, curving to horizontal duct top-right) ──
-    {
-      // C#: DrawArc(punkty23[3].X - 2*r, punkty23[3].Y - r, 2*r, 2*r, 0, 90)
-      // center = (p23_3x - r, p23_3y)
-      // start (0° = right): (p23_3x, p23_3y) = bottom-left of upper branch
-      // end (90° = bottom in GDI+): (p23_3x - r, p23_3y + r)
-      els.push(<path key={K()}
-        d={`M ${sx(p23_3x)},${sy(p23_3y)} A ${sd(r)},${sd(r)} 0 0,1 ${sx(p23_3x - r)},${sy(p23_3y + r)}`}
-        fill="none" stroke={lineColor} strokeWidth={1.0}/>);
-      // Connecting line from arc end to horizontal duct right edge (punkty2[1])
-      els.push(<line key={K()} x1={sx(p23_3x - r)} y1={sy(p23_3y + r)} x2={sx(s2_1x)} y2={sy(s2_1y)}
-        stroke={lineColor} strokeWidth={1.2}/>);
-      // r label: line from (p23_3x - r, p23_3y) to (p23_3x, p23_3y + r)
-      els.push(<line key={K()} x1={sx(p23_3x - r)} y1={sy(p23_3y)} x2={sx(p23_3x)} y2={sy(p23_3y + r)}
-        stroke="#333" strokeWidth={0.4}/>);
-      els.push(<text key={K()} x={sx(p23_3x)} y={sy(p23_3y + r) + 8}
-        fontSize={6} fill="#333">r</text>);
-    }
-
-    return <g>{els}</g>;
+        {/* ---- end view ---- */}
+        <path d={branchOutline} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={sx - p} y1={y0} x2={sx + a + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={sx} y1={y0 + p} x2={sx + a} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <rect x={run.x0} y={run.y0} width={run.x1 - run.x0} height={run.y1 - run.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <rect x={runFl.x0} y={runFl.y0} width={runFl.x1 - runFl.x0} height={runFl.y1 - runFl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        {dimLine(run.x0, aDimY, run.x1, aDimY)}
+        {tick(run.x0, aDimY, 0, 1)}
+        {tick(run.x1, aDimY, 0, 1)}
+        <text x={(run.x0 + run.x1) / 2} y={aDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+      </g>
+    );
   };
 
-  const renderCoaxialSkewTee = () => {
-    // TR8a: Coaxial skew tee - 1:1 C# port
-    // params: a, b, c, d, w, g, l, l3, m, n, ee, f, i
-    const a_raw = values[0] || 200;
-    const b_raw = values[1] || 400;
-    const c_raw = values[2] || 400;
-    const d_raw = values[3] || 200;
-    const w_raw = values[4] || 200;
-    const g_raw = values[5] || 100;
-    const l_raw = values[6] || 500;
-    const l3_raw = values[7] || 100;
-    const m_raw = values[8] || -100;
-    const n_raw = values[9] || -150;
-    const ee_raw = values[10] || Math.trunc(l_raw / 2);
-    const f_raw = values[11] || Math.trunc(b_raw / 2);
-    const i_raw = Math.max(values[12] || 30, 30);
-
-    let p = 25;
-    if (l_raw > 1000) p = 30;
-    if (l_raw > 2501) p = 40;
-
-    let max = l_raw;
-    if (c_raw + m_raw > max) max = c_raw + m_raw;
-
-    const mnoznik = 60;
-    let a = Math.trunc(a_raw / max * mnoznik);
-    let b = Math.trunc(b_raw / max * mnoznik);
-    let c = Math.trunc(c_raw / max * mnoznik);
-    let d = Math.trunc(d_raw / max * mnoznik);
-    let w = Math.trunc(w_raw / max * mnoznik);
-    let g = Math.trunc(g_raw / max * mnoznik);
-    let l = Math.trunc(l_raw / max * mnoznik);
-    let l3 = Math.trunc(l3_raw / max * mnoznik);
-    let m = Math.trunc(m_raw / max * mnoznik);
-    let n = Math.trunc(n_raw / max * mnoznik);
-    let ee = Math.trunc(ee_raw / max * mnoznik);
-    let f = Math.trunc(f_raw / max * mnoznik);
-    let i = Math.trunc(i_raw / max * mnoznik);
-    p = Math.trunc(p / max * mnoznik);
-
-    let push_x = Math.trunc((110 - b) % 110 / 2);
-    if (push_x < 0) push_x = -push_x;
-    let push_y = Math.trunc((90 - l) / 2);
-
-    const alfa = Math.atan((c - a + m) / (l - 2 * i));
-    const w1 = Math.trunc(Math.cos(alfa) * w);
-
-    // ── RIGHT-SIDE VIEW (front cross-section) ──
-    // punkty: trapezoid with d width top, b width bottom, offset n
-    const pkt0x = 190 + push_x;
-    const pkt0y = 20 + push_y + i;
-    const pkt1x = 190 + d + push_x;
-    const pkt1y = 20 + push_y + i;
-    const pkt2x = 190 + d - n + push_x;
-    const pkt2y = 20 + push_y + l - i;
-    const pkt3x = pkt2x - b;
-    const pkt3y = 20 + push_y + l - i;
-
-    // Flange outer corners (after adjusting by ±i, ±p)
-    const fl_t0x = pkt0x - p;
-    const fl_t0y = pkt0y - i;
-    const fl_t1x = pkt1x + p;
-    const fl_t1y = pkt1y - i;
-    const fl_b2x = pkt2x + p;
-    const fl_b2y = pkt2y + i;
-    const fl_b3x = pkt3x - p;
-    const fl_b3y = pkt3y + i;
-
-    // Inner flange lines (top at y+p, bottom at y-p from flange)
-    const fli_t0x = pkt0x;
-    const fli_t0y = pkt0y - i + p;
-    const fli_t1x = pkt1x;
-    const fli_t1y = pkt1y - i + p;
-    const fli_b2x = pkt2x;
-    const fli_b2y = pkt2y + i - p;
-    const fli_b3x = pkt3x;
-    const fli_b3y = pkt3y + i - p;
-
-    // Branch rect (pk1) on right side
-    // C# restores punkty[3].X += p back to pkt3x, and punkty[3].Y is pkt3y+i after +=i mutation
-    const pk1_3x = pkt3x + f - Math.trunc(g / 2);
-    const pk1_3y = (pkt3y + i) - (l - ee - Math.trunc(w1 / 2) - 2 * i);
-    const pk1_2x = pk1_3x + g;
-    const pk1_2y = pk1_3y;
-    const pk1_1x = pk1_2x;
-    const pk1_1y = pk1_2y - w1;
-    const pk1_0x = pk1_1x - g;
-    const pk1_0y = pk1_1y;
-
-    // Branch flange rect (pk2) around pk1
-    const pk2_0x = pk1_0x - p;
-    const pk2_0y = pk1_0y - p;
-    const pk2_1x = pk1_1x + p;
-    const pk2_1y = pk1_1y - p;
-    const pk2_2x = pk1_2x + p;
-    const pk2_2y = pk1_2y + p;
-    const pk2_3x = pk1_3x - p;
-    const pk2_3y = pk1_3y + p;
-
-    // ── LEFT-SIDE VIEW (side view) ──
-    // punkty2: trapezoid with c width top, a width bottom, offset m
-    const p2_0x = 20 + push_x;
-    const p2_0y = 20 + push_y + i;
-    const p2_1x = 20 + c + push_x;
-    const p2_1y = 20 + push_y + i;
-    const p2_2x = 20 + c + m + push_x;
-    const p2_2y = 20 + l + push_y - i;
-    const p2_3x = 20 + c + m - a + push_x;
-    const p2_3y = 20 + l + push_y - i;
-
-    // Left flanges
-    const fl2_t0x = p2_0x - p;
-    const fl2_t0y = p2_0y - i;
-    const fl2_t1x = p2_1x + p;
-    const fl2_t1y = p2_1y - i;
-    const fl2_b2x = p2_2x + p;
-    const fl2_b2y = p2_2y + i;
-    const fl2_b3x = p2_3x - p;
-    const fl2_b3y = p2_3y + i;
-
-    // Left inner flange lines
-    const fli2_t0x = p2_0x;
-    const fli2_t0y = p2_0y - i + p;
-    const fli2_t1x = p2_1x;
-    const fli2_t1y = p2_1y - i + p;
-    const fli2_b2x = p2_2x;
-    const fli2_b2y = p2_2y + i - p;
-    const fli2_b3x = p2_3x;
-    const fli2_b3y = p2_3y + i - p;
-
-    // Angled branch duct on left side
-    const dd = ee - i - w1 / 2.0;
-    const s1x_br = Math.tan(alfa) * dd;
-    const s2x_br = Math.tan(alfa) * (dd + w1);
-
-    const bp1x = p2_0x + Math.trunc(s1x_br);
-    const bp1y = p2_0y + i + Math.trunc(dd);
-    const bp2x = bp1x + Math.trunc(s2x_br) - Math.trunc(s1x_br);
-    const bp2y = bp1y + w1;
-
-    const l3_sx = Math.cos(alfa) * l3;
-    const l3_sy = Math.sin(alfa) * l3;
-
-    const bp3x = bp2x - Math.trunc(l3_sx);
-    const bp3y = bp2y + Math.trunc(l3_sy);
-    const bp4x = bp1x - Math.trunc(l3_sx);
-    const bp4y = bp1y + Math.trunc(l3_sy);
-
-    // Perpendicular flange at end of branch (p4-p3)
-    const perp_cos = Math.cos(alfa) * (p + 1);
-    const perp_sin = Math.sin(alfa) * (p + 1);
-
-    const fl_br_ax = bp4x - Math.trunc(perp_sin) - 1;
-    const fl_br_ay = bp4y - Math.trunc(perp_cos);
-    const fl_br_bx = bp3x + Math.trunc(perp_sin) + 1;
-    const fl_br_by = bp3y + Math.trunc(perp_cos);
-
-    // ── Bounding box → auto-fit viewport ──
-    const allX = [
-      pkt0x, pkt1x, pkt2x, pkt3x,
-      fl_t0x, fl_t1x, fl_b2x, fl_b3x,
-      pk2_0x, pk2_1x, pk2_2x, pk2_3x,
-      p2_0x, p2_1x, p2_2x, p2_3x,
-      fl2_t0x, fl2_t1x, fl2_b2x, fl2_b3x,
-      bp1x, bp2x, bp3x, bp4x,
-      fl_br_ax, fl_br_bx,
-    ];
-    const allY = [
-      pkt0y - i, pkt2y + i,
-      fl_t0y, fl_b2y,
-      pk2_0y, pk2_2y,
-      p2_0y - i, p2_2y + i,
-      fl2_t0y, fl2_b2y,
-      bp1y, bp2y, bp3y, bp4y,
-      fl_br_ay, fl_br_by,
-    ];
-    const minX = Math.min(...allX);
-    const maxX = Math.max(...allX);
-    const minY = Math.min(...allY);
-    const maxY = Math.max(...allY);
-    const W = maxX - minX;
-    const H = maxY - minY;
-    const padX = 35;
-    const padY = 30;
-    const scaleX = (width - 2 * padX) / (W || 1);
-    const scaleY = (height - 2 * padY) / (H || 1);
-    const sc = Math.min(scaleX, scaleY);
-    const offX = padX + ((width - 2 * padX) - W * sc) / 2 - minX * sc;
-    const offY = padY + ((height - 2 * padY) - H * sc) / 2 - minY * sc;
-    const sx = (v: number) => v * sc + offX;
-    const sy = (v: number) => v * sc + offY;
-
-    const els: React.JSX.Element[] = [];
-    let k = 0;
-    const K = () => k++;
-    const S = '#004290';
-    const D = '#9b9b9b';
-    const sw = 1.2;
-    const dsw = 0.7;
-
-    // ════════ RIGHT-SIDE VIEW ════════
-
-    // Trapezoid side lines (not top/bottom)
-    els.push(<line key={K()} x1={sx(pkt0x)} y1={sy(pkt0y)} x2={sx(pkt3x)} y2={sy(pkt3y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(pkt1x)} y1={sy(pkt1y)} x2={sx(pkt2x)} y2={sy(pkt2y)}
-      stroke={S} strokeWidth={sw} />);
-
-    // Vertical connection lines (duct corners to flange)
-    els.push(<line key={K()} x1={sx(pkt0x)} y1={sy(pkt0y - i)} x2={sx(pkt0x)} y2={sy(pkt0y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(pkt1x)} y1={sy(pkt1y - i)} x2={sx(pkt1x)} y2={sy(pkt1y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(pkt2x)} y1={sy(pkt2y)} x2={sx(pkt2x)} y2={sy(pkt2y + i)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(pkt3x)} y1={sy(pkt3y)} x2={sx(pkt3x)} y2={sy(pkt3y + i)}
-      stroke={S} strokeWidth={sw} />);
-
-    // Inner flange lines (top)
-    els.push(<line key={K()} x1={sx(fli_t0x)} y1={sy(fli_t0y)} x2={sx(fli_t1x)} y2={sy(fli_t1y)}
-      stroke={S} strokeWidth={sw} />);
-    // Inner flange lines (bottom)
-    els.push(<line key={K()} x1={sx(fli_b3x)} y1={sy(fli_b3y)} x2={sx(fli_b2x)} y2={sy(fli_b2y)}
-      stroke={S} strokeWidth={sw} />);
-
-    // Outer flange rects (top/bottom)
-    els.push(<line key={K()} x1={sx(fl_t0x)} y1={sy(fl_t0y)} x2={sx(fl_t1x)} y2={sy(fl_t1y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(fl_b3x)} y1={sy(fl_b3y)} x2={sx(fl_b2x)} y2={sy(fl_b2y)}
-      stroke={S} strokeWidth={sw} />);
-
-    // ── d dimension (top of right view) ──
-    {
-      const dy = pkt0y - i - 15;
-      els.push(<line key={K()} x1={sx(pkt0x)} y1={sy(dy)} x2={sx(pkt1x)} y2={sy(dy)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(pkt0x)} y1={sy(dy - 3)} x2={sx(pkt0x)} y2={sy(dy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(pkt1x)} y1={sy(dy - 3)} x2={sx(pkt1x)} y2={sy(dy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(pkt0x + d / 2)} y={sy(dy - 3)}
-        fontSize={6} fill="#333" textAnchor="middle">d</text>);
-    }
-
-    // ── n dimension (top-right offset) ──
-    {
-      const ny = pkt0y - i - 15;
-      const nx = pkt1x;
-      els.push(<line key={K()} x1={sx(nx)} y1={sy(ny)} x2={sx(nx - n)} y2={sy(ny)}
-        stroke={D} strokeWidth={dsw} />);
-      // Note: n ticks are below d ticks since we're further right
-      els.push(<line key={K()} x1={sx(nx - n)} y1={sy(ny - 3)} x2={sx(nx - n)} y2={sy(ny + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(nx - n / 2)} y={sy(ny - 3)}
-        fontSize={6} fill="#333" textAnchor="middle">n</text>);
-    }
-
-    // ── l dimension (right side) ──
-    {
-      const lx = Math.max(pkt1x, pkt2x) + 15;
-      const ly_top = pkt0y - i;
-      const ly_bot = pkt2y + i;
-      els.push(<line key={K()} x1={sx(lx)} y1={sy(ly_top)} x2={sx(lx)} y2={sy(ly_bot)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(lx - 3)} y1={sy(ly_top)} x2={sx(lx + 3)} y2={sy(ly_top)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(lx - 3)} y1={sy(ly_bot)} x2={sx(lx + 3)} y2={sy(ly_bot)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(lx + 10)} y={sy((ly_top + ly_bot) / 2 + 5)}
-        fontSize={6} fill="#333">l</text>);
-    }
-
-    // ── b dimension (bottom of right view) ──
-    {
-      const by = pkt3y + i + 20;
-      const bx_left = pkt3x;
-      const bx_right = bx_left + b;
-      els.push(<line key={K()} x1={sx(bx_left)} y1={sy(by)} x2={sx(bx_right)} y2={sy(by)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(bx_left)} y1={sy(by + 3)} x2={sx(bx_left)} y2={sy(by - 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(bx_right)} y1={sy(by + 3)} x2={sx(bx_right)} y2={sy(by - 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(bx_left + b / 2)} y={sy(by + 7)}
-        fontSize={6} fill="green" textAnchor="middle">b</text>);
-    }
-
-    // ── f dimension (bottom-left) ──
-    {
-      const fy = pkt3y + i + 10;
-      const fx_left = pkt3x - p + 3;
-      const fx_right = fx_left + f;
-      els.push(<line key={K()} x1={sx(fx_left)} y1={sy(fy)} x2={sx(fx_right)} y2={sy(fy)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(fx_left)} y1={sy(fy - 3)} x2={sx(fx_left)} y2={sy(fy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(fx_right)} y1={sy(fy - 3)} x2={sx(fx_right)} y2={sy(fy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(fx_left + f / 2)} y={sy(fy + 6)}
-        fontSize={6} fill="#333" textAnchor="middle">f</text>);
-    }
-
-    // ── g dimension (above branch rect on right) ──
-    {
-      const gy = pk1_0y - 10;
-      els.push(<line key={K()} x1={sx(pk1_0x)} y1={sy(gy)} x2={sx(pk1_1x)} y2={sy(gy)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(pk1_0x)} y1={sy(gy - 3)} x2={sx(pk1_0x)} y2={sy(gy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(pk1_1x)} y1={sy(gy - 3)} x2={sx(pk1_1x)} y2={sy(gy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(pk1_0x + g / 2)} y={sy(gy - 5)}
-        fontSize={6} fill="#333" textAnchor="middle">g</text>);
-    }
-
-    // Branch polygon pk1 (inner rect)
-    els.push(<polygon key={K()} points={`${sx(pk1_0x)},${sy(pk1_0y)} ${sx(pk1_1x)},${sy(pk1_1y)} ${sx(pk1_2x)},${sy(pk1_2y)} ${sx(pk1_3x)},${sy(pk1_3y)}`}
-      fill="none" stroke={S} strokeWidth={sw} />);
-    // Branch flange polygon pk2 (outer rect)
-    els.push(<polygon key={K()} points={`${sx(pk2_0x)},${sy(pk2_0y)} ${sx(pk2_1x)},${sy(pk2_1y)} ${sx(pk2_2x)},${sy(pk2_2y)} ${sx(pk2_3x)},${sy(pk2_3y)}`}
-      fill="none" stroke={S} strokeWidth={sw} />);
-
-    // ════════ LEFT-SIDE VIEW ════════
-
-    // Trapezoid side lines
-    els.push(<line key={K()} x1={sx(p2_0x)} y1={sy(p2_0y)} x2={sx(p2_3x)} y2={sy(p2_3y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(p2_1x)} y1={sy(p2_1y)} x2={sx(p2_2x)} y2={sy(p2_2y)}
-      stroke={S} strokeWidth={sw} />);
-
-    // Top flange connections + lines
-    els.push(<line key={K()} x1={sx(p2_0x)} y1={sy(p2_0y)} x2={sx(p2_0x)} y2={sy(p2_0y - i)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(p2_1x)} y1={sy(p2_1y)} x2={sx(p2_1x)} y2={sy(p2_1y - i)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(fl2_t0x)} y1={sy(fl2_t0y)} x2={sx(fl2_t1x)} y2={sy(fl2_t1y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(fli2_t0x)} y1={sy(fli2_t0y)} x2={sx(fli2_t1x)} y2={sy(fli2_t1y)}
-      stroke={S} strokeWidth={sw} />);
-
-    // Bottom flange connections + lines
-    els.push(<line key={K()} x1={sx(p2_3x)} y1={sy(p2_3y)} x2={sx(p2_3x)} y2={sy(p2_3y + i)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(p2_2x)} y1={sy(p2_2y)} x2={sx(p2_2x)} y2={sy(p2_2y + i)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(fl2_b3x)} y1={sy(fl2_b3y)} x2={sx(fl2_b2x)} y2={sy(fl2_b2y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(fli2_b3x)} y1={sy(fli2_b3y)} x2={sx(fli2_b2x)} y2={sy(fli2_b2y)}
-      stroke={S} strokeWidth={sw} />);
-
-    // ── c dimension (top of left view) ──
-    {
-      const cy = p2_0y - i + p - 20;
-      els.push(<line key={K()} x1={sx(p2_0x)} y1={sy(cy)} x2={sx(p2_1x)} y2={sy(cy)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(p2_0x)} y1={sy(cy - 3)} x2={sx(p2_0x)} y2={sy(cy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(p2_1x)} y1={sy(cy - 3)} x2={sx(p2_1x)} y2={sy(cy + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(p2_0x + c / 2)} y={sy(cy - 3)}
-        fontSize={6} fill="#333" textAnchor="middle">c</text>);
-    }
-
-    // ── i=j top dimension (right side of left view top) ──
-    {
-      const ix = p2_1x + 20;
-      els.push(<line key={K()} x1={sx(ix)} y1={sy(p2_1y)} x2={sx(ix)} y2={sy(p2_1y - i)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(ix - 3)} y1={sy(p2_1y - i)} x2={sx(ix + 3)} y2={sy(p2_1y - i)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(ix - 3)} y1={sy(p2_1y)} x2={sx(ix + 3)} y2={sy(p2_1y)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(ix + 5)} y={sy(p2_1y - i / 2 + 2)}
-        fontSize={5} fill="#333">i=j</text>);
-    }
-
-    // ── i=j bottom dimension (right side of left view bottom) ──
-    {
-      const ix = p2_2x + 20;
-      els.push(<line key={K()} x1={sx(ix)} y1={sy(p2_2y)} x2={sx(ix)} y2={sy(p2_2y + i)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(ix - 3)} y1={sy(p2_2y + i)} x2={sx(ix + 3)} y2={sy(p2_2y + i)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(ix - 3)} y1={sy(p2_2y)} x2={sx(ix + 3)} y2={sy(p2_2y)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(ix + 5)} y={sy(p2_2y + i / 2 + 2)}
-        fontSize={5} fill="#333">i=j</text>);
-    }
-
-    // ── a dimension (bottom of left view) ──
-    {
-      const ay = p2_3y + 20;
-      els.push(<line key={K()} x1={sx(p2_3x)} y1={sy(ay)} x2={sx(p2_3x + a)} y2={sy(ay)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(p2_3x)} y1={sy(ay - 3)} x2={sx(p2_3x)} y2={sy(ay + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(p2_3x + a)} y1={sy(ay - 3)} x2={sx(p2_3x + a)} y2={sy(ay + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(p2_3x + a / 2)} y={sy(ay + 6)}
-        fontSize={6} fill="red" textAnchor="middle">a</text>);
-    }
-
-    // ── m dimension (bottom-right of left view) ──
-    {
-      const my = p2_2y + 20;
-      els.push(<line key={K()} x1={sx(p2_2x)} y1={sy(my)} x2={sx(p2_2x - m)} y2={sy(my)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(p2_2x)} y1={sy(my - 3)} x2={sx(p2_2x)} y2={sy(my + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(p2_2x - m)} y1={sy(my - 3)} x2={sx(p2_2x - m)} y2={sy(my + 3)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(p2_2x - m / 2)} y={sy(my + 6)}
-        fontSize={6} fill="#333" textAnchor="middle">m</text>);
-    }
-
-    // ── e dimension (vertical from top center of left view) ──
-    {
-      const ex = p2_0x + Math.trunc(c / 2);
-      els.push(<line key={K()} x1={sx(ex)} y1={sy(p2_0y)} x2={sx(ex)} y2={sy(p2_0y + ee)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<line key={K()} x1={sx(ex + 3)} y1={sy(p2_0y + ee)} x2={sx(ex - 3)} y2={sy(p2_0y + ee)}
-        stroke={D} strokeWidth={dsw} />);
-      els.push(<text key={K()} x={sx(ex + 3)} y={sy(p2_0y + ee / 2 + 2)}
-        fontSize={6} fill="#333">e</text>);
-    }
-
-    // ── Angled branch duct lines (left view) ──
-    els.push(<line key={K()} x1={sx(bp1x)} y1={sy(bp1y)} x2={sx(bp4x)} y2={sy(bp4y)}
-      stroke={S} strokeWidth={sw} />);
-    els.push(<line key={K()} x1={sx(bp3x)} y1={sy(bp3y)} x2={sx(bp2x)} y2={sy(bp2y)}
-      stroke={S} strokeWidth={sw} />);
-
-    // Perpendicular flange line at branch end (p4-p3)
-    els.push(<line key={K()} x1={sx(fl_br_ax)} y1={sy(fl_br_ay)} x2={sx(fl_br_bx)} y2={sy(fl_br_by)}
-      stroke={S} strokeWidth={sw} />);
-
-    // ── w dimension (along angled branch, left view) ──
-    {
-      // Mirror of C# "aaa/bbb" lines - perpendicular ticks at branch end
-      const aaa_x = bp4x - Math.trunc(l3_sx);
-      const aaa_y = bp4y + Math.trunc(l3_sy);
-      const bbb_x = bp3x - Math.trunc(l3_sx);
-      const bbb_y = bp3y + Math.trunc(l3_sy);
-
-      // Second perpendicular flange line
-      els.push(<line key={K()} x1={sx(aaa_x)} y1={sy(aaa_y)} x2={sx(bbb_x)} y2={sy(bbb_y)}
-        stroke={S} strokeWidth={sw} />);
-
-      // w tick marks (perpendicular to branch direction)
-      const w_perp_cos = Math.trunc(perp_cos);
-      const w_perp_sin = Math.trunc(perp_sin);
-      const w_t1_ax = aaa_x - w_perp_cos;
-      const w_t1_ay = aaa_y + w_perp_sin + 1;
-      const w_t1_bx = aaa_x + w_perp_cos;
-      const w_t1_by = aaa_y - w_perp_sin - 1;
-      els.push(<line key={K()} x1={sx(w_t1_ax)} y1={sy(w_t1_ay)} x2={sx(w_t1_bx)} y2={sy(w_t1_by)}
-        stroke={D} strokeWidth={dsw} />);
-
-      const sinAlfa_w = Math.trunc(Math.sin(alfa) * w);
-      const w_t2_ax = w_t1_ax + sinAlfa_w;
-      const w_t2_ay = w_t1_ay + w1;
-      const w_t2_bx = w_t1_bx + sinAlfa_w;
-      const w_t2_by = w_t1_by + w1;
-      els.push(<line key={K()} x1={sx(w_t2_ax)} y1={sy(w_t2_ay)} x2={sx(w_t2_bx)} y2={sy(w_t2_by)}
-        stroke={D} strokeWidth={dsw} />);
-
-      els.push(<text key={K()} x={sx(aaa_x - 10)} y={sy(aaa_y + w1 / 2 - 5)}
-        fontSize={6} fill="#333">w</text>);
-    }
-
-    // ── l3 dimension (along branch length, left view) ──
-    {
-      const l3_perp_cos = Math.trunc(Math.cos(alfa) * 10);
-      const l3_perp_sin = Math.trunc(Math.sin(alfa) * 10);
-      const l3_p1x = bp1x - l3_perp_sin;
-      const l3_p1y = bp1y - l3_perp_cos;
-      const l3_p4x = bp4x - l3_perp_sin;
-      const l3_p4y = bp4y - l3_perp_cos;
-      els.push(<line key={K()} x1={sx(l3_p1x)} y1={sy(l3_p1y)} x2={sx(l3_p4x)} y2={sy(l3_p4y)}
-        stroke={D} strokeWidth={dsw} />);
-
-      // Tick at p4 end
-      const l3_tick_cos = Math.trunc(Math.cos(alfa) * (p + 1));
-      const l3_tick_sin = Math.trunc(Math.sin(alfa) * (p + 1));
-      const l3_ta_x = l3_p4x - l3_tick_sin - 1;
-      const l3_ta_y = l3_p4y - l3_tick_cos;
-      const l3_tb_x = l3_p4x + l3_tick_sin + 1;
-      const l3_tb_y = l3_p4y + l3_tick_cos;
-      els.push(<line key={K()} x1={sx(l3_ta_x)} y1={sy(l3_ta_y)} x2={sx(l3_tb_x)} y2={sy(l3_tb_y)}
-        stroke={D} strokeWidth={dsw} />);
-
-      els.push(<text key={K()} x={sx(l3_ta_x)} y={sy(l3_ta_y - 12)}
-        fontSize={6} fill="#333">l3</text>);
-    }
-
-    return <g>{els}</g>;
-  };
-
-  const renderCoaxialTee = () => {
-    // TR9a: Coaxial skew tee with round branch — literal C# port (Form1.cs lines 15640-15968)
-    // Every mutation step matches the C# exactly. Variables aa, bb are mutable just like C# Point structs.
-    let a = values[0] || 400;
-    let b = values[1] || 400;
-    let c = values[2] || 250;
-    let d = values[3] || 250;
-    let d1 = values[4] || 200;
-    let l = values[5] || 600;
-    let l3 = values[6] || 100;
-    // Empty-form preview: .NET sample values (Form1.cs ~L12180) — m/n are the skew
-    // offsets and are negative in the reference; 0 collapses the m/n dimension lines.
-    let m = values[7] || -100;
-    let n = values[8] || -150;
-    let ee = values[9] || Math.trunc(l / 2);
-    let f = values[10] || Math.trunc(b / 2);
-    let i = Math.max(values[11] || 30, 30);
-    let j = Math.max(values[12] || 30, 30);
+  const renderOffsetLike = (asym: boolean) => {
+    // Port of Form1.cs `if (symbol == "QPR3a")` (odsadzka symetryczna) and `"QPR4a"`
+    // (odsadzka asymetryczna — the same block with a d-tall left end). Side view on the
+    // left: the lower-left end (straight m, then a mitre) rising by e over the length L to
+    // the upper-right end (straight h). End view on the right: the two a-wide openings
+    // offset by e, the lower one drawn in front of the upper one's flange.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let d = asym ? Math.max(toInt(values[2] || 150), 1) : b;
+    let ee = Math.max(toInt(values[asym ? 3 : 2] || 100), 0);
+    let l = Math.max(toInt(values[asym ? 4 : 3] || 500), 1);
+    let m = Math.max(toInt(values[asym ? 5 : 4] ?? 0), 0);
+    let h = Math.max(toInt(values[asym ? 6 : 5] ?? 0), 0);
 
     let p = 25;
     if (l > 1000) p = 30;
     if (l > 2501) p = 40;
+    let maxNorm = Math.max(a, b);
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+    if (asym && d + ee > maxNorm) maxNorm = d + ee;
+    if (b + ee > maxNorm) maxNorm = b + ee;
 
-    let max: number = l;
-    if (c + m > max) max = c + m;
+    const mnoznik = 80;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); d = sc(d); ee = sc(ee); h = sc(h); m = sc(m); l = sc(l); p = sc(p);
+    while (l < 70 && (asym ? (d + ee) < 70 && b < 70 : (b + ee) < 70)) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); d = toInt(d * 1.1); ee = toInt(ee * 1.1);
+      h = toInt(h * 1.1); m = toInt(m * 1.1); l = toInt(l * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+
+    let pushX = 110 - l;
+    if (pushX < 0) pushX = 10;
+    let pushY = 90 - b - ee;
+    if (pushY < 0) pushY = 10;
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+
+    // ---- side view -------------------------------------------------------------
+    // Form1's mitre: half the offset angle, applied to the (b-tall) wall.
+    const alfa = toInt((Math.atan(ee / l) * 180) / Math.PI);
+    const beta = toInt(alfa / 2);
+    const m1 = toInt(Math.tan((beta * Math.PI) / 180) * b);
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const x1 = x0 + l;
+    const yl0 = y0 + ee;          // left (lower) end
+    const yl1 = yl0 + d;
+    const yr0 = y0;               // right (upper) end
+    const yr1 = y0 + b;
+    const topWall = `M ${x0} ${yl0} L ${x0 + m} ${yl0} L ${x1 - h - m1} ${yr0} L ${x1} ${yr0}`;
+    const bottomWall = `M ${x0} ${yl1} L ${x0 + m + m1} ${yl1} L ${x1 - h} ${yr1} L ${x1} ${yr1}`;
+    const lDimY = Math.min(yr0 - 15, yr0 - p - 8);
+    const mDimY = yl1 + Math.max(15, p + 8);
+    const hDimY = yr1 + 15;
+    const rightDimX = x1 + 15;
+
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, (asym ? rightDimX + 14 : x1 + p) + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const up = { x0: sx, y0: y0, x1: sx + a, y1: y0 + b };
+    const upFl = { x0: up.x0 - p, y0: up.y0 - p, x1: up.x1 + p, y1: up.y1 + p };
+    const lo = { x0: sx, y0: y0 + ee, x1: sx + a, y1: y0 + ee + d };
+    const loFl = { x0: lo.x0 - p, y0: lo.y0 - p, x1: lo.x1 + p, y1: lo.y1 + p };
+    // Form1 fills the lower flange with the background before outlining it, so whatever
+    // of the upper opening and its flange falls inside that rect is hidden.
+    const vis = (yA: number, yB: number): Array<[number, number]> => {
+      const out: Array<[number, number]> = [];
+      if (yA < loFl.y0) out.push([yA, Math.min(yB, loFl.y0)]);
+      if (yB > loFl.y1) out.push([Math.max(yA, loFl.y1), yB]);
+      return out.filter(([s, e]) => e > s);
+    };
+    const hidden = (y: number) => y >= loFl.y0 && y <= loFl.y1;
+    const aDimY = Math.min(up.y0 - 15, upFl.y0 - 8);
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={topWall} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <path d={bottomWall} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x0} y1={yl0} x2={x0} y2={yl1} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x0} y1={yl0 - p} x2={x0} y2={yl1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x0 + p} y1={yl0} x2={x0 + p} y2={yl1} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={x1} y1={yr0} x2={x1} y2={yr1} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x1} y1={yr0 - p} x2={x1} y2={yr1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x1 - p} y1={yr0} x2={x1 - p} y2={yr1} stroke={lineColor} strokeWidth={1.2} />
+
+        {dimLine(x0, lDimY, x1, lDimY)}
+        {tick(x0, lDimY, 0, 1)}
+        {tick(x1, lDimY, 0, 1)}
+        <text x={(x0 + x1) / 2} y={lDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">L</text>
+        {m > 0 && (
+          <>
+            {dimLine(x0, mDimY, x0 + m, mDimY)}
+            {tick(x0, mDimY, 0, 1)}
+            {tick(x0 + m, mDimY, 0, 1)}
+            <text x={x0 + m / 2} y={mDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">m</text>
+          </>
+        )}
+        {h > 0 && (
+          <>
+            {dimLine(x1 - h, hDimY, x1, hDimY)}
+            {tick(x1 - h, hDimY, 0, 1)}
+            {tick(x1, hDimY, 0, 1)}
+            <text x={x1 - h / 2} y={hDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">h</text>
+          </>
+        )}
+        {dimLine(x0 - 15, yl0, x0 - 15, yl1)}
+        {tick(x0 - 15, yl0, 1, 0)}
+        {tick(x0 - 15, yl1, 1, 0)}
+        <text x={x0 - 21} y={(yl0 + yl1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">{asym ? 'd' : 'b'}</text>
+        {ee > 0 && (
+          <>
+            {dimLine(x0 - 15, yr0, x0 - 15, yl0)}
+            {tick(x0 - 15, yr0, 1, 0)}
+            <text x={x0 - 21} y={(yr0 + yl0) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">e</text>
+          </>
+        )}
+        {asym && (
+          <>
+            {dimLine(rightDimX, yr0, rightDimX, yr1)}
+            {tick(rightDimX, yr0, 1, 0)}
+            {tick(rightDimX, yr1, 1, 0)}
+            <text x={rightDimX + 6} y={(yr0 + yr1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">b</text>
+          </>
+        )}
+
+        {/* ---- end view ---- */}
+        {/* upper opening + flange, minus what the lower flange covers */}
+        <line x1={upFl.x0} y1={upFl.y0} x2={upFl.x1} y2={upFl.y0} stroke={lineColor} strokeWidth={1.2} />
+        {vis(upFl.y0, upFl.y1).map(([s, e], k) => (
+          <React.Fragment key={`ufl${k}`}>
+            <line x1={upFl.x0} y1={s} x2={upFl.x0} y2={e} stroke={lineColor} strokeWidth={1.2} />
+            <line x1={upFl.x1} y1={s} x2={upFl.x1} y2={e} stroke={lineColor} strokeWidth={1.2} />
+          </React.Fragment>
+        ))}
+        {!hidden(upFl.y1) && <line x1={upFl.x0} y1={upFl.y1} x2={upFl.x1} y2={upFl.y1} stroke={lineColor} strokeWidth={1.2} />}
+        <line x1={up.x0} y1={up.y0} x2={up.x1} y2={up.y0} stroke={lineColor} strokeWidth={1.6} />
+        {vis(up.y0, up.y1).map(([s, e], k) => (
+          <React.Fragment key={`up${k}`}>
+            <line x1={up.x0} y1={s} x2={up.x0} y2={e} stroke={lineColor} strokeWidth={1.6} />
+            <line x1={up.x1} y1={s} x2={up.x1} y2={e} stroke={lineColor} strokeWidth={1.6} />
+          </React.Fragment>
+        ))}
+        {!hidden(up.y1) && <line x1={up.x0} y1={up.y1} x2={up.x1} y2={up.y1} stroke={lineColor} strokeWidth={1.6} />}
+        {/* lower opening + flange (in front) */}
+        <rect x={loFl.x0} y={loFl.y0} width={loFl.x1 - loFl.x0} height={loFl.y1 - loFl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <rect x={lo.x0} y={lo.y0} width={lo.x1 - lo.x0} height={lo.y1 - lo.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {dimLine(up.x0, aDimY, up.x1, aDimY)}
+        {tick(up.x0, aDimY, 0, 1)}
+        {tick(up.x1, aDimY, 0, 1)}
+        <text x={(up.x0 + up.x1) / 2} y={aDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+      </g>
+    );
+  };
+
+  const renderSymmetricOffset = () => renderOffsetLike(false);
+
+  const renderAsymmetricOffset = () => renderOffsetLike(true);
+
+  const renderPipeSaddle = () => {
+    // TR6a port of Form1.cs `if (symbol == "TR6a")` (nakładka na rurę). End view on the
+    // right: the f-wide neck standing g above the pipe (diameter a), its sides run down to
+    // the pipe and only the pipe's top arc between them is drawn. Side view on the left:
+    // the e-long saddle from its flange down to the pipe, with the pipe's top drawn dotted
+    // (Form1's myPen3, DashStyle.Dot). Form1 draws no pipe body in the side view — only
+    // its a and L dimensions — so the pipe outline is added here dotted for context.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let ee = Math.max(toInt(values[1] || 300), 1);
+    let f = Math.max(toInt(values[2] || 150), 1);
+    let l = Math.max(toInt(values[3] || 600), 1);
+    let g = Math.max(toInt(values[4] || 100), 0);
+
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+    let maxNorm = 0;
+    if (a > maxNorm) maxNorm = a;
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+    if (ee > maxNorm) maxNorm = ee;
+    if (f > maxNorm) maxNorm = f;
+    if (g + a > maxNorm) maxNorm = g + a;
 
     const mnoznik = 60;
-    a = (a / max * mnoznik) | 0;
-    b = (b / max * mnoznik) | 0;
-    c = (c / max * mnoznik) | 0;
-    d = (d / max * mnoznik) | 0;
-    d1 = (d1 / max * mnoznik) | 0;
-    l = (l / max * mnoznik) | 0;
-    l3 = (l3 / max * mnoznik) | 0;
-    m = (m / max * mnoznik) | 0;
-    n = (n / max * mnoznik) | 0;
-    ee = (ee / max * mnoznik) | 0;
-    f = (f / max * mnoznik) | 0;
-    i = (i / max * mnoznik) | 0;
-    j = (j / max * mnoznik) | 0;
-    p = (p / max * mnoznik) | 0;
-
-    let push_x = ((110 - b) % 110 / 2) | 0;
-    if (push_x < 0) push_x = -push_x;
-    const push_y = ((90 - l) / 2) | 0;
-
-    // Collect all lines/elements, then auto-fit at the end
-    type Pt = { X: number; Y: number };
-    const lines: { p1: Pt; p2: Pt; color: string; w: number }[] = [];
-    const texts: { pt: Pt; text: string; color: string; sz: number }[] = [];
-    const circles: { x: number; y: number; w: number; h: number; color: string; lw: number }[] = [];
-
-    const DL = (p1: Pt, p2: Pt, color: string, w: number) => { lines.push({ p1: { ...p1 }, p2: { ...p2 }, color, w }); };
-    const DS = (text: string, pt: Pt, color: string, sz: number) => { texts.push({ pt: { ...pt }, text, color, sz }); };
-    const DE = (x: number, y: number, w: number, h: number, color: string, lw: number) => { circles.push({ x, y, w, h, color, lw }); };
-
-    const S = '#004290';
-    const sw = 1.2;
-    const D = '#9b9b9b';
-    const dsw = 0.7;
-
-    // ════════ RIGHT-SIDE VIEW ("maly") ════════
-    const punkty: Pt[] = [
-      { X: 190 + push_x, Y: 20 + push_y + i },
-      { X: 190 + d + push_x, Y: 20 + push_y + i },
-      { X: 190 + d - n + push_x, Y: 20 + push_y + l - j },
-      { X: 0, Y: 20 + push_y + l - j },
-    ];
-    punkty[3].X = punkty[2].X - b;
-
-    // C#: DrawLine(punkty[0], punkty[3]); DrawLine(punkty[1], punkty[2]);
-    DL(punkty[0], punkty[3], S, sw);
-    DL(punkty[1], punkty[2], S, sw);
-
-    // C#: Y mutations
-    punkty[0].Y -= i; punkty[1].Y -= i;
-    punkty[2].Y += j; punkty[3].Y += j;
-
-    // C#: vertical stubs
-    DL(punkty[0], { X: punkty[0].X, Y: punkty[0].Y + i }, S, sw);
-    DL(punkty[1], { X: punkty[1].X, Y: punkty[1].Y + i }, S, sw);
-    DL(punkty[2], { X: punkty[2].X, Y: punkty[2].Y - j }, S, sw);
-    DL(punkty[3], { X: punkty[3].X, Y: punkty[3].Y - j }, S, sw);
-
-    // ── d dimension ──
-    let aa: Pt = { ...punkty[0] };
-    let bb: Pt = { ...punkty[1] };
-    aa.Y -= 15; bb.Y -= 15;
-    DL(aa, bb, D, dsw); // d line
-    aa = { ...bb };
-    aa.Y -= 3; bb.Y += 3;
-    DL(aa, bb, D, dsw); // right tick
-    aa.X -= d; bb.X -= d;
-    DL(aa, bb, D, dsw); // left tick
-    // Form1.cs offsets the label by -15 because GDI+ anchors a 13px-tall string by its
-    // top-left; as an SVG baseline that leaves the glyph floating far above its own
-    // dimension line, so -3 restores the small gap the original actually renders.
-    aa.X += (d / 2 - 5) | 0; aa.Y -= 3;
-    DS('d', aa, '#333', 6);
-
-    // ── n dimension (continuation from d) ──
-    bb.Y -= 3;
-    bb.X += d; aa = { ...bb };
-    bb.X -= n;
-    DL(aa, bb, D, dsw); // n line
-    aa = { ...bb }; aa.Y -= 3; bb.Y += 3;
-    DL(aa, bb, D, dsw); // n tick
-    aa.Y -= 3; aa.X += (n / 2 - 5) | 0;
-    DS('n', aa, '#333', 6);
-
-    // ── l dimension (BEFORE X mutations, matching C#) ──
-    bb = { ...punkty[2] };
-    if (bb.X < punkty[1].X) bb.X = punkty[1].X;
-    bb.X += 15;
-    aa = { ...bb };
-    aa.Y -= l;
-    DL(aa, bb, D, dsw); // l vertical line
-    bb = { ...aa };
-    aa.X -= 3; bb.X += 3;
-    DL(aa, bb, D, dsw); // top tick
-    aa.Y += l; bb.Y += l;
-    DL(aa, bb, D, dsw); // bottom tick
-    bb.Y -= (l / 2 + 10) | 0; bb.X += 10;
-    DS('l', bb, '#333', 6);
-
-    // ── inner flange lines (before X mutation) ──
-    aa = { ...punkty[0] }; bb = { ...punkty[1] };
-    aa.Y += p; bb.Y += p;
-    DL(aa, bb, S, sw); // top inner
-    aa = { ...punkty[2] }; bb = { ...punkty[3] };
-    aa.Y -= p; bb.Y -= p;
-    DL(aa, bb, S, sw); // bottom inner
-
-    // ── X mutations for outer flange ──
-    punkty[0].X -= p; punkty[1].X += p;
-    punkty[3].X -= p; punkty[2].X += p;
-
-    // ── outer flange lines ──
-    DL(punkty[0], punkty[1], S, sw); // top outer
-    DL(punkty[2], punkty[3], S, sw); // bottom outer
-
-    // ── b dimension ──
-    aa = { ...punkty[3] }; bb = { ...punkty[2] };
-    aa.X += p; bb.X -= p;
-    aa.Y += 20; bb.Y += 20;
-    DL(aa, bb, D, dsw); // b line
-    bb = { ...aa };
-    aa.Y += 3; bb.Y -= 3;
-    DL(aa, bb, D, dsw); // left tick
-    aa.X += b; bb.X += b;
-    DL(aa, bb, D, dsw); // right tick
-    aa.X -= (b / 2 + 5) | 0; aa.Y += 3;
-    DS('b', aa, 'green', 6);
-
-    // ── f dimension ──
-    aa = { ...punkty[3] }; aa.X += 3; aa.Y += 10;
-    bb = { ...aa }; bb.X += f;
-    DL(aa, bb, D, dsw); // f line
-    bb = { ...aa };
-    bb.Y += 3; aa.Y -= 3;
-    DL(aa, bb, D, dsw); // left tick
-    bb.X += f; aa.X += f;
-    DL(aa, bb, D, dsw); // right tick
-    aa.X -= (f / 2 + 5) | 0; aa.Y += 9;
-    DS('f', aa, '#333', 6);
-
-    // ── alfa, w1 ──
-    const alfa = Math.atan((c - a + m) / (l - i - j));
-    const w1 = (Math.cos(alfa) * d1) | 0;
-
-    // ── pk1 (branch circle bounding rect) ──
-    punkty[3].X += p; // C#: restore X
-    const pk1: Pt[] = [{ X: 0, Y: 0 }, { X: 0, Y: 0 }, { X: 0, Y: 0 }, { X: 0, Y: 0 }];
-    pk1[3] = { ...punkty[3] }; pk1[3].X += f - ((d1 / 2) | 0); pk1[3].Y -= l - ee - ((w1 / 2) | 0) - 2 * i;
-    pk1[2] = { ...pk1[3] }; pk1[2].X += d1;
-    pk1[1] = { ...pk1[2] }; pk1[1].Y -= w1;
-    pk1[0] = { ...pk1[1] }; pk1[0].X -= d1;
-
-    // ── d1 dimension (right view, above circle) ──
-    aa = { ...pk1[0] }; bb = { ...pk1[1] };
-    aa.Y -= 10; bb.Y -= 10;
-    DL(aa, bb, D, dsw); // d1 line
-    bb = { ...aa };
-    aa.Y -= 3; bb.Y += 3;
-    DL(aa, bb, D, dsw); // left tick
-    aa.X += d1; bb.X += d1;
-    DL(aa, bb, D, dsw); // right tick
-    aa.X -= ((d1 / 2 + 3) | 0); aa.Y -= 4;
-    DS('d1', aa, '#333', 6);
-
-    // ── Draw circle (branch opening) ──
-    DE(pk1[0].X, pk1[0].Y, d1, d1, S, sw);
-
-    // ════════ LEFT-SIDE VIEW ("poziomy") ════════
-    const punkty2: Pt[] = [
-      { X: 20 + push_x, Y: 20 + push_y + i },
-      { X: 20 + c + push_x, Y: 20 + push_y + i },
-      { X: 20 + c + m + push_x, Y: 20 + l + push_y - j },
-      { X: 20 + c + m - a + push_x, Y: 20 + l + push_y - j },
-    ];
-
-    // C#: DrawLine(punkty2[0], punkty2[3]); DrawLine(punkty2[1], punkty2[2]);
-    DL(punkty2[0], punkty2[3], S, sw);
-    DL(punkty2[1], punkty2[2], S, sw);
-
-    // ── top flange (left view) ──
-    aa = { ...punkty2[0] }; aa.Y -= i;
-    bb = { ...punkty2[1] }; bb.Y -= i;
-    DL(punkty2[0], aa, S, sw); // vertical stub left
-    DL(punkty2[1], bb, S, sw); // vertical stub right
-    aa.X -= p; bb.X += p;
-    DL(aa, bb, S, sw); // outer top flange
-    aa = { ...punkty2[0] }; aa.Y -= i;
-    bb = { ...punkty2[1] }; bb.Y -= i;
-    aa.Y += p; bb.Y += p;
-    DL(aa, bb, S, sw); // inner top flange
-
-    // ── c dimension (continuation from inner top flange aa,bb) ──
-    aa.Y -= 20; bb.Y -= 20;
-    DL(aa, bb, D, dsw); // c line
-    bb = { ...aa };
-    aa.Y -= 3; bb.Y += 3;
-    DL(aa, bb, D, dsw); // left tick
-    aa.X += c; bb.X += c;
-    DL(aa, bb, D, dsw); // right tick
-    aa.X -= ((c / 2 + 3) | 0); aa.Y -= 3;
-    DS('c', aa, '#333', 6);
-
-    // ── i dimension (top, left view) ──
-    bb = { ...punkty2[1] }; aa = { ...punkty2[1] };
-    aa.X = (bb.X += 20);
-    bb.Y -= i;
-    DL(aa, bb, D, dsw); // i vertical line
-    aa = { ...bb };
-    aa.X -= 3; bb.X += 3;
-    DL(aa, bb, D, dsw); // top tick
-    aa.Y += i; bb.Y += i;
-    DL(aa, bb, D, dsw); // bottom tick
-    aa.Y -= ((i / 2 + 5) | 0); aa.X += 5;
-    DS('i', aa, '#333', 5);
-
-    // ── j dimension (bottom, left view) ──
-    bb = { ...punkty2[2] }; aa = { ...punkty2[2] };
-    aa.X = (bb.X += 20);
-    bb.Y += j;
-    DL(aa, bb, D, dsw); // j vertical line
-    aa = { ...bb };
-    aa.X -= 3; bb.X += 3;
-    DL(aa, bb, D, dsw); // bottom tick
-    aa.Y -= j; bb.Y -= j;
-    DL(aa, bb, D, dsw); // top tick
-    aa.Y -= ((j / 2 + 5) | 0); aa.X += 5;
-    DS('j', aa, '#333', 5);
-
-    // ── bottom flange (left view) ──
-    aa = { ...punkty2[3] }; aa.Y += j;
-    bb = { ...punkty2[2] }; bb.Y += j;
-    DL(punkty2[3], aa, S, sw); // vertical stub left
-    DL(punkty2[2], bb, S, sw); // vertical stub right
-    aa.X -= p; bb.X += p;
-    DL(aa, bb, S, sw); // outer bottom flange
-    aa = { ...punkty2[3] }; aa.Y += j;
-    bb = { ...punkty2[2] }; bb.Y += j;
-    aa.Y -= p; bb.Y -= p;
-    DL(aa, bb, S, sw); // inner bottom flange
-
-    // ── a dimension ──
-    bb = { ...punkty2[3] }; aa = { ...punkty2[3] };
-    bb.Y += 20; aa.Y += 20;
-    bb.X += a;
-    DL(aa, bb, D, dsw); // a line
-    bb = { ...aa };
-    bb.Y -= 3; aa.Y += 3;
-    DL(aa, bb, D, dsw); // left tick
-    bb.X += a; aa.X += a;
-    DL(aa, bb, D, dsw); // right tick
-    aa.X -= ((a / 2 + 5) | 0); aa.Y += 3;
-    DS('a', aa, 'red', 6);
-
-    // ── m dimension ──
-    bb = { ...punkty2[2] }; aa = { ...punkty2[2] };
-    bb.Y += 20; aa.Y += 20;
-    bb.X -= m;
-    DL(aa, bb, D, dsw); // m line
-    bb = { ...aa };
-    bb.Y -= 3; aa.Y += 3;
-    DL(aa, bb, D, dsw); // right tick
-    bb.X -= m; aa.X -= m;
-    DL(aa, bb, D, dsw); // left tick
-    aa.X += ((m / 2 - 5) | 0); aa.Y += 3;
-    DS('m', aa, '#333', 6);
-
-    // ── e dimension ──
-    aa = { ...punkty2[0] };
-    aa.X += (c / 2) | 0;
-    bb = { ...aa };
-    bb.Y += ee;
-    DL(aa, bb, D, dsw); // e vertical line
-    aa = { ...bb };
-    bb.X -= 3; aa.X += 3;
-    DL(aa, bb, D, dsw); // bottom tick
-    aa.Y -= ((ee / 2 + 5) | 0);
-    DS('e', aa, '#333', 6);
-
-    // ── Angled branch duct (left view) ──
-    const dd = ee - j - w1 / 2.0;
-    let s1x: number = Math.tan(alfa) * dd;
-    let s2x: number = Math.tan(alfa) * (dd + w1);
-
-    let p1: Pt = { ...punkty2[0] }; p1.Y += j + (dd | 0); p1.X += s1x | 0;
-    let p2: Pt = { ...p1 }; p2.Y += w1; p2.X += (s2x | 0) - (s1x | 0);
-
-    s2x = Math.sin(alfa) * l3;
-    s1x = Math.cos(alfa) * l3;
-
-    let p3: Pt = { ...p2 }; p3.X -= s1x | 0; p3.Y += s2x | 0;
-    let p4: Pt = { ...p1 }; p4.X -= s1x | 0; p4.Y += s2x | 0;
-
-    DL(p1, p4, S, sw); // top branch line
-    DL(p3, p2, S, sw); // bottom branch line
-
-    // C#: aaa = p4; bbb = p3; shifted by -(s1x, -s2x)
-    let aaa: Pt = { ...p4 }; let bbb: Pt = { ...p3 };
-    aaa.X -= s1x | 0; aaa.Y += s2x | 0;
-    bbb.X -= s1x | 0; bbb.Y += s2x | 0;
-
-    // C#: branch end flange: s2x=0; s1x=-1;
-    aa = { ...p4 }; bb = { ...p3 };
-    s2x = 0; s1x = -1;
-    aa.X -= (s1x | 0) + 1; bb.X += (s1x | 0) + 1;
-    aa.Y -= s2x | 0; bb.Y += s2x | 0;
-    DL(aa, bb, S, sw); // flange line (p4→p3)
-
-    // ── d1 dimension (left view, at branch far end) ──
-    s2x = Math.cos(alfa) * (p + 1);
-    s1x = Math.sin(alfa) * (p + 1);
-
-    DL(aaa, bbb, S, sw); // far dimension reference line
-
-    bb = { ...bbb }; aa = { ...aaa };
-    bbb = { ...aaa };
-    aaa.X -= s2x | 0; aaa.Y += (s1x | 0) + 1;
-    bbb.X += s2x | 0; bbb.Y -= (s1x | 0) + 1;
-    DL(aaa, bbb, D, dsw); // top tick
-
-    aaa.Y += w1; bbb.Y += w1;
-    aaa.X += (Math.sin(alfa) * d1) | 0;
-    bbb.X += (Math.sin(alfa) * d1) | 0;
-    DL(aaa, bbb, D, dsw); // bottom tick
-
-    aa.Y += ((w1 / 2 - 10) | 0); aa.X -= 20;
-    DS('d1', aa, '#333', 6);
-
-    // ── l3 dimension ──
-    s2x = Math.cos(alfa) * 10;
-    s1x = Math.sin(alfa) * 10;
-
-    p1.X -= s1x | 0; p1.Y -= s2x | 0;
-    p4.X -= s1x | 0; p4.Y -= s2x | 0;
-    DL(p1, p4, D, dsw); // l3 dimension line
-
-    s2x = Math.cos(alfa) * (p + 1);
-    s1x = Math.sin(alfa) * (p + 1);
-
-    p1 = { ...p4 };
-    p1.X -= (s1x | 0) + 1; p1.Y -= s2x | 0;
-    p4.X += (s1x | 0) + 1; p4.Y += s2x | 0;
-    DL(p1, p4, D, dsw); // l3 tick
-
-    p1.Y -= 12;
-    DS('l3', p1, '#333', 6);
-
-    // ════════ Auto-fit viewport ════════
-    const allPts: Pt[] = [];
-    for (const ln of lines) { allPts.push(ln.p1, ln.p2); }
-    for (const t of texts) { allPts.push(t.pt); }
-    for (const ci of circles) { allPts.push({ X: ci.x, Y: ci.y }, { X: ci.x + ci.w, Y: ci.y + ci.h }); }
-
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const pt of allPts) {
-      if (pt.X < minX) minX = pt.X;
-      if (pt.X > maxX) maxX = pt.X;
-      if (pt.Y < minY) minY = pt.Y;
-      if (pt.Y > maxY) maxY = pt.Y;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); l = sc(l); ee = sc(ee); f = sc(f); g = sc(g); p = sc(p);
+    while (f < 40 && ee < 80 && l < 80 && (a + g) < 60) {
+      a = toInt(a * 1.1); l = toInt(l * 1.1); ee = toInt(ee * 1.1); f = toInt(f * 1.1); g = toInt(g * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || l === 0) break;
     }
-    const W = maxX - minX || 1;
-    const H = maxY - minY || 1;
-    const padX = 20;
-    const padY = 15;
-    const scaleXv = (width - 2 * padX) / W;
-    const scaleYv = (height - 2 * padY) / H;
-    const sc = Math.min(scaleXv, scaleYv);
-    const offX = padX + ((width - 2 * padX) - W * sc) / 2 - minX * sc;
-    const offY = padY + ((height - 2 * padY) - H * sc) / 2 - minY * sc;
-    const sx = (v: number) => v * sc + offX;
-    const sy = (v: number) => v * sc + offY;
-    const sd = (v: number) => v * sc;
+    if (f > a) f = a; // the neck cannot be wider than the pipe (Form1 rejects f > a)
 
-    const els: React.JSX.Element[] = [];
-    let k = 0;
-    const K = () => k++;
+    let pushX = toInt((200 - l) / 2);
+    if (pushX < 0) pushX = -pushX;
+    let pushY = toInt((100 - g - a) / 2) + 5;
+    if (pushY < 0) pushY = 10;
 
-    for (const ln of lines) {
-      els.push(<line key={K()} x1={sx(ln.p1.X)} y1={sy(ln.p1.Y)} x2={sx(ln.p2.X)} y2={sy(ln.p2.Y)}
-        stroke={ln.color} strokeWidth={ln.w} />);
-    }
-    for (const ci of circles) {
-      const cx = ci.x + ci.w / 2;
-      const cy = ci.y + ci.h / 2;
-      els.push(<ellipse key={K()} cx={sx(cx)} cy={sy(cy)} rx={sd(ci.w / 2)} ry={sd(ci.h / 2)}
-        fill="none" stroke={ci.color} strokeWidth={ci.lw} />);
-    }
-    for (const t of texts) {
-      els.push(<text key={K()} x={sx(t.pt.X)} y={sy(t.pt.Y)}
-        fontSize={t.sz} fill={t.color}>{t.text}</text>);
-    }
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
 
-    return <g>{els}</g>;
+    // ---- side view -------------------------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const x1 = x0 + l;
+    const pipeTop = y0 + g;
+    const pipeBot = pipeTop + a;
+    const R = a / 2;
+    const drop = R - Math.sqrt(Math.max(R * R - (f / 2) * (f / 2), 0)); // how far the pipe's top arc sits below its crown at the neck's edge
+    const yEdge = pipeTop + toInt(drop);
+    const sx0 = x0 + toInt((l - ee) / 2);
+    const sx1 = sx0 + ee;
+    const lDimY = pipeBot + 15;
+    const eDimY = Math.min(y0 - 15, y0 - p - 8);
+
+    // ---- end view --------------------------------------------------------------
+    const rightExtent = Math.max(x1, sx1 + 15 + 14);
+    const sectionShift = Math.max(0, rightExtent + 6 - (190 - p + pushX));
+    const nx0 = 190 + pushX + sectionShift;
+    const nx1 = nx0 + f;
+    const cx = nx0 + f / 2;
+    const cy = pipeTop + R;
+    const kat = Math.atan((f / 2) / Math.max(cy - yEdge, 0.001));
+    const arcL = { x: cx - R * Math.sin(kat), y: cy - R * Math.cos(kat) };
+    const arcR = { x: cx + R * Math.sin(kat), y: cy - R * Math.cos(kat) };
+    const fDimY = Math.min(y0 - 15, y0 - p - 8);
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={`M ${sx0} ${yEdge} L ${sx0} ${y0} L ${sx1} ${y0} L ${sx1} ${yEdge}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={sx0 - p} y1={y0} x2={sx1 + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={sx0} y1={y0 + p} x2={sx1} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={sx0} y1={pipeTop} x2={sx1} y2={pipeTop} stroke={lineColor} strokeWidth={1.2} strokeDasharray="1.5 2.5" />
+        <path d={`M ${sx0} ${pipeTop} L ${x0} ${pipeTop} L ${x0} ${pipeBot} L ${x1} ${pipeBot} L ${x1} ${pipeTop} L ${sx1} ${pipeTop}`}
+          fill="none" stroke={lineColor} strokeWidth={0.9} strokeDasharray="1.5 2.5" />
+        {dimLine(x0, lDimY, x1, lDimY)}
+        {tick(x0, lDimY, 0, 1)}
+        {tick(x1, lDimY, 0, 1)}
+        <text x={(x0 + x1) / 2} y={lDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">L</text>
+        {dimLine(x0 - 15, pipeTop, x0 - 15, pipeBot)}
+        {tick(x0 - 15, pipeTop, 1, 0)}
+        {tick(x0 - 15, pipeBot, 1, 0)}
+        <text x={x0 - 21} y={(pipeTop + pipeBot) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">a</text>
+        {g > 0 && (
+          <>
+            {dimLine(sx1 + 15, y0, sx1 + 15, pipeTop)}
+            {tick(sx1 + 15, y0, 1, 0)}
+            {tick(sx1 + 15, pipeTop, 1, 0)}
+            <text x={sx1 + 21} y={(y0 + pipeTop) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">g</text>
+          </>
+        )}
+        {dimLine(sx0, eDimY, sx1, eDimY)}
+        {tick(sx0, eDimY, 0, 1)}
+        {tick(sx1, eDimY, 0, 1)}
+        <text x={(sx0 + sx1) / 2} y={eDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+
+        {/* ---- end view ---- */}
+        <path d={`M ${nx0} ${pipeTop} L ${nx0} ${y0} L ${nx1} ${y0} L ${nx1} ${pipeTop}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={nx0} y1={pipeTop} x2={arcL.x} y2={arcL.y} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={nx1} y1={pipeTop} x2={arcR.x} y2={arcR.y} stroke={lineColor} strokeWidth={1.6} />
+        <path d={`M ${arcL.x} ${arcL.y} A ${R} ${R} 0 0 1 ${arcR.x} ${arcR.y}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={nx0 - p} y1={y0} x2={nx1 + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={nx0} y1={y0 + p} x2={nx1} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        {dimLine(nx0, fDimY, nx1, fDimY)}
+        {tick(nx0, fDimY, 0, 1)}
+        {tick(nx1, fDimY, 0, 1)}
+        <text x={(nx0 + nx1) / 2} y={fDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+      </g>
+    );
   };
+
+  const renderRectCrossJunction = () => renderTeeLike(false, true);
+
+  const renderRoundCrossJunction = () => renderTeeLike(true, true);
+
+  const renderEagleTee = () => {
+    // TR3a port of Form1.cs `if (symbol == "TR3a")` (trójnik orłowy). NOTE: Form1 reads
+    // the on-screen "a" from textBox5 and "b" from textBox4, so its local `a`/`b` are the
+    // other way round; the names here follow the labels. Side view on the left: the inlet
+    // stub (m long, d tall) curves down with radius g into a k-deep drop onto the a-wide
+    // bottom opening, which rises j on the far side and curves with radius f into the
+    // outlet stub (i long, c tall); the outer wall is the two concentric arcs (g+d and
+    // c+f) meeting at their intersection, which Form1 approximates with integer angles
+    // and is computed exactly here. End view on the right: the b-wide inlet (c tall) and
+    // outlet (d tall) openings in their flanges over the g+k drop.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 300), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let c = Math.max(toInt(values[2] || 200), 1);
+    let d = Math.max(toInt(values[3] || 200), 1);
+    let m = Math.max(toInt(values[4] || 100), 1);
+    let k = Math.max(toInt(values[5] || 50), 0);
+    let i = Math.max(toInt(values[6] || 100), 1);
+    let j = Math.max(toInt(values[7] || 50), 0);
+    let g = Math.max(toInt(values[8] || 50), 0);
+    let f = Math.max(toInt(values[9] || 50), 0);
+
+    let p = 25;
+    let l = c + f + j;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+    let maxNorm = Math.max(a, b);
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+    if (c + f + j > maxNorm) maxNorm = c + f + j;
+    if (d + g + k > maxNorm) maxNorm = d + g + k;
+    const mnoznik = 55;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); c = sc(c); d = sc(d); m = sc(m); k = sc(k); i = sc(i); j = sc(j); g = sc(g); f = sc(f); l = sc(l); p = sc(p);
+    while ((d + k + g) < 60 && (c + f + j) < 60 && (b + 20) < 80 && a < 60) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); c = toInt(c * 1.1); d = toInt(d * 1.1); m = toInt(m * 1.1); k = toInt(k * 1.1);
+      i = toInt(i * 1.1); j = toInt(j * 1.1); g = toInt(g * 1.1); f = toInt(f * 1.1); l = toInt(l * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || b === 0 || c === 0 || d === 0) break;
+    }
+    if (g < 1) g = 1;
+    if (f < 1) f = 1;
+    let pushX = 140 - a - m - g - f - j;
+    if (pushX < 0) pushX = 10;
+    const pushY = c + f + j > d + g + k ? 90 - c - f - j : 90 - d - g - k;
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+
+    // ---- side view -------------------------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const yA = y0 + (c + f + j) - (d + g + k);
+    const stub = { x0: x0, y0: yA, x1: x0 + m, y1: yA + d };
+    const C1 = { x: stub.x1, y: stub.y1 + g };
+    const Q = { x: C1.x + g, y: C1.y + k };               // bottom opening, left end
+    const QR = { x: Q.x + a, y: Q.y };                     // bottom opening, right end
+    const C2 = { x: QR.x + f, y: QR.y - j };
+    const out = { x0: C2.x, y0: C2.y - f - c, x1: C2.x + i, y1: C2.y - f };
+    const R1 = g + d;
+    const R2 = c + f;
+    const top1 = { x: C1.x, y: C1.y - R1 };
+    const top2 = { x: C2.x, y: C2.y - R2 };
+    // upper intersection of the two outer circles
+    const dx = C2.x - C1.x, dy = C2.y - C1.y;
+    const D = Math.hypot(dx, dy);
+    let outer: string;
+    if (D > 0 && D <= R1 + R2 && D >= Math.abs(R1 - R2)) {
+      const aa = (R1 * R1 - R2 * R2 + D * D) / (2 * D);
+      const hh = Math.sqrt(Math.max(R1 * R1 - aa * aa, 0));
+      const mx = C1.x + (aa * dx) / D, my = C1.y + (aa * dy) / D;
+      const P1 = { x: mx + (hh * dy) / D, y: my - (hh * dx) / D };
+      const P2 = { x: mx - (hh * dy) / D, y: my + (hh * dx) / D };
+      const P = P1.y < P2.y ? P1 : P2;
+      outer = `M ${top1.x} ${top1.y} A ${R1} ${R1} 0 0 1 ${P.x} ${P.y} A ${R2} ${R2} 0 0 1 ${top2.x} ${top2.y}`;
+    } else {
+      outer = `M ${top1.x} ${top1.y} L ${top2.x} ${top2.y}`;
+    }
+    const inner = [
+      `M ${stub.x1} ${stub.y1} A ${g} ${g} 0 0 1 ${Q.x} ${C1.y} L ${Q.x} ${Q.y}`,
+      `M ${QR.x} ${QR.y} L ${QR.x} ${C2.y} A ${f} ${f} 0 0 1 ${C2.x} ${out.y1}`,
+    ].join(' ');
+    const aDimY = Q.y + Math.max(15, p + 8);
+    const sideRight = out.x1 + 15 + 14;
+
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, sideRight + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const top = { x0: sx, y0: y0, x1: sx + b, y1: y0 + c };
+    const topFl = { x0: top.x0 - p, y0: top.y0 - p, x1: top.x1 + p, y1: top.y1 + p };
+    const yBot = y0 + c + f + j;
+    const lo = { x0: sx, y0: yBot - g - k - d, x1: sx + b, y1: yBot - g - k };
+    const loFl = { x0: lo.x0 - p, y0: lo.y0 - p, x1: lo.x1 + p, y1: lo.y1 + p };
+    const vis = (yA_: number, yB_: number): Array<[number, number]> => {
+      const res: Array<[number, number]> = [];
+      if (yA_ < loFl.y0) res.push([yA_, Math.min(yB_, loFl.y0)]);
+      if (yB_ > loFl.y1) res.push([Math.max(yA_, loFl.y1), yB_]);
+      return res.filter(([s, e]) => e > s);
+    };
+    const hidden = (y: number) => y >= loFl.y0 && y <= loFl.y1;
+    const bDimY = yBot + 15;
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={`M ${stub.x1} ${stub.y0} L ${stub.x0} ${stub.y0} L ${stub.x0} ${stub.y1} L ${stub.x1} ${stub.y1}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={stub.x0} y1={stub.y0 - p} x2={stub.x0} y2={stub.y1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={stub.x0 + p} y1={stub.y0} x2={stub.x0 + p} y2={stub.y1} stroke={lineColor} strokeWidth={1.2} />
+        <path d={inner} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={Q.x - p} y1={Q.y} x2={QR.x + p} y2={QR.y} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={Q.x} y1={Q.y - p} x2={QR.x} y2={QR.y - p} stroke={lineColor} strokeWidth={1.2} />
+        <path d={`M ${out.x0} ${out.y1} L ${out.x1} ${out.y1} L ${out.x1} ${out.y0} L ${out.x0} ${out.y0}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={out.x1} y1={out.y0 - p} x2={out.x1} y2={out.y1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={out.x1 - p} y1={out.y0} x2={out.x1 - p} y2={out.y1} stroke={lineColor} strokeWidth={1.2} />
+        <path d={outer} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {/* g / f leaders */}
+        <line x1={C1.x} y1={C1.y} x2={C1.x + g} y2={C1.y - g} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={C1.x + g + 4} y={C1.y - g - 4} textAnchor="start" fontSize={10} fill="#555555">g</text>
+        <line x1={C2.x} y1={C2.y} x2={C2.x - f} y2={C2.y - f} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={C2.x - f - 4} y={C2.y - f - 4} textAnchor="end" fontSize={10} fill="#555555">f</text>
+        {/* d, m, k, a, j, c, i */}
+        {dimLine(stub.x0 - 15, stub.y0, stub.x0 - 15, stub.y1)}
+        {tick(stub.x0 - 15, stub.y0, 1, 0)}
+        {tick(stub.x0 - 15, stub.y1, 1, 0)}
+        <text x={stub.x0 - 21} y={(stub.y0 + stub.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">d</text>
+        {dimLine(stub.x0, stub.y0 - 15, stub.x1, stub.y0 - 15)}
+        {tick(stub.x0, stub.y0 - 15, 0, 1)}
+        {tick(stub.x1, stub.y0 - 15, 0, 1)}
+        <text x={(stub.x0 + stub.x1) / 2} y={stub.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">m</text>
+        {k > 0 && (
+          <>
+            {dimLine(Q.x - 15, C1.y, Q.x - 15, Q.y)}
+            {tick(Q.x - 15, C1.y, 1, 0)}
+            {tick(Q.x - 15, Q.y, 1, 0)}
+            <text x={Q.x - 21} y={(C1.y + Q.y) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">k</text>
+          </>
+        )}
+        {dimLine(Q.x, aDimY, QR.x, aDimY)}
+        {tick(Q.x, aDimY, 0, 1)}
+        {tick(QR.x, aDimY, 0, 1)}
+        <text x={(Q.x + QR.x) / 2} y={aDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        {j > 0 && (
+          <>
+            {dimLine(QR.x + 15, C2.y, QR.x + 15, QR.y)}
+            {tick(QR.x + 15, C2.y, 1, 0)}
+            {tick(QR.x + 15, QR.y, 1, 0)}
+            <text x={QR.x + 21} y={(C2.y + QR.y) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">j</text>
+          </>
+        )}
+        {dimLine(out.x1 + 15, out.y0, out.x1 + 15, out.y1)}
+        {tick(out.x1 + 15, out.y0, 1, 0)}
+        {tick(out.x1 + 15, out.y1, 1, 0)}
+        <text x={out.x1 + 21} y={(out.y0 + out.y1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">c</text>
+        {dimLine(out.x0, out.y0 - 15, out.x1, out.y0 - 15)}
+        {tick(out.x0, out.y0 - 15, 0, 1)}
+        {tick(out.x1, out.y0 - 15, 0, 1)}
+        <text x={(out.x0 + out.x1) / 2} y={out.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">i</text>
+
+        {/* ---- end view ---- */}
+        <path d={`M ${lo.x0} ${Math.max(loFl.y1, lo.y1)} L ${lo.x0} ${yBot} L ${lo.x1} ${yBot} L ${lo.x1} ${Math.max(loFl.y1, lo.y1)}`} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <line x1={topFl.x0} y1={topFl.y0} x2={topFl.x1} y2={topFl.y0} stroke={lineColor} strokeWidth={1.2} />
+        {vis(topFl.y0, topFl.y1).map(([s, e], k2) => (
+          <React.Fragment key={`tfl${k2}`}>
+            <line x1={topFl.x0} y1={s} x2={topFl.x0} y2={e} stroke={lineColor} strokeWidth={1.2} />
+            <line x1={topFl.x1} y1={s} x2={topFl.x1} y2={e} stroke={lineColor} strokeWidth={1.2} />
+          </React.Fragment>
+        ))}
+        {!hidden(topFl.y1) && <line x1={topFl.x0} y1={topFl.y1} x2={topFl.x1} y2={topFl.y1} stroke={lineColor} strokeWidth={1.2} />}
+        <line x1={top.x0} y1={top.y0} x2={top.x1} y2={top.y0} stroke={lineColor} strokeWidth={1.6} />
+        {vis(top.y0, top.y1).map(([s, e], k2) => (
+          <React.Fragment key={`top${k2}`}>
+            <line x1={top.x0} y1={s} x2={top.x0} y2={e} stroke={lineColor} strokeWidth={1.6} />
+            <line x1={top.x1} y1={s} x2={top.x1} y2={e} stroke={lineColor} strokeWidth={1.6} />
+          </React.Fragment>
+        ))}
+        {!hidden(top.y1) && <line x1={top.x0} y1={top.y1} x2={top.x1} y2={top.y1} stroke={lineColor} strokeWidth={1.6} />}
+        <rect x={loFl.x0} y={loFl.y0} width={loFl.x1 - loFl.x0} height={loFl.y1 - loFl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <rect x={lo.x0} y={lo.y0} width={lo.x1 - lo.x0} height={lo.y1 - lo.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {dimLine(lo.x0, bDimY, lo.x1, bDimY)}
+        {tick(lo.x0, bDimY, 0, 1)}
+        {tick(lo.x1, bDimY, 0, 1)}
+        <text x={(lo.x0 + lo.x1) / 2} y={bDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+      </g>
+    );
+  };
+
+  const renderRadiusTee = () => {
+    // TR4a port of Form1.cs `if (symbol == "TR4a")` (trójnik z odejściem łukowym). NOTE:
+    // Form1 reads the on-screen "a" from textBox5 and "b" from textBox4, so its local
+    // `a`/`b` are the other way round; the names here follow the labels. Side view on the
+    // left: the run (j long, d tall) enters from the left and curves down with radius g
+    // into the a-wide bottom outlet (i tall); the c-wide top outlet sits at the top right,
+    // its right wall running straight down to the bottom outlet and its left wall dropping
+    // onto the outer arc (radius g+d) that continues the run's top. End view on the right:
+    // the three b-wide openings stacked over the height L, each in its flange.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let c = Math.max(toInt(values[2] || 150), 1);
+    let d = Math.max(toInt(values[3] || 200), 1);
+    let l = Math.max(toInt(values[4] || 600), 1);
+    let g = Math.max(toInt(values[5] || 50), 0);
+    let i = Math.max(toInt(values[6] || 100), 1);
+    let j = Math.max(toInt(values[7] || 100), 1);
+
+    let p = 25;
+    let maxNorm = Math.max(a, b);
+    if (maxNorm > 1000) p = 30;
+    if (maxNorm > 2501) p = 40;
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+    if (i > maxNorm) maxNorm = i;
+    if (j > maxNorm) maxNorm = j;
+    if (c > maxNorm) maxNorm = c;
+    if (d > maxNorm) maxNorm = d;
+    if (a + j + g > maxNorm) maxNorm = a + j + g;
+    const mnoznik = 80;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); c = sc(c); d = sc(d); p = sc(p); i = sc(i); j = sc(j); g = sc(g); l = sc(l);
+    while (l < 70 && b < 100 && (a + j + g) < 100) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); c = toInt(c * 1.1); d = toInt(d * 1.1); p = toInt(p * 1.1);
+      i = toInt(i * 1.1); j = toInt(j * 1.1); g = toInt(g * 1.1); l = toInt(l * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+    if (g < 1) g = 1;
+    let pushX = 130 - a - g - j;
+    if (pushX < 0) pushX = -pushX;
+    const pushY = 90 - l;
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+
+    // ---- side view -------------------------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const yr = y0 + l - d - g - i;
+    const run = { x0: x0, y0: yr, x1: x0 + j, y1: yr + d };
+    const gc = { x: run.x1, y: run.y1 + g };
+    const low = { x0: run.x1 + g, y0: run.y1 + g, x1: run.x1 + g + a, y1: run.y1 + g + i };
+    const xR = low.x1;
+    const xq = xR - c;
+    const R = g + d;
+    const dx = xq - gc.x;
+    const onArc = R * R - dx * dx >= 0 && dx >= 0;
+    const yq = onArc ? gc.y - Math.sqrt(R * R - dx * dx) : gc.y;
+    const outerWall = onArc
+      ? `M ${run.x1} ${run.y0} A ${R} ${R} 0 0 1 ${xq} ${yq} L ${xq} ${y0}`
+      : `M ${run.x1} ${run.y0} A ${R} ${R} 0 0 1 ${gc.x + R} ${gc.y} L ${xq} ${gc.y} L ${xq} ${y0}`;
+    const outline = [
+      `M ${run.x1} ${run.y0} L ${run.x0} ${run.y0} L ${run.x0} ${run.y1} L ${run.x1} ${run.y1}`,
+      `A ${g} ${g} 0 0 1 ${low.x0} ${low.y0}`,
+      `L ${low.x0} ${low.y1} L ${low.x1} ${low.y1} L ${xR} ${y0} L ${xq} ${y0}`,
+    ].join(' ');
+    const lDimX = xR + 15;
+
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, lDimX + 14 + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const top = { y0: y0, y1: y0 + l - d - i - g - p };
+    const mid = { y0: y0 + l - d - g - i, y1: y0 + l - g - i };
+    const bot = { y0: mid.y1 + p, y1: y0 + l };
+    const bDimY = Math.min(y0 - 15, y0 - p - 8);
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={outline} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <path d={outerWall} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={run.x0} y1={run.y0 - p} x2={run.x0} y2={run.y1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={run.x0 + p} y1={run.y0} x2={run.x0 + p} y2={run.y1} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={low.x0 - p} y1={low.y1} x2={low.x1 + p} y2={low.y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={low.x0} y1={low.y1 - p} x2={low.x1} y2={low.y1 - p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={xq - p} y1={y0} x2={xR + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={xq} y1={y0 + p} x2={xR} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={gc.x} y1={gc.y} x2={gc.x + g} y2={gc.y - g} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={gc.x + g + 4} y={gc.y - g - 4} textAnchor="start" fontSize={10} fill="#555555">g</text>
+        {dimLine(run.x0, run.y0 - 15, run.x1, run.y0 - 15)}
+        {tick(run.x0, run.y0 - 15, 0, 1)}
+        {tick(run.x1, run.y0 - 15, 0, 1)}
+        <text x={(run.x0 + run.x1) / 2} y={run.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">j</text>
+        {dimLine(run.x0 - 15, run.y0, run.x0 - 15, run.y1)}
+        {tick(run.x0 - 15, run.y0, 1, 0)}
+        {tick(run.x0 - 15, run.y1, 1, 0)}
+        <text x={run.x0 - 21} y={(run.y0 + run.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">d</text>
+        {dimLine(low.x0, low.y1 + 15, low.x1, low.y1 + 15)}
+        {tick(low.x0, low.y1 + 15, 0, 1)}
+        {tick(low.x1, low.y1 + 15, 0, 1)}
+        <text x={(low.x0 + low.x1) / 2} y={low.y1 + 29} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        {dimLine(low.x0 - 15, low.y0, low.x0 - 15, low.y1)}
+        {tick(low.x0 - 15, low.y0, 1, 0)}
+        {tick(low.x0 - 15, low.y1, 1, 0)}
+        <text x={low.x0 - 21} y={(low.y0 + low.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">i</text>
+        {dimLine(xq, y0 - 15, xR, y0 - 15)}
+        {tick(xq, y0 - 15, 0, 1)}
+        {tick(xR, y0 - 15, 0, 1)}
+        <text x={(xq + xR) / 2} y={y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">c</text>
+        {dimLine(lDimX, y0, lDimX, y0 + l)}
+        {tick(lDimX, y0, 1, 0)}
+        {tick(lDimX, y0 + l, 1, 0)}
+        <text x={lDimX + 6} y={y0 + l / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">L</text>
+
+        {/* ---- end view ---- */}
+        <path d={`M ${sx} ${top.y1} L ${sx} ${top.y0} L ${sx + b} ${top.y0} L ${sx + b} ${top.y1}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={sx - p} y1={top.y0} x2={sx + b + p} y2={top.y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={sx} y1={top.y0 + p} x2={sx + b} y2={top.y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <rect x={sx} y={mid.y0} width={b} height={mid.y1 - mid.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <rect x={sx - p} y={mid.y0 - p} width={b + 2 * p} height={mid.y1 - mid.y0 + 2 * p} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <path d={`M ${sx} ${bot.y0} L ${sx} ${bot.y1} L ${sx + b} ${bot.y1} L ${sx + b} ${bot.y0}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={sx - p} y1={bot.y1} x2={sx + b + p} y2={bot.y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={sx} y1={bot.y1 - p} x2={sx + b} y2={bot.y1 - p} stroke={lineColor} strokeWidth={1.2} />
+        {dimLine(sx, bDimY, sx + b, bDimY)}
+        {tick(sx, bDimY, 0, 1)}
+        {tick(sx + b, bDimY, 0, 1)}
+        <text x={sx + b / 2} y={bDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+      </g>
+    );
+  };
+
+  const renderPortTee = () => {
+    // TR5a port of Form1.cs `if (symbol == "TR5a")` (trójnik portkowy). Side view on the
+    // left: the pants — two top openings (c and d wide, g apart, their stubs k tall, the
+    // left one starting h left of the bottom opening) meeting in a V and running down to
+    // the a-wide bottom opening (stub j tall). End view on the right: the e-wide top
+    // opening (k tall) tapering to the b-wide bottom opening (j tall) offset i to the left,
+    // L being the overall height.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 300), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let c = Math.max(toInt(values[2] || 150), 1);
+    let d = Math.max(toInt(values[3] || 150), 1);
+    let ee = Math.max(toInt(values[4] || 200), 1);
+    let l = Math.max(toInt(values[5] || 500), 1);
+    let h = toInt(values[6] ?? 0);
+    let g = Math.max(toInt(values[7] ?? 0), 0);
+    let i = toInt(values[8] ?? 0);
+    let j = Math.max(toInt(values[9] || 30), 1);
+    let k = Math.max(toInt(values[10] || 30), 1);
+
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+    let maxNorm = Math.max(a, b);
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+    if (Math.abs(h) + c + g + d > maxNorm) maxNorm = Math.abs(h) + c + g + d;
+    const mnoznik = 70;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); c = sc(c); d = sc(d); ee = sc(ee); j = sc(j); k = sc(k); l = sc(l); h = sc(h); i = sc(i); g = sc(g); p = sc(p);
+    while (l < 70 && (a + 20) < 90 && (b + 20) < 90) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); c = toInt(c * 1.1); d = toInt(d * 1.1); ee = toInt(ee * 1.1); j = toInt(j * 1.1);
+      k = toInt(k * 1.1); l = toInt(l * 1.1); h = toInt(h * 1.1); i = toInt(i * 1.1); g = toInt(g * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+    let pushX = 120 - a;
+    if (pushX < 0) pushX = 10;
+    let pushY = 80 - l;
+    if (pushY < 0) pushY = 10;
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+
+    // ---- side view (punkty2) ---------------------------------------------------
+    const x0 = 20 + pushX + Math.max(0, h + 15);
+    const y0 = 20 + pushY;
+    const yTop = y0 + k;             // where the top stubs meet the body
+    const yBot = y0 + l - j;         // where the bottom stub starts
+    const cL = x0 - h, cR = cL + c;
+    const dL = cR + g, dR = dL + d;
+    const aL = x0, aR = x0 + a;
+    const crotch = { x: cR + g / 2, y: yTop + (l - k - j) / 2 };
+    const body = `M ${cL} ${yTop} L ${aL} ${yBot} M ${dR} ${yTop} L ${aR} ${yBot} M ${cR} ${yTop} L ${crotch.x} ${crotch.y} L ${dL} ${yTop}`;
+    const stub = (xl: number, xr: number, yFrom: number, yTo: number) =>
+      `M ${xl} ${yFrom} L ${xl} ${yTo} L ${xr} ${yTo} L ${xr} ${yFrom}`;
+    const topDimY = Math.min(y0 - 15, y0 - p - 8);
+    const sideRight = Math.max(dR + p, aR + p) + 6;
+
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, sideRight + Math.max(0, i) + 20 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const eTop = { x0: sx, x1: sx + ee, y0: y0, y1: y0 + k };
+    const eBot = { x0: sx - i, x1: sx - i + b, y0: y0 + l - j, y1: y0 + l };
+    const lDimX = Math.max(eTop.x1, eBot.x1) + 15;
+    const botDimY = eBot.y1 + Math.max(15, p + 8);
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={body} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <path d={stub(cL, cR, yTop, y0)} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={cL - p} y1={y0} x2={cR + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={cL} y1={y0 + p} x2={cR} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <path d={stub(dL, dR, yTop, y0)} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={dL - p} y1={y0} x2={dR + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={dL} y1={y0 + p} x2={dR} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <path d={stub(aL, aR, yBot, y0 + l)} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={aL - p} y1={y0 + l} x2={aR + p} y2={y0 + l} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={aL} y1={y0 + l - p} x2={aR} y2={y0 + l - p} stroke={lineColor} strokeWidth={1.2} />
+        {/* a below; -h / c / g / d along one line above the top openings */}
+        {dimLine(aL, y0 + l + 15, aR, y0 + l + 15)}
+        {tick(aL, y0 + l + 15, 0, 1)}
+        {tick(aR, y0 + l + 15, 0, 1)}
+        <text x={(aL + aR) / 2} y={y0 + l + 29} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        {dimLine(Math.min(cL, aL), topDimY, dR, topDimY)}
+        {tick(cL, topDimY, 0, 1)}
+        {tick(aL, topDimY, 0, 1)}
+        {tick(cR, topDimY, 0, 1)}
+        {tick(dL, topDimY, 0, 1)}
+        {tick(dR, topDimY, 0, 1)}
+        {h !== 0 && <text x={(cL + aL) / 2} y={topDimY + 12} textAnchor="middle" fontSize={10} fill="#555555">-h</text>}
+        <text x={(cL + cR) / 2} y={topDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">c</text>
+        {g > 0 && <text x={(cR + dL) / 2} y={topDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">g</text>}
+        <text x={(dL + dR) / 2} y={topDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">d</text>
+
+        {/* ---- end view ---- */}
+        <path d={stub(eTop.x0, eTop.x1, eTop.y1, eTop.y0)} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={eTop.x0 - p} y1={eTop.y0} x2={eTop.x1 + p} y2={eTop.y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={eTop.x0} y1={eTop.y0 + p} x2={eTop.x1} y2={eTop.y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={eTop.x0} y1={eTop.y1} x2={eBot.x0} y2={eBot.y0} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={eTop.x1} y1={eTop.y1} x2={eBot.x1} y2={eBot.y0} stroke={lineColor} strokeWidth={1.6} />
+        <path d={stub(eBot.x0, eBot.x1, eBot.y0, eBot.y1)} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={eBot.x0 - p} y1={eBot.y1} x2={eBot.x1 + p} y2={eBot.y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={eBot.x0} y1={eBot.y1 - p} x2={eBot.x1} y2={eBot.y1 - p} stroke={lineColor} strokeWidth={1.2} />
+        {dimLine(eTop.x0, topDimY, eTop.x1, topDimY)}
+        {tick(eTop.x0, topDimY, 0, 1)}
+        {tick(eTop.x1, topDimY, 0, 1)}
+        <text x={(eTop.x0 + eTop.x1) / 2} y={topDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+        {dimLine(eTop.x0 - 15, eTop.y0, eTop.x0 - 15, eTop.y1)}
+        {tick(eTop.x0 - 15, eTop.y0, 1, 0)}
+        {tick(eTop.x0 - 15, eTop.y1, 1, 0)}
+        <text x={eTop.x0 - 21} y={(eTop.y0 + eTop.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">k</text>
+        {dimLine(eBot.x0 - 15, eBot.y0, eBot.x0 - 15, eBot.y1)}
+        {tick(eBot.x0 - 15, eBot.y0, 1, 0)}
+        {tick(eBot.x0 - 15, eBot.y1, 1, 0)}
+        <text x={eBot.x0 - 21} y={(eBot.y0 + eBot.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">j</text>
+        {dimLine(Math.min(eBot.x0, sx), botDimY, eBot.x1, botDimY)}
+        {tick(eBot.x0, botDimY, 0, 1)}
+        {tick(sx, botDimY, 0, 1)}
+        {tick(eBot.x1, botDimY, 0, 1)}
+        {i !== 0 && <text x={(eBot.x0 + sx) / 2} y={botDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">-i</text>}
+        <text x={(eBot.x0 + eBot.x1) / 2} y={botDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        {dimLine(lDimX, y0, lDimX, y0 + l)}
+        {tick(lDimX, y0, 1, 0)}
+        {tick(lDimX, y0 + l, 1, 0)}
+        <text x={lDimX + 6} y={y0 + l / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">L</text>
+      </g>
+    );
+  };
+
+
+  const renderAngledDuct = () => {
+    // QD1a port of Form1.cs `if (symbol == "QD1a")` (kanał prostokątny skośny). As for
+    // QD2a, Form1's local `a`/`b` are the other way round from the on-screen labels; the
+    // names here follow the labels. Side view on the left: the a-wide duct leaving its
+    // flange at alfa below the horizontal for a length L and cut off horizontally, the cut
+    // drawn e long; end view on the right: the b-wide opening (a·cos alfa tall) with the
+    // L·sin alfa drop below it and the cut drawn f wide.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let l = Math.max(toInt(values[2] || 500), 1);
+    let alfa = toInt(values[3] || 45);
+    if (alfa > 89) alfa = 89;
+    if (alfa < 1) alfa = 1;
+    let ee = Math.max(toInt(values[4] || 300), 1);
+    let f = Math.max(toInt(values[5] || 200), 1);
+    const A = (alfa * Math.PI) / 180;
+    const sin = Math.sin(A);
+    const cos = Math.cos(A);
+
+    let p = 25;
+    let maxNorm = Math.max(a, b);
+    if (ee > maxNorm) maxNorm = ee;
+    if (f > maxNorm) maxNorm = f;
+    if (l * sin + a * cos > maxNorm) maxNorm = l * sin + a * cos;
+    if (maxNorm > 1000) p = 30;
+    if (maxNorm > 2501) p = 40;
+    if (p > maxNorm) maxNorm = p;
+    if (toInt(a / sin) > maxNorm) maxNorm = toInt(a / sin);
+    const mnoznik = 50;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); p = sc(p); ee = sc(ee); f = sc(f); l = sc(l);
+    while (ee < 100 && b < 100 && f < 100 && toInt(a / sin) < 100) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); p = toInt(p * 1.1); f = toInt(f * 1.1); ee = toInt(ee * 1.1); l = toInt(l * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+    const pushX = 30;
+    const pushY = 15;
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+
+    // ---- side view (punkty2) ---------------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const aCos = toInt(a * cos);
+    const aSin = toInt(a * sin);
+    const lCos = toInt(l * cos);
+    const lSin = toInt(l * sin);
+    const cut = toInt(a / sin);
+    const P0 = { x: x0, y: y0 + aCos };
+    const P1 = { x: x0 + aSin, y: y0 };
+    const P3 = { x: x0 + lCos, y: y0 + aCos + lSin };
+    const P2 = { x: P3.x + cut, y: P3.y };
+    const u = { x: cos, y: sin };          // duct axis, from the flange down the duct
+    const n = { x: sin, y: -cos };         // along the flange face, P0 → P1
+    const cutLine = { x0: P3.x - toInt((ee - cut) / 2), x1: P2.x + toInt((ee - cut) / 2) };
+    const lDim = {
+      x1: P0.x - n.x * 15, y1: P0.y - n.y * 15,
+      x2: P3.x - n.x * 15, y2: P3.y - n.y * 15,
+    };
+    const aDim = {
+      x1: P0.x - u.x * 15, y1: P0.y - u.y * 15,
+      x2: P1.x - u.x * 15, y2: P1.y - u.y * 15,
+    };
+    const arcR = 20;
+    const arcEnd = { x: P2.x - arcR * cos, y: P2.y - arcR * sin };
+    const sideRight = Math.max(P2.x, cutLine.x1, P1.x + 6);
+
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, sideRight + 6 - (190 - p + pushX));
+    const ex0 = 190 + pushX + sectionShift;
+    const sec = { x0: ex0, y0: y0, x1: ex0 + b, y1: y0 + aCos };
+    const fl = { x0: sec.x0 - p, y0: sec.y0 - p, x1: sec.x1 + p, y1: sec.y1 + p };
+    const under = { top: Math.min(fl.y1, sec.y1 + lSin), bottom: sec.y1 + lSin };
+    const cutEnd = { x0: sec.x0 - toInt((f - b) / 2), x1: sec.x1 + toInt((f - b) / 2) };
+    const bDimY = Math.min(sec.y0 - 15, fl.y0 - 8);
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={`M ${P0.x} ${P0.y} L ${P1.x} ${P1.y} L ${P2.x} ${P2.y} L ${P3.x} ${P3.y} Z`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={P0.x - n.x * p} y1={P0.y - n.y * p} x2={P1.x + n.x * p} y2={P1.y + n.y * p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={P0.x + u.x * p} y1={P0.y + u.y * p} x2={P1.x + u.x * p} y2={P1.y + u.y * p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={cutLine.x0} y1={P3.y} x2={cutLine.x1} y2={P3.y} stroke={lineColor} strokeWidth={1.6} />
+        {dimLine(cutLine.x0, P3.y + 15, cutLine.x1, P3.y + 15)}
+        {tick(cutLine.x0, P3.y + 15, 0, 1)}
+        {tick(cutLine.x1, P3.y + 15, 0, 1)}
+        <text x={(cutLine.x0 + cutLine.x1) / 2} y={P3.y + 29} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+        {/* alfa: between the horizontal and the duct's wall at the cut's right corner */}
+        <path d={`M ${P2.x - arcR} ${P2.y} A ${arcR} ${arcR} 0 0 1 ${arcEnd.x} ${arcEnd.y}`} fill="none" stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={P2.x - arcR - 4} y={P2.y - 6} textAnchor="end" fontSize={10} fill="#555555">α</text>
+        {dimLine(lDim.x1, lDim.y1, lDim.x2, lDim.y2)}
+        {tick(lDim.x1, lDim.y1, n.x, n.y)}
+        {tick(lDim.x2, lDim.y2, n.x, n.y)}
+        <text x={(lDim.x1 + lDim.x2) / 2 - n.x * 9} y={(lDim.y1 + lDim.y2) / 2 - n.y * 9 + 4} textAnchor="middle" fontSize={10} fill="#555555">L</text>
+        {dimLine(aDim.x1, aDim.y1, aDim.x2, aDim.y2)}
+        {tick(aDim.x1, aDim.y1, u.x, u.y)}
+        {tick(aDim.x2, aDim.y2, u.x, u.y)}
+        <text x={(aDim.x1 + aDim.x2) / 2 - u.x * 9} y={(aDim.y1 + aDim.y2) / 2 - u.y * 9 + 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+
+        {/* ---- end view ---- */}
+        <path d={`M ${sec.x0} ${under.top} L ${sec.x0} ${under.bottom} L ${sec.x1} ${under.bottom} L ${sec.x1} ${under.top}`} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <line x1={cutEnd.x0} y1={under.bottom} x2={cutEnd.x1} y2={under.bottom} stroke={lineColor} strokeWidth={1.6} />
+        <rect x={fl.x0} y={fl.y0} width={fl.x1 - fl.x0} height={fl.y1 - fl.y0} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <rect x={sec.x0} y={sec.y0} width={sec.x1 - sec.x0} height={sec.y1 - sec.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        {dimLine(sec.x0, bDimY, sec.x1, bDimY)}
+        {tick(sec.x0, bDimY, 0, 1)}
+        {tick(sec.x1, bDimY, 0, 1)}
+        <text x={(sec.x0 + sec.x1) / 2} y={bDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        {dimLine(cutEnd.x0, under.bottom + 15, cutEnd.x1, under.bottom + 15)}
+        {tick(cutEnd.x0, under.bottom + 15, 0, 1)}
+        {tick(cutEnd.x1, under.bottom + 15, 0, 1)}
+        <text x={(cutEnd.x0 + cutEnd.x1) / 2} y={under.bottom + 29} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+      </g>
+    );
+  };
+
+
+  const renderPerpendicularDuct = () => {
+    // QD2a port of Form1.cs `if (symbol == "QD2a")` (kanał prostopadły). NOTE: Form1 reads
+    // the on-screen "a" from textBox5 and "b" from textBox4, so its local `a`/`b` are the
+    // other way round; the names here follow the on-screen labels. Side view on the left:
+    // an a-wide, L-tall duct hanging from its flange, its bottom line drawn e wide; end
+    // view on the right: the same duct b wide with its bottom line drawn f wide.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let l = Math.max(toInt(values[2] || 500), 1);
+    let ee = Math.max(toInt(values[3] || 200), 1);
+    let f = Math.max(toInt(values[4] || 200), 1);
+
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+    let maxNorm = Math.max(a, b);
+    if (ee > maxNorm) maxNorm = ee;
+    if (f > maxNorm) maxNorm = f;
+    if (l > maxNorm) maxNorm = l;
+    if (p > maxNorm) maxNorm = p;
+    const mnoznik = 70;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); ee = sc(ee); f = sc(f); l = sc(l); p = sc(p);
+    while (f < 110 && b < 110 && ee < 110 && a < 110 && l < 70) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); ee = toInt(ee * 1.1); f = toInt(f * 1.1); l = toInt(l * 1.1); p = toInt(p * 1.1);
+      if (a === 0 || b === 0 || l === 0) break;
+    }
+    let pushX = toInt((150 - ee) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - l) / 2) + 5;
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+    const y0 = 20 + pushY;
+    const y1 = y0 + l;
+    const sx0 = 20 + pushX;
+    const sx1 = sx0 + a;
+    const sBot = { x0: sx0 - toInt((ee - a) / 2), x1: sx1 + toInt((ee - a) / 2) };
+    const lDimX = Math.max(sx1, sBot.x1) + 15;
+    const sectionShift = Math.max(0, lDimX + 14 + 6 - (190 - p + pushX));
+    const ex0 = 190 + pushX + sectionShift;
+    const ex1 = ex0 + b;
+    const eBot = { x0: ex0 - toInt((f - b) / 2), x1: ex1 + toInt((f - b) / 2) };
+    const topDimY = Math.min(y0 - 15, y0 - p - 8);
+
+    const view = (x0: number, x1: number, bot: { x0: number; x1: number }, top: string, bottom: string) => (
+      <>
+        <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={x0 - p} y1={y0} x2={x1 + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={x0} y1={y0 + p} x2={x1} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={bot.x0} y1={y1} x2={bot.x1} y2={y1} stroke={lineColor} strokeWidth={1.6} />
+        {dimLine(x0, topDimY, x1, topDimY)}
+        {tick(x0, topDimY, 0, 1)}
+        {tick(x1, topDimY, 0, 1)}
+        <text x={(x0 + x1) / 2} y={topDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">{top}</text>
+        {dimLine(bot.x0, y1 + 15, bot.x1, y1 + 15)}
+        {tick(bot.x0, y1 + 15, 0, 1)}
+        {tick(bot.x1, y1 + 15, 0, 1)}
+        <text x={(bot.x0 + bot.x1) / 2} y={y1 + 29} textAnchor="middle" fontSize={10} fill="#555555">{bottom}</text>
+      </>
+    );
+
+    return (
+      <g>
+        {view(sx0, sx1, sBot, 'a', 'e')}
+        {dimLine(lDimX, y0, lDimX, y1)}
+        {tick(lDimX, y0, 1, 0)}
+        {tick(lDimX, y1, 1, 0)}
+        <text x={lDimX + 6} y={(y0 + y1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">L</text>
+        {view(ex0, ex1, eBot, 'b', 'f')}
+      </g>
+    );
+  };
+
+
+  const renderSkewTee = () => {
+    // TR7a port of Form1.cs `if (symbol == "TR7a")` (trójnik skośny). Side view on the
+    // left: the run (p long, h tall) enters from the left; its top wall blends with radius
+    // r up into the b-wide top outlet (i tall), its bottom wall with radius q down into the
+    // d-wide bottom outlet (j tall); a skew wall joins the top outlet's bottom-right corner
+    // to the bottom outlet's top-right corner, e being their horizontal offset. End view on
+    // the right: the three a-wide openings stacked, each in its flange.
+    const toInt = (v: number) => Math.trunc(v);
+    let a = Math.max(toInt(values[0] || 200), 1);
+    let b = Math.max(toInt(values[1] || 200), 1);
+    let d = Math.max(toInt(values[2] || 200), 1);
+    let h = Math.max(toInt(values[3] || 200), 1);
+    let ee = Math.max(toInt(values[4] || 150), 0);
+    let r = Math.max(toInt(values[5] || 50), 0);
+    let q = Math.max(toInt(values[6] || 50), 0);
+    let i = Math.max(toInt(values[7] || 100), 1);
+    let j = Math.max(toInt(values[8] || 100), 1);
+    let ps = Math.max(toInt(values[9] || 150), 1);
+
+    let p = 25;
+    let maxNorm = Math.max(a, b);
+    if (maxNorm > 1000) p = 30;
+    if (maxNorm > 2501) p = 40;
+    if (p > maxNorm) maxNorm = p;
+    if (i > maxNorm) maxNorm = i;
+    if (j > maxNorm) maxNorm = j;
+    if (d > maxNorm) maxNorm = d;
+    if (h + j + q + r + i > maxNorm) maxNorm = h + j + q + r + i;
+    if (ps + b + ee > maxNorm) maxNorm = ps + b + ee;
+    const mnoznik = 70;
+    const sc = (v: number) => toInt((v / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); d = sc(d); h = sc(h); i = sc(i); j = sc(j); ps = sc(ps); p = sc(p); q = sc(q); r = sc(r); ee = sc(ee);
+    while ((ps + b + ee) < 100 && (h + j + q + r + i) < 60) {
+      a = toInt(a * 1.1); b = toInt(b * 1.1); d = toInt(d * 1.1); h = toInt(h * 1.1); i = toInt(i * 1.1); j = toInt(j * 1.1);
+      ps = toInt(ps * 1.1); p = toInt(p * 1.1); q = toInt(q * 1.1); r = toInt(r * 1.1); ee = toInt(ee * 1.1);
+      if (a === 0 || b === 0 || h === 0) break;
+    }
+    if (q < 1) q = 1;
+    if (r < 1) r = 1;
+    let pushX = 130 - ps - b - ee;
+    if (pushX < 0) pushX = 10;
+    let pushY = 85 - i - r - h - q - j;
+    if (pushY < 0) pushY = 10;
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+
+    // ---- side view -------------------------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const run = { x0: x0, y0: y0 + i + r, x1: x0 + ps, y1: y0 + i + r + h };
+    const qc = { x: run.x1, y: run.y1 + q };
+    const low = { x0: run.x1 + q, y0: run.y1 + q, x1: run.x1 + q + d, y1: run.y1 + q + j };
+    const up = { x0: low.x1 - ee - b, y0: y0, x1: low.x1 - ee, y1: y0 + i };
+    const rc = { x: up.x0 - r, y: up.y1 };
+    const outline = [
+      `M ${run.x1} ${run.y0} L ${run.x0} ${run.y0} L ${run.x0} ${run.y1} L ${run.x1} ${run.y1}`,
+      `A ${q} ${q} 0 0 1 ${low.x0} ${low.y0}`,
+      `L ${low.x0} ${low.y1} L ${low.x1} ${low.y1} L ${low.x1} ${low.y0}`,
+      `L ${up.x1} ${up.y1} L ${up.x1} ${up.y0} L ${up.x0} ${up.y0} L ${up.x0} ${up.y1}`,
+      `A ${r} ${r} 0 0 1 ${rc.x} ${rc.y + r}`,
+      `L ${run.x1} ${run.y0}`,
+    ].join(' ');
+    const sideRight = Math.max(low.x1 + p, up.x1 + 15 + 14, up.x1 + ee);
+
+    // ---- end view --------------------------------------------------------------
+    const sectionShift = Math.max(0, sideRight + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const H = i + r + h + q + j;
+    const top = { y0: y0, y1: y0 + i + r - p };
+    const mid = { y0: y0 + i + r, y1: y0 + i + r + h };
+    const bot = { y0: mid.y1 + p, y1: y0 + H };
+    const aDimY = Math.min(y0 - 15, y0 - p - 8);
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <path d={outline} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={run.x0} y1={run.y0 - p} x2={run.x0} y2={run.y1 + p} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={run.x0 + p} y1={run.y0} x2={run.x0 + p} y2={run.y1} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={low.x0 - p} y1={low.y1} x2={low.x1 + p} y2={low.y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={low.x0} y1={low.y1 - p} x2={low.x1} y2={low.y1 - p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={up.x0 - p} y1={up.y0} x2={up.x1 + p} y2={up.y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={up.x0} y1={up.y0 + p} x2={up.x1} y2={up.y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        {/* q / r leaders */}
+        <line x1={qc.x} y1={qc.y} x2={qc.x + q} y2={qc.y - q} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={qc.x + q + 4} y={qc.y - q - 4} textAnchor="start" fontSize={10} fill="#555555">q</text>
+        <line x1={rc.x} y1={rc.y} x2={rc.x + r} y2={rc.y + r} stroke="#9b9b9b" strokeWidth={0.9} />
+        <text x={rc.x + r + 4} y={rc.y + r + 12} textAnchor="start" fontSize={10} fill="#555555">r</text>
+        {/* p (run length), h, d, j, i, b, e */}
+        {dimLine(run.x0, run.y0 - 15, run.x1, run.y0 - 15)}
+        {tick(run.x0, run.y0 - 15, 0, 1)}
+        {tick(run.x1, run.y0 - 15, 0, 1)}
+        <text x={(run.x0 + run.x1) / 2} y={run.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">p</text>
+        {dimLine(run.x0 - 15, run.y0, run.x0 - 15, run.y1)}
+        {tick(run.x0 - 15, run.y0, 1, 0)}
+        {tick(run.x0 - 15, run.y1, 1, 0)}
+        <text x={run.x0 - 21} y={(run.y0 + run.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">h</text>
+        {dimLine(low.x0, low.y1 + 15, low.x1, low.y1 + 15)}
+        {tick(low.x0, low.y1 + 15, 0, 1)}
+        {tick(low.x1, low.y1 + 15, 0, 1)}
+        <text x={(low.x0 + low.x1) / 2} y={low.y1 + 29} textAnchor="middle" fontSize={10} fill="#555555">d</text>
+        {dimLine(low.x0 - 15, low.y0, low.x0 - 15, low.y1)}
+        {tick(low.x0 - 15, low.y0, 1, 0)}
+        {tick(low.x0 - 15, low.y1, 1, 0)}
+        <text x={low.x0 - 21} y={(low.y0 + low.y1) / 2 + 4} textAnchor="end" fontSize={10} fill="#555555">j</text>
+        {dimLine(up.x1 + 15, up.y0, up.x1 + 15, up.y1)}
+        {tick(up.x1 + 15, up.y0, 1, 0)}
+        {tick(up.x1 + 15, up.y1, 1, 0)}
+        <text x={up.x1 + 21} y={(up.y0 + up.y1) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">i</text>
+        {dimLine(up.x0, up.y0 - 15, up.x1, up.y0 - 15)}
+        {tick(up.x0, up.y0 - 15, 0, 1)}
+        {tick(up.x1, up.y0 - 15, 0, 1)}
+        <text x={(up.x0 + up.x1) / 2} y={up.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        {ee > 0 && (
+          <>
+            {dimLine(up.x1, up.y0 - 15, low.x1, up.y0 - 15)}
+            {tick(low.x1, up.y0 - 15, 0, 1)}
+            <text x={(up.x1 + low.x1) / 2} y={up.y0 - 19} textAnchor="middle" fontSize={10} fill="#555555">e</text>
+          </>
+        )}
+
+        {/* ---- end view ---- */}
+        <path d={`M ${sx} ${top.y1} L ${sx} ${top.y0} L ${sx + a} ${top.y0} L ${sx + a} ${top.y1}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={sx - p} y1={top.y0} x2={sx + a + p} y2={top.y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={sx} y1={top.y0 + p} x2={sx + a} y2={top.y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <rect x={sx} y={mid.y0} width={a} height={mid.y1 - mid.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <rect x={sx - p} y={mid.y0 - p} width={a + 2 * p} height={mid.y1 - mid.y0 + 2 * p} fill="none" stroke={lineColor} strokeWidth={1.2} />
+        <path d={`M ${sx} ${bot.y0} L ${sx} ${bot.y1} L ${sx + a} ${bot.y1} L ${sx + a} ${bot.y0}`} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        <line x1={sx - p} y1={bot.y1} x2={sx + a + p} y2={bot.y1} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={sx} y1={bot.y1 - p} x2={sx + a} y2={bot.y1 - p} stroke={lineColor} strokeWidth={1.2} />
+        {dimLine(sx, aDimY, sx + a, aDimY)}
+        {tick(sx, aDimY, 0, 1)}
+        {tick(sx + a, aDimY, 0, 1)}
+        <text x={sx + a / 2} y={aDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+      </g>
+    );
+  };
+
+
+  const renderCoaxialLike = (round: boolean) => {
+    // Port of Form1.cs `if (symbol == "TR8a")` (trójnik skośny współosiowy, w×g branch) and
+    // `"TR9a"` (the same with a round d1 branch and separate i / j stubs). Side view on
+    // the left: a skewed transition from the c-wide top opening (stub i) to the a-wide
+    // bottom opening (stub j) whose right edge is m right of the top's; the branch leaves
+    // the left wall perpendicularly, e below the top stub, l3 long. End view on the right:
+    // the d-wide top opening to the b-wide bottom one, n back from the top's right edge,
+    // with the branch f from the bottom-left corner.
+    const toInt = (v: number) => Math.trunc(v);
+    const v = (k: number, dflt: number) => Math.max(toInt(values[k] || dflt), 1);
+    let a = v(0, 300), b = v(1, 200), c = v(2, 300), d = v(3, 200);
+    let w = round ? v(4, 150) : v(4, 150);
+    let g = round ? w : v(5, 150);
+    let l = round ? v(5, 600) : v(6, 600);
+    let l3 = round ? v(6, 150) : v(7, 150);
+    let m = round ? toInt(values[7] ?? 0) : toInt(values[8] ?? 0);
+    let n = round ? toInt(values[8] ?? 0) : toInt(values[9] ?? 0);
+    let ee = round ? v(9, 250) : v(10, 250);
+    let f = round ? v(10, 100) : v(11, 100);
+    let i = round ? v(11, 50) : v(12, 50);
+    let j = round ? v(12, 50) : i;
+
+    let p = 25;
+    if (l > 1000) p = 30;
+    if (l > 2501) p = 40;
+    let maxNorm = l;
+    if (c + m > maxNorm) maxNorm = c + m;
+    const mnoznik = 60;
+    const sc = (x: number) => toInt((x / maxNorm) * mnoznik);
+    a = sc(a); b = sc(b); c = sc(c); d = sc(d); w = sc(w); g = sc(g); l = sc(l); l3 = sc(l3);
+    m = sc(m); n = sc(n); ee = sc(ee); f = sc(f); i = sc(i); j = sc(j); p = sc(p);
+    let pushX = toInt(((110 - b) % 110) / 2);
+    if (pushX < 0) pushX = -pushX;
+    const pushY = toInt((90 - l) / 2);
+
+    const tick = (px: number, py: number, dx: number, dy: number) => (
+      <line x1={px - dx * 3} y1={py - dy * 3} x2={px + dx * 3} y2={py + dy * 3} stroke="#9b9b9b" strokeWidth={0.9} />
+    );
+
+    // ---- side view (punkty2) ---------------------------------------------------
+    const x0 = 20 + pushX;
+    const y0 = 20 + pushY;
+    const yBot = y0 + l;
+    const S0 = { x: x0, y: y0 + i };
+    const S1 = { x: x0 + c, y: y0 + i };
+    const S2 = { x: x0 + c + m, y: yBot - j };
+    const S3 = { x: x0 + c + m - a, y: yBot - j };
+    const alfa = Math.atan((c - a + m) / Math.max(l - i - j, 1));
+    const sinA = Math.sin(alfa);
+    const cosA = Math.cos(alfa);
+    const w1 = toInt(Math.cos(alfa) * w);
+    const wdir = { x: sinA, y: cosA };        // down the left wall
+    const nrm = { x: -cosA, y: sinA };        // out of the left wall
+    const wallX = (y: number) => S0.x + (y - S0.y) * Math.tan(alfa);
+    const p1 = { y: y0 + i + ee - w1 / 2, x: 0 };
+    p1.x = wallX(p1.y);
+    const p2 = { y: p1.y + w1, x: 0 };
+    p2.x = wallX(p2.y);
+    const p4 = { x: p1.x + nrm.x * l3, y: p1.y + nrm.y * l3 };
+    const p3 = { x: p2.x + nrm.x * l3, y: p2.y + nrm.y * l3 };
+    const sideRight = Math.max(S1.x, S2.x) + 20 + 14;
+    const topDimY = Math.min(y0 - 20, y0 - p - 8);
+    const botDimY = yBot + Math.max(20, p + 8);
+
+    // ---- end view (punkty) ---------------------------------------------------
+    const sectionShift = Math.max(0, sideRight + 6 - (190 - p + pushX));
+    const sx = 190 + pushX + sectionShift;
+    const T0 = { x: sx, y: y0 + i };
+    const T1 = { x: sx + d, y: y0 + i };
+    const B2 = { x: sx + d - n, y: yBot - j };
+    const B3 = { x: sx + d - n - b, y: yBot - j };
+    const brC = { x: B3.x + f, y: y0 + i + ee };
+    const br = { x0: brC.x - g / 2, y0: brC.y - w1 / 2, x1: brC.x + g / 2, y1: brC.y + w1 / 2 };
+    const lDimX = Math.max(B2.x, T1.x) + 15;
+    const gDimY = (round ? brC.y - w / 2 : br.y0 - p) - 10;
+
+    return (
+      <g>
+        {/* ---- side view ---- */}
+        <line x1={S0.x} y1={S0.y} x2={S3.x} y2={S3.y} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={S1.x} y1={S1.y} x2={S2.x} y2={S2.y} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={S0.x} y1={S0.y} x2={S0.x} y2={y0} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={S1.x} y1={S1.y} x2={S1.x} y2={y0} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={S0.x - p} y1={y0} x2={S1.x + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={S0.x} y1={y0 + p} x2={S1.x} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={S3.x} y1={S3.y} x2={S3.x} y2={yBot} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={S2.x} y1={S2.y} x2={S2.x} y2={yBot} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={S3.x - p} y1={yBot} x2={S2.x + p} y2={yBot} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={S3.x} y1={yBot - p} x2={S2.x} y2={yBot - p} stroke={lineColor} strokeWidth={1.2} />
+        {/* branch off the left wall */}
+        <line x1={p1.x} y1={p1.y} x2={p4.x} y2={p4.y} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={p2.x} y1={p2.y} x2={p3.x} y2={p3.y} stroke={lineColor} strokeWidth={1.6} />
+        {round ? (
+          <line x1={p4.x} y1={p4.y} x2={p3.x} y2={p3.y} stroke={lineColor} strokeWidth={1.4} />
+        ) : (
+          <>
+            <line x1={p4.x - wdir.x * p} y1={p4.y - wdir.y * p} x2={p3.x + wdir.x * p} y2={p3.y + wdir.y * p} stroke={lineColor} strokeWidth={1.4} />
+            <line x1={p4.x - nrm.x * p} y1={p4.y - nrm.y * p} x2={p3.x - nrm.x * p} y2={p3.y - nrm.y * p} stroke={lineColor} strokeWidth={1.2} />
+          </>
+        )}
+        {/* c, i, j, a, m, e, w/d1, l3 */}
+        {dimLine(S0.x, topDimY, S1.x, topDimY)}
+        {tick(S0.x, topDimY, 0, 1)}
+        {tick(S1.x, topDimY, 0, 1)}
+        <text x={(S0.x + S1.x) / 2} y={topDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">c</text>
+        {dimLine(S1.x + 20, y0, S1.x + 20, S1.y)}
+        {tick(S1.x + 20, y0, 1, 0)}
+        {tick(S1.x + 20, S1.y, 1, 0)}
+        <text x={S1.x + 26} y={(y0 + S1.y) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">{round ? 'i' : 'i=j'}</text>
+        {dimLine(S2.x + 20, S2.y, S2.x + 20, yBot)}
+        {tick(S2.x + 20, S2.y, 1, 0)}
+        {tick(S2.x + 20, yBot, 1, 0)}
+        <text x={S2.x + 26} y={(S2.y + yBot) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">{round ? 'j' : 'i=j'}</text>
+        {dimLine(S3.x, botDimY, S2.x, botDimY)}
+        {tick(S3.x, botDimY, 0, 1)}
+        {tick(S2.x, botDimY, 0, 1)}
+        <text x={(S3.x + S2.x) / 2} y={botDimY + 14} textAnchor="middle" fontSize={10} fill="#555555">a</text>
+        {m !== 0 && (
+          <>
+            {dimLine(S1.x, topDimY - 14, S2.x, topDimY - 14)}
+            {tick(S1.x, topDimY - 14, 0, 1)}
+            {tick(S2.x, topDimY - 14, 0, 1)}
+            <text x={(S1.x + S2.x) / 2} y={topDimY - 18} textAnchor="middle" fontSize={10} fill="#555555">m</text>
+          </>
+        )}
+        {dimLine(x0 + c / 2, S0.y, x0 + c / 2, S0.y + ee)}
+        {tick(x0 + c / 2, S0.y, 1, 0)}
+        {tick(x0 + c / 2, S0.y + ee, 1, 0)}
+        <text x={x0 + c / 2 + 6} y={S0.y + ee / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">e</text>
+        <text x={(p4.x + p3.x) / 2 + nrm.x * 12} y={(p4.y + p3.y) / 2 + nrm.y * 12 + 4} textAnchor="middle" fontSize={10} fill="#555555">{round ? 'd1' : 'w'}</text>
+        {dimLine(p2.x + wdir.x * 15, p2.y + wdir.y * 15, p3.x + wdir.x * 15, p3.y + wdir.y * 15)}
+        {tick(p2.x + wdir.x * 15, p2.y + wdir.y * 15, wdir.x, wdir.y)}
+        {tick(p3.x + wdir.x * 15, p3.y + wdir.y * 15, wdir.x, wdir.y)}
+        <text x={(p2.x + p3.x) / 2 + wdir.x * 24} y={(p2.y + p3.y) / 2 + wdir.y * 24 + 4} textAnchor="middle" fontSize={10} fill="#555555">l3</text>
+
+        {/* ---- end view ---- */}
+        <line x1={T0.x} y1={T0.y} x2={B3.x} y2={B3.y} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={T1.x} y1={T1.y} x2={B2.x} y2={B2.y} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={T0.x} y1={T0.y} x2={T0.x} y2={y0} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={T1.x} y1={T1.y} x2={T1.x} y2={y0} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={T0.x - p} y1={y0} x2={T1.x + p} y2={y0} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={T0.x} y1={y0 + p} x2={T1.x} y2={y0 + p} stroke={lineColor} strokeWidth={1.2} />
+        <line x1={B3.x} y1={B3.y} x2={B3.x} y2={yBot} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={B2.x} y1={B2.y} x2={B2.x} y2={yBot} stroke={lineColor} strokeWidth={1.6} />
+        <line x1={B3.x - p} y1={yBot} x2={B2.x + p} y2={yBot} stroke={lineColor} strokeWidth={1.4} />
+        <line x1={B3.x} y1={yBot - p} x2={B2.x} y2={yBot - p} stroke={lineColor} strokeWidth={1.2} />
+        {round ? (
+          <circle cx={brC.x} cy={brC.y} r={w / 2} fill="none" stroke={lineColor} strokeWidth={1.6} />
+        ) : (
+          <>
+            <rect x={br.x0} y={br.y0} width={br.x1 - br.x0} height={br.y1 - br.y0} fill="none" stroke={lineColor} strokeWidth={1.6} />
+            <rect x={br.x0 - p} y={br.y0 - p} width={br.x1 - br.x0 + 2 * p} height={br.y1 - br.y0 + 2 * p} fill="none" stroke={lineColor} strokeWidth={1.2} />
+          </>
+        )}
+        {dimLine(T0.x, topDimY, T1.x, topDimY)}
+        {tick(T0.x, topDimY, 0, 1)}
+        {tick(T1.x, topDimY, 0, 1)}
+        <text x={(T0.x + T1.x) / 2} y={topDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">d</text>
+        {dimLine(lDimX, y0, lDimX, yBot)}
+        {tick(lDimX, y0, 1, 0)}
+        {tick(lDimX, yBot, 1, 0)}
+        <text x={lDimX + 6} y={(y0 + yBot) / 2 + 4} textAnchor="start" fontSize={10} fill="#555555">l</text>
+        {dimLine(B3.x, botDimY, B3.x + f, botDimY)}
+        {tick(B3.x, botDimY, 0, 1)}
+        {tick(B3.x + f, botDimY, 0, 1)}
+        <text x={B3.x + f / 2} y={botDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">f</text>
+        {dimLine(B3.x, botDimY + 16, B2.x, botDimY + 16)}
+        {tick(B3.x, botDimY + 16, 0, 1)}
+        {tick(B2.x, botDimY + 16, 0, 1)}
+        <text x={(B3.x + B2.x) / 2} y={botDimY + 30} textAnchor="middle" fontSize={10} fill="#555555">b</text>
+        {n !== 0 && (
+          <>
+            {dimLine(B2.x, botDimY + 16, T1.x, botDimY + 16)}
+            {tick(T1.x, botDimY + 16, 0, 1)}
+            <text x={(B2.x + T1.x) / 2} y={botDimY + 30} textAnchor="middle" fontSize={10} fill="#555555">n</text>
+          </>
+        )}
+        {dimLine(brC.x - g / 2, gDimY, brC.x + g / 2, gDimY)}
+        {tick(brC.x - g / 2, gDimY, 0, 1)}
+        {tick(brC.x + g / 2, gDimY, 0, 1)}
+        <text x={brC.x} y={gDimY - 4} textAnchor="middle" fontSize={10} fill="#555555">{round ? 'd1' : 'g'}</text>
+      </g>
+    );
+  };
+
+
+  const renderCoaxialTee = () => renderCoaxialLike(true);
+
+
+  const renderCoaxialSkewTee = () => renderCoaxialLike(false);
+
 
   return (
     <div className="shape-diagram" style={backgroundColor ? { backgroundColor } : undefined}>
